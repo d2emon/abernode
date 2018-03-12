@@ -408,7 +408,7 @@ function ctime (t) { return 'CTIME(' + t + ')' }
 function time () { return 100 }
 function talker (user) { console.log('TALKER(' + user +')') }
 var qnmrq = 0
-var ttyt = 0
+// var ttyt = 0
 var namegt = ''
 var namegiv = 0
 
@@ -445,7 +445,7 @@ module.exports = function (args) {
       let r = args[1].toUpperCase()
       if (r[1] == 'N') {
         qnmrq = 1
-        ttyt = 0
+        // ttyt = 0
         namegt = args[1].slice(1)
         namegiv = 1
       } else {
