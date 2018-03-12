@@ -1,1 +1,7 @@
-console.log('Hello world')
+require('./install.js')
+console.log('-----------------')
+require('./install2.js')
+console.log('-----------------')
+require('./mud-1')
+console.log('-----------------')
+require('./mud-exe')

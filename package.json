@@ -9,5 +9,6 @@
   "scripts": {
     "start": "node src/index.js"
   },
-  "private": true
+  "private": true,
+  "dependencies": {}
 }
