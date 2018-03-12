@@ -1,0 +1,10 @@
+{
+  "name": "abernode",
+  "version": "0.1.0",
+  "description": "Node.js text RPG",
+  "main": "src/index.js",
+  "repository": "git@github.com:d2emon/abernode.git",
+  "author": "Dmitry Kutsenko <d2emonium@gmail.com>",
+  "license": "GPL-3.0",
+  "private": true
+}
