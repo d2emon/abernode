@@ -2,6 +2,7 @@
 const {
   EXE,
   NOLOGIN,
+  BAN_FILE,
   RESET_N,
   MOTD,
   HOST_MACHINE
@@ -10,6 +11,11 @@ const file = require('./file')
 
 function cuserid () { return 'CUSERID' }
 function cls () { console.log('CLS') }
+function getkbd () { return ' user USERuserUSERuserUSERuserUSERuserUSERuserUSER' }
+function any (ch, str) { return false }
+function scan (input, start, skips, stop) { return input }
+function validname (name) { return true }
+function logscan (uid, block) { return false }
 
 function listfl (name) { return new Promise((resolve, reject) => {
     let string = ''
@@ -25,6 +31,129 @@ function listfl (name) { return new Promise((resolve, reject) => {
     console.info('\n')
   })
 }
+
+var chkbnid = (user, name) => new Promise((resolve, reject) => {
+  /* Check to see if UID in banned list */
+  let b = ''
+  let c = user.toLowerCase()
+  let a = file.openlock(BAN_FILE, 'r+')
+  if (!a) resolve(name)
+  while (b = file.gets(79,a)) {
+    if (strchr(b,'\n')) strchr(b, '\n') = 0
+    b = b.toLowerCase()
+    if (b == user) {
+      reject('I\'m sorry- that userid has been banned from the Game\n')
+    }
+  }
+  file.close(a)
+  resolve(name)
+})
+
+function chkname(user) {
+  user = user.toLowerCase()
+  /*
+  let a = 0
+  while (user[a]) {
+    if (user[a] > 'z') {
+      user[a] = 0
+      return false
+    }
+    if (user[a] < 'a') {
+      user[a] = 0
+      return false
+    }
+    a++
+  }
+  user[0] -= 32
+  */
+  return true
+}
+
+/* Main login code */
+function logpass(uid) {
+  let block = ''
+  let a = logscan(uid, block)
+  let pwd = uid // save for new user
+  if (a) {
+    uid = scan(block, 0, '', '.')
+    let pwd = scan(block, uid + 1, '', '.')
+    let tries = 0
+    // pastry:
+    console.info('\nThis persona already exists, what is the password ?\n*')
+    file.flush('stdout')
+    gepass(block)
+    console.info('\n')
+    if (block != pwd) {
+      if (tries < 2) {
+        tries++
+        // goto pastry
+      } else throw Error('\nNo!\n\n')
+    }
+  } else {
+    /* this bit registers the new user */
+    console.info('Creating new persona...\n')
+    console.info('Give me a password for this persona\n')
+    // repass:
+    console.info('*')
+    file.flush('stdout')
+    gepass(block)
+    console.info('\n')
+    if (any('.', block)) {
+      console.info('Illegal character in password\n')
+      // goto repass
+    }
+    // if (!block) goto repass
+    uid = pwd
+    pwd = block
+    block = uid + '.' + pwd + '....'
+    let fl = file.openlock(PFL, 'a')
+    if (!fl) {
+      throw Error('No persona file....\n')
+    }
+	  qcrypt(block, lump, block.length())
+    block = lump
+    file.printf(fl, block + '\n')
+    file.close(fl)
+  }
+  cls()
+}
+
+var getusername = (name) => new Promise((resolve, reject) => {
+  name = name.slice(0, 15)
+  /**
+   * Check for legality of names
+   */
+  if (!name) reject()
+  if (any('.', name)) reject('Illegal characters in user name')
+  name = name.trim()
+  console.log(name)
+
+  name = scan(name, 0, ' ', '')
+  console.log(name)
+
+  if (!name) reject()
+  if (!chkname(name)) reject()
+  let dat = name // Gets name tidied up
+  let usrnam = name
+  if (!validname(usrnam)) reject('Bye Bye')
+  resolve(name)
+})
+
+var reaskusername = (name) => new Promise((resolve, reject) => {
+  let dat = ''
+  if (!logscan(dat, 'a')) {
+    /* If he/she doesnt exist */
+    reject('\nDid I get the name right ' + name + ' ?')
+    // let a = 'file.gets(79)'.toLowerCase()
+    // if (a[0] == 'n')  {
+    //   console.info('\n')
+    //   reject()
+    //   /* Check name */
+    // }
+  }
+  resolve(name)
+})
+
 
 module.exports = {
   /**
@@ -75,6 +204,8 @@ module.exports = {
     )
   }),
   motd: new Promise((resolve, reject) => {
+    console.log('So what?')
+    resolve(1)
     cls()
     /* list the message of the day */
     listfl(MOTD).then(
@@ -85,60 +216,46 @@ module.exports = {
       }
     )
   }),
-   /* Does all the login stuff */
-  login: user => new Promise((resolve, reject) => {
-    let namegiv = 0
-    
-    console.log('LOGIN')
-    console.log(user)
+  /* Does all the login stuff */
+  login: name => new Promise((resolve, reject) => {
     /* The whole login system is called from this */
-    let un1 = 0
 
-    let usermc = ''
-    let tim = ''
+    console.log('LOGIN')
+    console.log(name)
     /**
      * Check if banned first
      */
-    //    chkbnid(cuserid(NULL));
-    /**
-     * Get the user name
-     */
-    if (!namegiv) {
-      // rena:
-      console.log('By what name shall I call you ?\n*')
-      // getkbd(user,15)
-    } else {
-      user = namegt
-    }
-    /**
-     * Check for legality of names
-     */
-    namegiv = 0
-    // if (!strlen(user)) goto rena;
-    // if (any('.',user)>-1) crapup("\nIllegal characters in user name\n");
-    // trim(user);
-    // scan(user,user,0," ","");
-    // if (!strlen(user)) goto rena;
-    // chkname(user);
-    // if(!strlen(user)) goto rena;
-    // let dat = user /* Gets name tidied up */
-    // usrnam = user
-    // if (!validname(usrnam)) crapup("Bye Bye");
-    // if (logscan(dat,a)== -1)       /* If he/she doesnt exist */
-    // {
-    //   printf("\nDid I get the name right %s ?",user);
-    //   let a = ''
-    //   fgets(a,79,stdin);
-    //   lowercase(a);
-    //   let c=a[0];
-    //   if (c=='n')  {
-    //     printf("\n");
-    //     goto rena;  /* Check name */
-    //   }
-    // }
-    // logpass(user);        /* Password checking */
-    resolve(user)
+    chkbnid(cuserid(), name).then(response => {
+      /**
+       * Get the user name
+       */
+      console.log('NOT BANNED')
+      console.log(name)
+      if (!name.result) reject('By what name shall I call you ?\n*')
+      return getusername(name.result)
+    }).then(response => {
+      console.log(response)
+      return reaskusername(response)
+    }).then(response => {
+      console.log(name)
+      console.log(response)
+      logpass(response) // Password checking
+      resolve(response)
+    }).catch(error => {
+      reject(error)
+      // user = getkbd().slice(0, 15)
+    })
   }),
+  setusername: username => getusername(username).then(response => {
+    console.log(username)
+    console.log(response)
+    logpass(response) // Password checking
+    resolve(response)
+  }),
+  reaskusername: username => {
+    console.log(response)
+    return reaskusername(response)
+  },
   enter: user => new Promise((resolve, reject) => {
     console.log('Game entry by ' + user + ' : UID ' + cuserid())
     /* Log entry */ // syslog
