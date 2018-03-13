@@ -10,5 +10,7 @@
     "start": "node src/index.js"
   },
   "private": true,
-  "dependencies": {}
+  "dependencies": {
+    "moment": "^2.21.0"
+  }
 }

@@ -39,8 +39,17 @@ var inc = [
 
 console.log(inc)
 
-main(['mud.1'])
-main(['mud.1', 'username1'])
-main(['mud.1', '-username2'])
-main(['mud.1', '-Nusername3'])
+var commandlines = [
+  ['mud.1'],
+  ['mud.1', 'username1'],
+  ['mud.1', '-username2'],
+  ['mud.1', '-Nusername3']
+]
+
+commandlines.forEach(cmd => {
+  main(cmd, { user: 1, tty: 1, host: 'HOSTNAME' })
+  main(cmd, { user: 2, tty: 2, host: 'HOST_MACHINE' })
+  main(cmd, { user: 3, tty: 3, host: 'HOSTNAME' })
+  main(cmd, { user: 4, tty: 4, host: 'HOST_MACHINE' })
+})
 // crapup()

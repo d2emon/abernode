@@ -6,120 +6,67 @@
  * all the initialising pieces
  */
 
+const moment = require('moment')
 const proxy = require('../proxy')
-/*
-char lump[256];
-int namegiv=0;
-char namegt[80];
-int qnmrq=0;
-*/
 
-// char usrnam[44];
+// let lump = ''
+var namegiv = 0
+var namegt = ''
+var qnmrq = 0
 
-// Once
-function login (user) {
-/* The whole login system is called from this */
-/*
-    long un1;
-    char usermc[80],a[80],tim[80],dat[80],c;
-*/
-/*
- *
- *	Check if banned first
- *
- */    
-//    chkbnid(cuserid(NULL));
- /*
-  *	Get the user name
-  *
+// let usrnam = ''
+
+// var ttyt = 0
+
+function chkbnid(user){
+  /* Check to see if UID in banned list */
+  /*
+  FILE *a;
+  char b[80],c[40];
+  extern char *strchr();
+  strcpy(c,user);
+  lowercase(c);
+  a=openlock(BAN_FILE,"r+");
+  if(a==NULL) return(0);
+  while (fgets(b,79,a)!=0)
+     {
+     if(strchr(b,'\n')) *strchr(b,'\n')=0;
+     lowercase(b);
+     if (strcmp(b,user)==0)
+        {
+        crapup("I'm sorry- that userid has been banned from the Game\n");
+        }
+     }
+  fclose(a);
   */
-/*
- * if(!namegiv)
-       {
-       rena:printf("By what name shall I call you ?\n*");
-       getkbd(user,15);
-       }
-    else
-       strcpy(user,namegt);
-*/
-/*
- *	Check for legality of names
- *
- */
-/*
-    namegiv=0;
-    if (!strlen(user)) goto rena;
-    if (any('.',user)>-1) crapup("\nIllegal characters in user name\n");
-    trim(user);
-    scan(user,user,0," ","");
-    if (!strlen(user)) goto rena;
-    chkname(user);
-    if(!strlen(user)) goto rena;
-*/
-// strcpy(dat,user);             /* Gets name tidied up */
-//    strcpy(usrnam,user);
-//    if(!validname(usrnam)) crapup("Bye Bye");
-//    if (logscan(dat,a)== -1)       /* If he/she doesnt exist */
-//       {
-//       printf("\nDid I get the name right %s ?",user);
-//       fgets(a,79,stdin);lowercase(a);c=a[0];
-//       if (c=='n')  {printf("\n");goto rena;}  /* Check name */
-//       }
-//    logpass(user);        /* Password checking */
 }
 
-// int chkbnid(user)   /* Check to see if UID in banned list */
-/*
- * char *user;
-    {
-    FILE *a;
-    char b[80],c[40];
-    extern char *strchr();
-    strcpy(c,user);
-    lowercase(c);
-    a=openlock(BAN_FILE,"r+");
-    if(a==NULL) return(0);
-    while (fgets(b,79,a)!=0)
-       {
-       if(strchr(b,'\n')) *strchr(b,'\n')=0;
-       lowercase(b);
-       if (strcmp(b,user)==0)
-          {
-          crapup("I'm sorry- that userid has been banned from the Game\n");
-          }
-       }
-    fclose(a);
-    }
-*/
- 
-//long  logscan(uid,block)     /* Return block data for user or -1 if not exist */
-/*
- char *uid;
- char *block;
-    {
-    FILE *unit;
-    long f;
-    extern char lump[];
-    char wkng[128],wk2[128];
-    strcpy(wk2,uid);
-    unit=openlock(PFL,"r");f=0;
-    if(unit==NULL) crapup("No persona file\n");
-    while((f==0)&&(fgets(block,255,unit)!=0))
-       {
-       dcrypt(block,lump,strlen(block));
-       strcpy(block,lump);
-       scan(wkng,block,0,"",".");
-       if (strcmp(lowercase(wkng),lowercase(wk2))==0)f=1;
-       }
-    fclose(unit);
-    if (f==0) return(-1);
-    return(1);
+function logscan(uid, block){
+  /* Return block data for user or -1 if not exist */
+  /*
+      FILE *unit;
+      long f;
+      extern char lump[];
+      char wkng[128],wk2[128];
+      strcpy(wk2,uid);
+      unit=openlock(PFL,"r");f=0;
+      if(unit==NULL) crapup("No persona file\n");
+      while((f==0)&&(fgets(block,255,unit)!=0))
+         {
+         dcrypt(block,lump,strlen(block));
+         strcpy(block,lump);
+         scan(wkng,block,0,"",".");
+         if (strcmp(lowercase(wkng),lowercase(wk2))==0)f=1;
+         }
+      fclose(unit);
+      if (f==0) return(-1);
+      return(1);
+  */
 }
-*/ 
-//void logpass(uid)  /* Main login code */
+
+function logpass(uid) {
+  /* Main login code */
 /*
- * char *uid;
- {
     long a,tries,b;
     char pwd[32],sigf[128],pvs[32],block[128];
     FILE *fl;
@@ -163,7 +110,7 @@ function login (user) {
 	        strcpy(pwd,block);
 	        sprintf(block,"%s%s%s%s",uid,".",pwd,"....");
   	        fl=openlock(PFL,"a");
-	        if(fl==NULL) 
+	        if(fl==NULL)
  	        {
 			crapup("No persona file....\n");
 		        return;
@@ -174,17 +121,17 @@ function login (user) {
 	       fclose(fl);
        }
     cls();
-    }
- 
+*/
+}
 
- 
+/*
 void getunm(name)
  char *name;
     {
     printf("\nUser Name:");
     fgets(name,79,stdin);
     }
- 
+
 void showuser()
     {
     long a;
@@ -214,7 +161,7 @@ void showuser()
        }
     return(a);
     }
- 
+
 void deluser()
 {
     long a;
@@ -227,7 +174,7 @@ void deluser()
 	delu2(name);
     }
 }
- 
+
 void edituser()
     {
     long a;
@@ -252,7 +199,7 @@ void edituser()
     fprintf(fl,"%s\n",bk2);
     fclose(fl);
     }
- 
+
 void ed_fld(name,string)
  char *name,*string;
     {
@@ -296,8 +243,8 @@ void ed_fld(name,string)
     fclose(a);
     fclose(b);
     }
- 
-*/  
+
+*/
 // void chpwd(user)   /* Change your password */
 /*
  * char *user;
@@ -322,7 +269,7 @@ void ed_fld(name,string)
        gepass(pwd);
        printf("\n");
        if (!strlen(pwd)) goto chptagn;
-       if (strchr(pwd,',')) 
+       if (strchr(pwd,','))
 	{
 		printf("Illegal Character in password\n");
 		goto chptagn;
@@ -348,8 +295,8 @@ void ed_fld(name,string)
        printf("Changed\n");
    }
 }
- 
-*/ 
+
+*/
 // char *getkbd(s,l)   /* Getstr() with length limit and filter ctrl */
 /*
  * char *s;
@@ -374,8 +321,8 @@ void ed_fld(name,string)
 /*
  *		This is just a trap for debugging it should never get
  *		called.
- */ 
-/* 
+ */
+/*
 void bprintf()
 {
 	printf("EEK - A function has trapped via the bprintf call\n");
@@ -399,134 +346,92 @@ return(0);
 }
 */
 
+// login -> proxy
 // listfl -> proxy
 // chknolog -> proxy
 
 function getty () { console.log('GETTY') }
 function cls () { console.log('CLS') }
-function ctime (t) { return 'CTIME(' + t + ')' }
-function time () { return 100 }
 function talker (user) { console.log('TALKER(' + user +')') }
-var qnmrq = 0
-// var ttyt = 0
-var namegt = ''
-var namegiv = 0
 
-module.exports = function (args) {
+module.exports = function (args, userdata) {
   /* The initial routine */
   console.log('GMAIN2')
   console.log(args)
+  console.log(userdata)
 
-  /**
-   * Check we are running on the correct host
-   * see the notes about the use of flock();
-   * and the affects of lockf();
-   */
-  proxy.gethostname.then(
-    result => {
-      let b = [0, 0, 0]
-      /**
-       * Check if there is a no logins file active
-       */
+  Promise.all([
+    proxy.gethostname(userdata),
+    proxy.chknolog(userdata)
+  ]).then(
+    response => {
       console.info('\n\n\n\n')
-      return proxy.chknolog(result)
-    },
-    error => {
-      console.log(error)
-      throw Error(error)
-    }
-  ).then(resonse => {
-    if ((args.length == 2) && (args[1][0] == '-')) {
-      /**
-       * Now check the option entries
-       *
-       * -n(name)
-       */
-      let r = args[1].toUpperCase()
-      if (r[1] == 'N') {
-        qnmrq = 1
-        // ttyt = 0
-        namegt = args[1].slice(1)
-        namegiv = 1
+      console.log('ARGS')
+      console.log(userdata)
+      console.log(response)
+      console.log(args)
+      if ((args.length == 2) && (args[1][0] == '-')) {
+        /**
+         * Now check the option entries
+         * -n(name)
+         */
+        let r = args[1].toUpperCase()
+        if (r[1] == 'N') {
+          qnmrq = 1
+          // ttyt = 0
+          namegt = args[1].slice(1)
+          namegiv = 1
+        } else {
+          getty()
+        }
       } else {
         getty()
       }
-    } else {
-      getty()
+      /**
+       * Check for all the created at stuff
+       * We use stats for this which is a UN*X system call
+       */
+      if (!namegiv) {
+        Promise.all([
+          new Promise((resolve, reject) => {
+            proxy.created.then(
+              result => { resolve(result) },
+              error => { resolve('<unknown>') },
+            )
+          }),
+          proxy.reseted
+        ]).then(
+          response => {
+            cls()
+            console.info('\n' +
+              '                         A B E R  M U D\n')
+            console.info('\n' +
+              '                  By Alan Cox, Richard Acott Jim Finnis\n\n')
+            console.info('This AberMUD was created:' + response[0])
+            console.info('Game time elapsed: ' + moment(response[1]).fromNow())
+            return proxy.reseted
+          },
+          error => { throw Error (error) }
+        )
+      }
+      let user = ''
+      return proxy.login(user)
     }
-    let num = 0
-    /**
-     * Check for all the created at stuff
-     * 
-     * We use stats for this which is a UN*X system call
-     */
-    if (!namegiv) {
-      proxy.created.then(
-        result => {
-          console.log('RESOLVED')
-          // console.log(result)
-          return ctime(result.atime)
-        },
-        error => {
-          console.error(error)
-          return '<unknown>'
-        }
-      ).then(space => {
-        cls()
-        console.info('\n' +
-          '                         A B E R  M U D\n')
-        console.info('\n' +
-          '                  By Alan Cox, Richard Acott Jim Finnis\n\n')
-        console.info('This AberMUD was created:' + space)
-        return proxy.reseted
-      }).then(
-        result => {
-          let ct = time()
-          return ct - result
-        },
-        error => {
-          return false
-        },
-      ).then(r => {
-        if (!r) return
-        /**
-         * Elapsed time and similar goodies
-         */
-        if (r > 24 * 60 * 60) {
-          console.info('Game time elapsed: Over a day!!!\n') /* Add a Day ! */
-          // goto skip;
-        }		
-        console.info('Game time elapsed: ')
-        // if(r<61) goto ski2;
-        // if(r==60) {printf("1 minute\n");goto skip;};
-        // if(r<120){printf("1 minute and ");goto ski2;}
-        // if(r/60==60){printf("1 hour\n");goto skip;}
-        // if(r<3600) {printf("%d minutes and ",r/60);goto ski2;}
-        // if(r<7200) printf("1 hour and ");
-        // else
-        //   printf("%d hours and ",r/3600);
-        // if((r/60)%60!=1) printf("%d minutes.\n",(r/60)%60);
-        // else
-        //   printf("1 minute\n");
-        // goto skip;
-        // ski2:
-        // if(r%60==1) printf("1 second\n");
-        // else printf("%d seconds.\n",r%60);
-      })
-    } 
-    // skip:
-    login(response) /* Does all the login stuff */
-    if (!qnmrq) {
-      proxy.motd.then(
-        result => {}
-      )
+  ).then(
+    response => {
+      if (qnmrq) return 1
+      return proxy.motd
     }
-    return proxy.enter(response)
-  }).then(
-    result => {
-      talker(result) /* Run system */
-      console.info('Bye Bye') /* Exit */
-    },
-    error => { throw Error(error) }
+  ).then(
+    response => {
+      return proxy.enter(response)
+    }
+  ).then(
+    response => {
+      talker('user') // Run system
+      console.info('Bye Bye') // Exit
+    }
+  ).catch(
+    error => { console.log('ERROR:\t' + error) }
   )
 }
