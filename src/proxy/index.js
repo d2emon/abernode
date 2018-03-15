@@ -12,8 +12,7 @@ const {
 const file = require('./file')
 
 function cuserid () { return 'CUSERID' }
-function cls () { console.log('CLS') }
-function getkbd () { return ' user USERuserUSERuserUSERuserUSERuserUSERuserUSER' }
+// function getkbd () { return ' user USERuserUSERuserUSERuserUSERuserUSERuserUSER' }
 function any (ch, str) { return false }
 function scan (input, start, skips, stop) { return input }
 function validname (name) { return true }
@@ -21,23 +20,6 @@ function logscan (uid, block) { return false }
 function qcrypt(block, length) {
   console.log('QCRYPT(' + block + ', *"", ' + length + ')')
   return block
-}
-
-function listfl (name) { return new Promise((resolve, reject) => {
-    let string = ''
-    console.info('\n')
-    let unit = file.requestOpenRead(name, true)
-    if (!unit) {
-      reject('[Cannot Find -> ' + name + ']\n')
-    }
-    /*
-    while (string = file.requestReadLine(128)) {
-      console.info(string)
-    }
-    */
-    file.requestClose(unit)
-    console.info('\n')
-  })
 }
 
 
@@ -191,7 +173,7 @@ var username = vars => new Promise((resolve, reject) => {
     console.log(chalk.yellow(response))
     resolve(response)
   }).catch(error => {
-    console.error(chalk.red(error))
+    // console.error(chalk.red('Username Error:\t' + JSON.stringify(error)))
     reject(error)
   })
 })
@@ -243,27 +225,36 @@ var newuser = vars => new Promise((resolve, reject) => {
     return file.requestPrint(response, block + '\n')
   }).then(response => {
     file.requestClose(response)
+    resolve({
+      username: vars.username,
+      password: vars.password,
+      block: block,
+      pfl: response
+    })
+  }).catch(error => {
+    console.log(chalk.red('New User Error' + JSON.stringify(error)))
+    reject('No persona file....')
+  })
+})
+var listfl = (filename) => new Promise((resolve, reject) => {
+  file.requestOpenRead(filename, true).then(response => {
+    return file.requestReadLines(response)
+  }).then(response => {
     resolve(response)
   }).catch(error => {
-    console.log(chalk.red(error))
-    reject('No persona file....')
+    reject('[Cannot Find -> ' + filename + ']')
+  })
+})
+/* list the message of the day */
+var motd = vars => new Promise((resolve, reject) => {
+  listfl(MOTD).then(response => {
+    resolve(response)
+  }).catch(error => {
+    reject(error)
   })
 })
 
 module.exports = {
-  motd: () => new Promise((resolve, reject) => {
-    console.log('So what?')
-    resolve(1)
-    cls()
-    /* list the message of the day */
-    listfl(MOTD).then(
-      result => {
-        let space = file.gets(399)
-        console.info('\n\n')
-        resolve()
-      }
-    )
-  }),
   reaskusername: username => {
     console.log(response)
     return reaskusername(response)
@@ -282,6 +273,7 @@ module.exports = {
     if (addr == 'login') resolve(login(vars))
     if (addr == 'username') resolve(username(vars))
     if (addr == 'newuser') resolve(newuser(vars))
+    if (addr == 'motd') resolve(motd(vars))
     reject('Unknown addr "' + addr + '"')
   })
 }
