@@ -6,10 +6,10 @@ module.exports = {
   // QCRYPT
   // dcrypt
   cls: function () {
-    console.log(chalk.blue('-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-'))
-    console.log(chalk.blue('-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-'))
-    console.log(chalk.blue('-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-'))
-    console.log(chalk.blue('-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-'))
+    console.log(chalk.blue('-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-'))
+    for(let i = 0; i < 24; i++) {
+      console.log(chalk.blue(''))
+    }
   }
   // ttyt: 0,
   // function getty () { return false }
