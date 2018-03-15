@@ -7,6 +7,9 @@ console.log('obdat.js')
 console.log('flock.js')
 
 const readline = require('readline')
+const {
+  HOST_MACHINE
+} = require('../files')
 
 function crapup () {
   console.info('\nHit Return to Continue...')
@@ -55,7 +58,11 @@ commandlines.forEach(cmd => {
 })
 */
 
-main(['mud.1'], { uid: 1, tty: false, host: 'HOST_MACHINE' })
+main(['mud.1'], {
+  uid: 1,
+  username: '',
+  host: HOST_MACHINE
+})
 
 
 // crapup()

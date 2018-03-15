@@ -8,7 +8,7 @@ const {
   MOTD,
   PFL,
   HOST_MACHINE
-} = require('../mud-1/files.js')
+} = require('../files.js')
 const file = require('./file')
 
 function cuserid () { return 'CUSERID' }

@@ -134,7 +134,7 @@ var parseArgs = (args, userdata) => new Promise((resolve, reject) => {
     resolve(response)
   }).catch(error => {
     console.log(chalk.red(error))
-    resolve(userdata.tty)
+    resolve(userdata.username)
   })
 })
 var showSplash = username => new Promise((resolve, reject) => {

@@ -4,7 +4,7 @@ const chalk = require('chalk')
 const {
   NOLOGIN,
   RESET_N
-} = require('../mud-1/files')
+} = require('../files')
 
 
 var stat = () => new Promise((resolve, reject) => {
