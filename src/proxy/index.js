@@ -22,53 +22,30 @@ function qcrypt(block, length) {
   return block
 }
 
-
-function chkname(user) {
-  user = user.toLowerCase()
-  /*
-  let a = 0
-  while (user[a]) {
-    if (user[a] > 'z') {
-      user[a] = 0
-      return false
-    }
-    if (user[a] < 'a') {
-      user[a] = 0
-      return false
-    }
-    a++
-  }
-  user[0] -= 32
-  */
-  return true
-}
-
-var reaskusername = (name) => new Promise((resolve, reject) => {
-  let dat = ''
-  if (!logscan(dat, 'a')) {
-    /* If he/she doesnt exist */
-    reject('\nDid I get the name right ' + name + ' ?')
-    // let a = 'file.gets(79)'.toLowerCase()
-    // if (a[0] == 'n')  {
-    //   console.info('\n')
-    //   reject()
-    //   /* Check name */
-    // }
-  }
-  resolve(name)
+var listfl = (filename) => new Promise((resolve, reject) => {
+  file.requestOpenRead(filename, true).then(response => {
+    return file.requestReadLines(response)
+  }).then(response => {
+    resolve(response)
+  }).catch(error => {
+    reject('[Cannot Find -> ' + filename + ']')
+  })
 })
 
-// Requests
+function chkname(user) {
+  return /^[a-z]{3,8}$/.test(user.toLowerCase())
+}
+
 /**
  * Check we are running on the correct host
  * see the notes about the use of flock();
  * and the affects of lockf();
  */
-function testhost (host) {
-  if (host === HOST_MACHINE) return true
-  else throw Error('AberMUD is only available on ' + HOST_MACHINE +
-    ', not on ' + host + '\n')
-}
+var correctHost = host => new Promise((resolve, reject) => {
+  if (host === HOST_MACHINE) resolve(true)
+  else reject('AberMUD is only available on ' + HOST_MACHINE + ', not on ' +
+    host + '\n')
+})
 /**
  * Check if there is a no logins file active
  */
@@ -81,6 +58,128 @@ var chknolog = vars => new Promise((resolve, reject) => {
     resolve(true)
   })
 })
+var created_at = vars => new Promise((resolve, reject) => {
+  file.stat(EXE).then(response => {
+    resolve(response.atime)
+  }).catch(error => {
+    resolve('<unknown>')
+  })
+})
+var reset_at = vars => new Promise((resolve, reject) => {
+  let filedata = {}
+  file.requestOpenRead(RESET_N).then(response => {
+    filedata = response
+    return file.requestReadLine(response)
+  }).then(response => {
+    file.requestClose(filedata)
+    resolve(response)
+  }).catch(error => {
+    resolve(false)
+  })
+})
+
+var testUsername = user => new Promise((resolve, reject) => {
+  console.log('USER IS ' + JSON.stringify(user.username))
+  if (!user.username) reject('By what name shall I call you ?')
+  user.username = user.username.slice(0, 15)
+  /**
+   * Check for legality of names
+   */
+  if (!user.username) reject('By what name shall I call you ?')
+  if (any('.', user.username)) reject('Illegal characters in user name')
+  user.username = user.username.trim()
+  user.username = scan(user.username, 0, ' ', '')
+
+  if (!user.username) reject('By what name shall I call you ?')
+  if (!chkname(user.username)) reject('By what name shall I call you ?')
+  let usrnam = user.username
+  if (!validname(usrnam)) reject({ id: 5, msg: 'Bye Bye' })
+
+  resolve(true)
+  /*
+  // Password checking
+  logpass(user).then(response => {
+    console.log(chalk.magenta('LOGPASS\t') +
+      chalk.yellow(response))
+    resolve(response)
+  }).catch(error => {
+    // console.error(chalk.red('Username Error:\t' + JSON.stringify(error)))
+    reject(error)
+  })
+  */
+})
+
+var logEnter = user => new Promise((resolve, reject) => {
+  /* Log entry */
+  console.log(chalk.blue('Game entry by ' + user.username + ' : UID ' + user.uid)) // syslog
+  resolve(true)
+})
+var doTalker = vars => new Promise((resolve, reject) => {
+  console.log('TALKER(' + JSON.stringify(vars) + ')')
+  resolve(true)
+})
+
+// Requests
+var testHost = vars => new Promise((resolve, reject) => {
+  Promise.all([
+    correctHost(vars.host),
+    chknolog(vars)
+  ]).then(response => {
+    resolve(response)
+  }).catch(error => {
+    reject(error)
+  })
+})
+var stats = vars => new Promise((resolve, reject) => {
+  Promise.all([
+    created_at(vars),
+    reset_at(vars)
+  ]).then(response => {
+    resolve(response)
+  }).catch(error => {
+    reject(error)
+  })
+})
+/* Does all the login stuff */
+var login = vars => new Promise((resolve, reject) => {
+  /* The whole login system is called from this */
+  console.log(chalk.yellow('LOGGING IN AS ') + JSON.stringify(vars.username))
+  // Check if banned first
+  chkbnid(cuserid(), vars.username).then(response => {
+    // Get the user name
+    console.log(JSON.stringify(response) + chalk.yellow(' IS NOT BANNED'))
+    return testUsername({ username: response})
+  }).then(response => {
+    console.log(response)
+    resolve(response)
+  }).catch(error => {
+    reject({
+      username: true,
+      password: false,
+      error
+    })
+    // user = getkbd().slice(0, 15)
+  })
+})
+/* list the message of the day */
+var motd = vars => new Promise((resolve, reject) => {
+  listfl(MOTD).then(response => {
+    resolve(response)
+  }).catch(error => {
+    reject(error)
+  })
+})
+var talker = vars => new Promise((resolve, reject) => {
+  Promise.all([
+    logEnter(vars.user),
+    doTalker(vars.user)
+  ]).then(response => {
+    resolve(response)
+  }).catch(error => {
+    reject(error)
+  })
+})
+
 var chkbnid = (user, name) => new Promise((resolve, reject) => {
   /* Check to see if UID in banned list */
   let b = ''
@@ -102,81 +201,6 @@ var chkbnid = (user, name) => new Promise((resolve, reject) => {
   })
 })
 
-var created_at = vars => new Promise((resolve, reject) => {
-  file.stat(EXE).then(response => {
-    resolve(response.atime)
-  }).catch(error => {
-    resolve('<unknown>')
-  })
-})
-var reset_at = vars => new Promise((resolve, reject) => {
-  let filedata = {}
-  file.requestOpenRead(RESET_N).then(response => {
-    filedata = response
-    return file.requestReadLine(response)
-  }).then(response => {
-    file.requestClose(filedata)
-    resolve(response)
-  }).catch(error => {
-    resolve(false)
-  })
-})
-/* Does all the login stuff */
-var login = vars => new Promise((resolve, reject) => {
-  /* The whole login system is called from this */
-  console.log(chalk.yellow('LOGGING IN AS ') + JSON.stringify(vars.username))
-  /**
-   * Check if banned first
-   */
-  chkbnid(cuserid(), vars.username).then(response => {
-    /**
-     * Get the user name
-     */
-    console.log(JSON.stringify(response) + chalk.yellow(' IS NOT BANNED'))
-    if (!response) reject('By what name shall I call you ?\n*')
-    return username({ username: response })
-  }).then(response => {
-    console.log(response)
-    return reaskusername(response)
-  }).then(response => {
-    console.log(name)
-    console.log(response)
-    logpass(response) // Password checking
-    resolve(response)
-  }).catch(error => {
-    reject(error)
-    // user = getkbd().slice(0, 15)
-  })
-})
-var getusername = username => new Promise((resolve, reject) => {
-  username = username.slice(0, 15)
-  /**
-   * Check for legality of names
-   */
-  if (!username) reject({ id: 1, msg: '' })
-  if (any('.', username)) reject({ id: 2, msg: 'Illegal characters in user name' })
-  username = username.trim()
-  username = scan(username, 0, ' ', '')
-
-  if (!username) reject({ id: 1, msg: '' })
-  if (!chkname(username)) reject({ id: 1, msg: '' })
-  let dat = username // Gets name tidied up
-  let usrnam = username
-  if (!validname(usrnam)) reject({ id: 5, msg: 'Bye Bye' })
-  resolve(username)
-})
-var username = vars => new Promise((resolve, reject) => {
-  getusername(vars.username).then(response => {
-    console.log(chalk.yellow(response))
-    return logpass(response) // Password checking
-  }).then(response => {
-    console.log(chalk.yellow(response))
-    resolve(response)
-  }).catch(error => {
-    // console.error(chalk.red('Username Error:\t' + JSON.stringify(error)))
-    reject(error)
-  })
-})
 /* Main login code */
 var logpass = username => new Promise((resolve, reject) => {
   let block = ''
@@ -186,8 +210,12 @@ var logpass = username => new Promise((resolve, reject) => {
     username = scan(block, 0, '', '.')
     pwd = scan(block, username + 1, '', '.')
     let tries = 0
+    resolve({
+      new: false,
+      username:username,
+      msg: '\nThis persona already exists, what is the password ?\n*'
+    })
     // pastry:
-    console.info('\nThis persona already exists, what is the password ?\n*')
     file.flush('stdout')
     gepass(block)
     console.info('\n')
@@ -195,16 +223,15 @@ var logpass = username => new Promise((resolve, reject) => {
       if (tries < 2) {
         tries++
         // goto pastry
-      } else throw Error('\nNo!\n\n')
+      } else reject('\nNo!\n\n')
     }
   } else {
-    reject({
-      id: 10,
+    resolve({
+      new: true,
       username: username,
       msg: 'Creating new persona...'
     })
   }
-  cls()
 })
 var newuser = vars => new Promise((resolve, reject) => {
   if (any('.', vars.password)) {
@@ -214,7 +241,7 @@ var newuser = vars => new Promise((resolve, reject) => {
   if (!vars.password) reject('')
   let uid = vars.username
   let pwd = vars.password
-  let block = uid + '.' + pwd + '....'
+  let block = JSON.stringify(uid) + '.' + pwd + '....'
 
   console.log(chalk.yellow(JSON.stringify(vars)))
   console.log(chalk.yellow(block))
@@ -236,44 +263,18 @@ var newuser = vars => new Promise((resolve, reject) => {
     reject('No persona file....')
   })
 })
-var listfl = (filename) => new Promise((resolve, reject) => {
-  file.requestOpenRead(filename, true).then(response => {
-    return file.requestReadLines(response)
-  }).then(response => {
-    resolve(response)
-  }).catch(error => {
-    reject('[Cannot Find -> ' + filename + ']')
-  })
-})
-/* list the message of the day */
-var motd = vars => new Promise((resolve, reject) => {
-  listfl(MOTD).then(response => {
-    resolve(response)
-  }).catch(error => {
-    reject(error)
-  })
-})
 
 module.exports = {
-  reaskusername: username => {
-    console.log(response)
-    return reaskusername(response)
-  },
-  enter: user => new Promise((resolve, reject) => {
-    console.log('Game entry by ' + user + ' : UID ' + cuserid())
-    /* Log entry */ // syslog
-    resolve(user)
-  }),
   request: (addr, vars) => new Promise((resolve, reject) => {
-    console.log(chalk.blue(addr))
-    if (addr == 'testhost') resolve(testhost(vars.host))
-    if (addr == 'chknolog') resolve(chknolog(vars))
-    if (addr == 'created') resolve(created_at(vars))
-    if (addr == 'reseted') resolve(reset_at(vars))
+    console.log(chalk.blue(JSON.stringify(addr)))
+    if (addr == 'testhost') resolve(testHost(vars))
+    if (addr == 'stats') resolve(stats(vars))
     if (addr == 'login') resolve(login(vars))
-    if (addr == 'username') resolve(username(vars))
-    if (addr == 'newuser') resolve(newuser(vars))
     if (addr == 'motd') resolve(motd(vars))
+    if (addr == 'talker') resolve(talker(vars))
+
+    if (addr == 'username') resolve(testUsername(vars))
+    if (addr == 'newuser') resolve(newuser(vars))
     reject('Unknown addr "' + addr + '"')
   })
 }

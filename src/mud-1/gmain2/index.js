@@ -50,12 +50,30 @@ function analyseArgs(args){
   return args[1].slice(2)
 }
 
-function retryUser (resolve) {
+var askYN = prompt => new Promise((resolve, reject) => {
+  input(prompt).then(response => {
+    if (!response) reject(false)
+    if (response[0].toLowerCase() == 'n') reject(false)
+    resolve(true)
+  })
+})
+
+function retryUser (userdata, resolve) {
   input('*').then(response => {
-    console.log('\t' + chalk.blue(JSON.stringify(response)))
-    return proxy.request('username', { username: response })
+    userdata.username = response
+    return proxy.request('username', { username: userdata.username })
   }).then(response => {
-    return proxy.reaskusername(response)
+    cls()
+    console.log(JSON.stringify(userdata))
+    console.info(chalk.white('\nDid I get the name right ' + userdata.username + ' ?'))
+    return askYN('')
+  }).then(response => {
+    /* Check name */
+    return proxy.request('username', userdata)
+  }).then(response => {
+    console.log(JSON.stringify(response))
+    console.log(JSON.stringify(userdata))
+    return newUser(userdata)
   }).then(response => {
     resolve(response)
   }).catch(error => {
@@ -63,25 +81,13 @@ function retryUser (resolve) {
     console.log(chalk.red('USERNAME ERROR: ' + JSON.stringify(error)))
     console.log(chalk.red(error.id))
     console.log(error)
-    if (error.id == 10) {
-      newUser(error.username).then(response => {
-        resolve(response)
-      }).catch(error => {
-        console.log(chalk.red('USERNAME ERROR: ' + JSON.stringify(error)))
-        console.log(error)
-        setTimeout(() => {
-          retryUser(resolve)
-        }, 500)
-      })
-    } else {
-      setTimeout(() => {
-        retryUser(resolve)
-      }, 500)
-    }
+    setTimeout(() => {
+      retryUser(userdata, resolve)
+    }, 500)
   })
 }
 
-function retryPass (username, resolve) {
+function retryPass (user, resolve) {
   console.info(chalk.white('*'))
   fflush__stdout()
   let block = gepass()
@@ -89,7 +95,7 @@ function retryPass (username, resolve) {
   input('*').then(response => {
     console.info('\n')
     return proxy.request('newuser', {
-      username: username,
+      username: user.username,
       password: response
     })
   }).then(response => {
@@ -98,12 +104,11 @@ function retryPass (username, resolve) {
     console.log(chalk.red('PASSWORD ERROR: ' + JSON.stringify(error)))
     console.log(error)
     setTimeout(() => {
-      retryPass(username, resolve)
+      retryPass(user.username, resolve)
     }, 500)
   })
 }
 
-// Promises
 var input = prompt => new Promise((resolve, reject) => {
   const rl = readline.createInterface({
     input: process.stdin,
@@ -118,14 +123,9 @@ var input = prompt => new Promise((resolve, reject) => {
     rl.close()
     resolve(line)
   })
-  /*
-  }).on('close', () => {
-    rl.close()
-    console.log(chalk.red('Bye! Bye!'))
-    reject('Closed console')
-  })
-  */
 })
+
+// Promises
 /**
  * Now check the option entries
  * -n(name)
@@ -136,7 +136,7 @@ var parseArgs = (args, userdata) => new Promise((resolve, reject) => {
   }).then(response => {
     resolve(response)
   }).catch(error => {
-    console.log(chalk.yellow(error))
+    console.log(chalk.red(error))
     resolve(userdata.tty)
   })
 })
@@ -147,15 +147,10 @@ var showSplash = username => new Promise((resolve, reject) => {
    * Check for all the created at stuff
    * We use stats for this which is a UN*X system call
    */
-  Promise.all([
-    proxy.request('created', {}),
-    proxy.request('reseted', {})
-  ]).then(response => {
+  proxy.request('stats', {}).then(response => {
     let started = response[1] ? moment(response[1]).fromNow() : 'AberMUD ' +
       'has yet to ever start!!!'
 
-    console.log(chalk.magenta('RESPONSE'))
-    console.log(chalk.yellow(JSON.stringify(response)))
     cls()
     console.info(chalk.white('\n' +
       '                         A B E R  M U D\n'))
@@ -169,21 +164,26 @@ var showSplash = username => new Promise((resolve, reject) => {
     resolve('')
   })
 })
-var newUser = username => new Promise((resolve, reject) => {
-  /* this bit registers the new user */
-  console.info(chalk.white('Creating new persona...'))
-  console.info(chalk.white('Give me a password for this persona'))
-  console.info(chalk.red(JSON.stringify(username)))
-  retryPass(username, resolve)
-})
 var login = userdata => new Promise((resolve, reject) => {
-  console.log(chalk.magenta('Logging in as ') + chalk.yellow(userdata))
-  proxy.request('login', { username: userdata }).then(response => {
+  console.log(chalk.magenta('TRYING TO LOG IN AS ') +
+    chalk.yellow(JSON.stringify(userdata)))
+  proxy.request('login', userdata).then(response => {
     resolve(response)
   }).catch(error => {
-    console.log(chalk.white(error))
-    retryUser(resolve)
+    console.log(chalk.red(JSON.stringify(error)))
+    console.log(chalk.white(error.error))
+    retryUser(userdata, resolve)
   })
+})
+
+/* If he/she doesnt exist */
+var newUser = user => new Promise((resolve, reject) => {
+  cls()
+  console.info(chalk.white('Creating new persona...'))
+  console.info(chalk.white('Give me a password for this persona'))
+  console.info(chalk.red(JSON.stringify(user.username)))
+  /* this bit registers the new user */
+  retryPass(user.username, resolve)
 })
 /* list the message of the day */
 var showMotd = () => new Promise((resolve, reject) => {
@@ -200,21 +200,16 @@ var showMotd = () => new Promise((resolve, reject) => {
     resolve(true)
   })
 })
-var logEnter = user => new Promise((resolve, reject) => {
-  let space = cuserid()
-  syslog('Game entry by ' + JSON.stringify(user) + ' : UID ' + space) /* Log entry */
-})
 var talker = user => new Promise((resolve, reject) => {
-  console.log('TALKER(' + user +')')
-  resolve(1)
-
-  /*
-  console.log(response)
-  return Promise.all([
-    proxy.enter(response),
-    talker(response) // Run system
-  ])
-  */
+  user.uid = cuserid()
+  // Run system
+  proxy.request('talker', { user: user }).then(response => {
+    console.log(response)
+    resolve(response)
+  }).catch(error => {
+    console.log('ERROR:\t' + JSON.stringify(error))
+    reject(error)
+  })
 })
 
 module.exports = function (args, userdata) {
@@ -225,31 +220,25 @@ module.exports = function (args, userdata) {
   console.log(chalk.magenta('DATA\t') +
     chalk.yellow(JSON.stringify(userdata)))
   cls()
+  console.log('\n\n\n\n')
 
   var user = ''
-  console.log('\n\n\n\n')
   Promise.all([
     parseArgs(args, userdata),
-    proxy.request('testhost', { host: userdata.host }),
-    proxy.request('chknolog', {})
+    proxy.request('testhost', { host: userdata.host })
   ]).then(response => {
-    console.log(chalk.magenta('RESPONSE'))
-    console.log(chalk.yellow(JSON.stringify(response)))
-    console.log(chalk.magenta('USERNAME'))
-    console.log(chalk.yellow(response[0]))
+    console.log(chalk.magenta('RESPONSE\t') +
+      chalk.yellow(JSON.stringify(response)))
     return showSplash(response[0])
   }).then(response => {
-    console.log(chalk.magenta('RESPONSE'))
-    console.log(chalk.yellow(JSON.stringify(response)))
-    return login(response)
+    console.log(chalk.magenta('RESPONSE\t') +
+      chalk.yellow(JSON.stringify(response)))
+    return login({ username: response })
   }).then(response => {
     user = response
     return showMotd()
   }).then(response => {
-    return Promise.all([
-      logEnter(user),
-      talker(user) // Run system
-    ])
+    return talker(user) // Run system
   }).then(response => {
     console.info('Bye Bye') // Exit
   }).catch(error => {

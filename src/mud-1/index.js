@@ -55,7 +55,7 @@ commandlines.forEach(cmd => {
 })
 */
 
-main(['mud.1'], { user: 1, tty: 1, host: 'HOST_MACHINE' })
+main(['mud.1'], { user: 1, tty: false, host: 'HOST_MACHINE' })
 
 
 // crapup()
