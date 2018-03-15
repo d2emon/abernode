@@ -29,9 +29,8 @@ var MOTD = 'MOTD'
 var HOST_MACHINE = 'HOST_MACHINE'
 
 // Functions
-function listfl (filename) { console.log('LISTFL(' + filename + ')') }
+// listfl -> proxy
 function fgets (num, filename) { console.log('FGETS(' + num + ', ' + filename + ')') }
-function cuserid () { return 'CUSERID()' }
 function syslog (filename) { console.log('SYSLOG(' + filename + ')') }
 function fflush__stdout () { console.log('FFLUSH(STDOUT)') }
 function gepass () {
@@ -94,17 +93,15 @@ function retryPass (user, resolve) {
   console.log(chalk.yellow(block))
   input('*').then(response => {
     console.info('\n')
-    return proxy.request('newuser', {
-      username: user.username,
-      password: response
-    })
+    user.password = response
+    return proxy.request('newuser', user)
   }).then(response => {
     resolve(response)
   }).catch(error => {
     console.log(chalk.red('PASSWORD ERROR: ' + JSON.stringify(error)))
     console.log(error)
     setTimeout(() => {
-      retryPass(user.username, resolve)
+      retryPass(user, resolve)
     }, 500)
   })
 }
@@ -168,7 +165,8 @@ var login = userdata => new Promise((resolve, reject) => {
   console.log(chalk.magenta('TRYING TO LOG IN AS ') +
     chalk.yellow(JSON.stringify(userdata)))
   proxy.request('login', userdata).then(response => {
-    resolve(response)
+    userdata.response = response
+    resolve(userdata)
   }).catch(error => {
     console.log(chalk.red(JSON.stringify(error)))
     console.log(chalk.white(error.error))
@@ -183,7 +181,7 @@ var newUser = user => new Promise((resolve, reject) => {
   console.info(chalk.white('Give me a password for this persona'))
   console.info(chalk.red(JSON.stringify(user.username)))
   /* this bit registers the new user */
-  retryPass(user.username, resolve)
+  retryPass(user, resolve)
 })
 /* list the message of the day */
 var showMotd = () => new Promise((resolve, reject) => {
@@ -201,7 +199,6 @@ var showMotd = () => new Promise((resolve, reject) => {
   })
 })
 var talker = user => new Promise((resolve, reject) => {
-  user.uid = cuserid()
   // Run system
   proxy.request('talker', { user: user }).then(response => {
     console.log(response)
@@ -233,11 +230,13 @@ module.exports = function (args, userdata) {
   }).then(response => {
     console.log(chalk.magenta('RESPONSE\t') +
       chalk.yellow(JSON.stringify(response)))
-    return login({ username: response })
+    userdata.username = response
+    return login(userdata)
   }).then(response => {
     user = response
     return showMotd()
   }).then(response => {
+    console.log(user)
     return talker(user) // Run system
   }).then(response => {
     console.info('Bye Bye') // Exit

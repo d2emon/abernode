@@ -252,12 +252,9 @@ var newuser = vars => new Promise((resolve, reject) => {
     return file.requestPrint(response, block + '\n')
   }).then(response => {
     file.requestClose(response)
-    resolve({
-      username: vars.username,
-      password: vars.password,
-      block: block,
-      pfl: response
-    })
+    vars.block = block
+    vars.pfl = response
+    resolve(vars)
   }).catch(error => {
     console.log(chalk.red('New User Error' + JSON.stringify(error)))
     reject('No persona file....')
