@@ -36,48 +36,6 @@ function chkname(user) {
   return /^[a-z]{3,8}$/.test(user.toLowerCase())
 }
 
-/**
- * Check we are running on the correct host
- * see the notes about the use of flock();
- * and the affects of lockf();
- */
-var correctHost = host => new Promise((resolve, reject) => {
-  if (host === HOST_MACHINE) resolve(true)
-  else reject('AberMUD is only available on ' + HOST_MACHINE + ', not on ' +
-    host + '\n')
-})
-/**
- * Check if there is a no logins file active
- */
-var chknolog = vars => new Promise((resolve, reject) => {
-  file.requestOpenRead(NOLOGIN).then(response => {
-    return file.requestReadLines(response)
-  }).then(response => {
-    reject(response)
-  }).catch(error => {
-    resolve(true)
-  })
-})
-var created_at = vars => new Promise((resolve, reject) => {
-  file.stat(EXE).then(response => {
-    resolve(response.atime)
-  }).catch(error => {
-    resolve('<unknown>')
-  })
-})
-var reset_at = vars => new Promise((resolve, reject) => {
-  let filedata = {}
-  file.requestOpenRead(RESET_N).then(response => {
-    filedata = response
-    return file.requestReadLine(response)
-  }).then(response => {
-    file.requestClose(filedata)
-    resolve(response)
-  }).catch(error => {
-    resolve(false)
-  })
-})
-
 var testUsername = user => new Promise((resolve, reject) => {
   console.log('USER IS ' + JSON.stringify(user.username))
   if (!user.username) reject('By what name shall I call you ?')
@@ -120,26 +78,6 @@ var doTalker = vars => new Promise((resolve, reject) => {
 })
 
 // Requests
-var testHost = vars => new Promise((resolve, reject) => {
-  Promise.all([
-    correctHost(vars.host),
-    chknolog(vars)
-  ]).then(response => {
-    resolve(response)
-  }).catch(error => {
-    reject(error)
-  })
-})
-var stats = vars => new Promise((resolve, reject) => {
-  Promise.all([
-    created_at(vars),
-    reset_at(vars)
-  ]).then(response => {
-    resolve(response)
-  }).catch(error => {
-    reject(error)
-  })
-})
 /* Does all the login stuff */
 var login = vars => new Promise((resolve, reject) => {
   /* The whole login system is called from this */
@@ -263,9 +201,9 @@ var newuser = vars => new Promise((resolve, reject) => {
 
 module.exports = {
   request: (addr, vars) => new Promise((resolve, reject) => {
-    console.log(chalk.blue(JSON.stringify(addr)))
-    if (addr == 'testhost') resolve(testHost(vars))
-    if (addr == 'stats') resolve(stats(vars))
+    console.log('\t' + chalk.blue(JSON.stringify(addr)) + '\t' +
+      JSON.stringify(vars))
+
     if (addr == 'login') resolve(login(vars))
     if (addr == 'motd') resolve(motd(vars))
     if (addr == 'talker') resolve(talker(vars))

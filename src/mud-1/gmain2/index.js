@@ -6,6 +6,7 @@
  * all the initialising pieces
  */
 
+const axios = require('axios')
 const moment = require('moment')
 const chalk = require('chalk')
 const readline = require('readline')
@@ -16,6 +17,8 @@ const {
 const {
   gepass
 } = require('../../blib')
+
+const server = 'http://127.0.0.1:3000'
 
 var qnmrq = 0
 
@@ -142,21 +145,23 @@ var showSplash = username => new Promise((resolve, reject) => {
    * Check for all the created at stuff
    * We use stats for this which is a UN*X system call
    */
-  proxy.request('stats', {}).then(response => {
-    let started = response[1] ? moment(response[1]).fromNow() : 'AberMUD ' +
-      'has yet to ever start!!!'
+  axios.get(server + '/stats').then(response => {
+    let started = response.data.reset ? moment(response.data.reset).fromNow() :
+      'AberMUD has yet to ever start!!!'
 
     cls()
     console.info(chalk.white('\n' +
       '                         A B E R  M U D\n'))
     console.info(chalk.white('\n' +
       '                  By Alan Cox, Richard Acott Jim Finnis\n\n'))
-    console.info(chalk.white('This AberMUD was created: ' + response[0]))
+    console.info(chalk.white('This AberMUD was created: ' + response.data.created))
     console.info(chalk.white('Game time elapsed: ' + started))
-    resolve('')
+    resolve(username)
   }).catch(error => {
     console.error(chalk.red(error))
-    resolve('')
+    console.error(chalk.yellow(error.response.data.error))
+    // console.trace(error)
+    resolve(username)
   })
 })
 var login = userdata => new Promise((resolve, reject) => {
@@ -209,7 +214,6 @@ var talker = user => new Promise((resolve, reject) => {
 
 module.exports = function (args, userdata) {
   /* The initial routine */
-  console.log('GMAIN2')
   console.log(chalk.magenta('ARGS\t') +
     chalk.yellow(JSON.stringify(args)))
   console.log(chalk.magenta('DATA\t') +
@@ -218,13 +222,10 @@ module.exports = function (args, userdata) {
   console.log('\n\n\n\n')
 
   var user = ''
-  Promise.all([
-    parseArgs(args, userdata),
-    proxy.request('testhost', { host: userdata.host })
-  ]).then(response => {
+  parseArgs(args, userdata).then(response => {
     console.log(chalk.magenta('RESPONSE\tPARSE\t') +
       chalk.yellow(JSON.stringify(response)))
-    return showSplash(response[0])
+    return showSplash(response)
   }).then(response => {
     console.log(chalk.magenta('RESPONSE\tSPLASH\t') +
       chalk.yellow(JSON.stringify(response)))
