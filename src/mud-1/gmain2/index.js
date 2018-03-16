@@ -167,12 +167,15 @@ var showSplash = username => new Promise((resolve, reject) => {
 var login = userdata => new Promise((resolve, reject) => {
   console.log(chalk.magenta('TRYING TO LOG IN AS ') +
     chalk.yellow(JSON.stringify(userdata)))
-  proxy.request('login', userdata).then(response => {
+  axios.post(server + '/login', {
+    uid: userdata.uid,
+    username: userdata.username
+  }).then(response => {
     userdata.response = response
     resolve(userdata)
   }).catch(error => {
-    console.log(chalk.red(JSON.stringify(error)))
-    console.log(chalk.white(error.error))
+    console.log(chalk.red(error))
+    console.log(chalk.yellow(error.response.data.error))
     retryUser(userdata, resolve)
   })
 })

@@ -78,27 +78,6 @@ var doTalker = vars => new Promise((resolve, reject) => {
 })
 
 // Requests
-/* Does all the login stuff */
-var login = vars => new Promise((resolve, reject) => {
-  /* The whole login system is called from this */
-  console.log(chalk.yellow('LOGGING IN AS ') + JSON.stringify(vars.username))
-  // Check if banned first
-  chkbnid(cuserid(), vars.username).then(response => {
-    // Get the user name
-    console.log(JSON.stringify(response) + chalk.yellow(' IS NOT BANNED'))
-    return testUsername({ username: response})
-  }).then(response => {
-    console.log(response)
-    resolve(response)
-  }).catch(error => {
-    reject({
-      username: true,
-      password: false,
-      error
-    })
-    // user = getkbd().slice(0, 15)
-  })
-})
 /* list the message of the day */
 var motd = vars => new Promise((resolve, reject) => {
   listfl(MOTD).then(response => {
@@ -118,26 +97,6 @@ var talker = vars => new Promise((resolve, reject) => {
   })
 })
 
-var chkbnid = (user, name) => new Promise((resolve, reject) => {
-  /* Check to see if UID in banned list */
-  let b = ''
-  let c = user.toLowerCase()
-  file.requestOpenRead(BAN_FILE, true).then(response => {
-    return file.requestReadArray(response)
-  }).then(response => {
-    response.forEach(item => {
-      if (!item) return
-      item = item.toLowerCase()
-      if (item === user) {
-        reject('I\'m sorry- that userid has been banned from the Game\n')
-      }
-    })
-    resolve(name)
-  }).catch(error => {
-    console.log(chalk.yellow(error))
-    resolve(name)
-  })
-})
 
 /* Main login code */
 var logpass = username => new Promise((resolve, reject) => {
@@ -204,7 +163,6 @@ module.exports = {
     console.log('\t' + chalk.blue(JSON.stringify(addr)) + '\t' +
       JSON.stringify(vars))
 
-    if (addr == 'login') resolve(login(vars))
     if (addr == 'motd') resolve(motd(vars))
     if (addr == 'talker') resolve(talker(vars))
 
