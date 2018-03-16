@@ -2,13 +2,20 @@
 /**
  * B functions and utilities
  */
+function getpass () { return 'GETPASS' }
+function crypt (str, key) { return key + str + key }
+
 module.exports = {
   // lowercase -> srt.toLowerCase()
   // uppercase -> srt.toUpperCase()
   // trim -> srt.trim()
 
   // function any(ch,str)
-  // function gepass(str)
+  gepass: function (str) {
+    let key = getpass()
+    return crypt(key, 'XX')
+    return pw
+  },
   // function scan(out,in,start,skips,stops)
   // function getstr(file,st)
   // function addchar(str,ch)

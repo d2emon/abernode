@@ -207,10 +207,3 @@ void bprintf()
 	exit(0);
 }
 */
-
-// login -> proxy
-// listfl -> proxy
-// chknolog -> proxy
-// chkbnid -> proxy
-// chkname -> proxy
-// logpass -> proxy

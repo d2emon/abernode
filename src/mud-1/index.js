@@ -51,18 +51,22 @@ var commandlines = [
 ]
 
 commandlines.forEach(cmd => {
-  main(cmd, { user: 1, tty: 1, host: 'HOSTNAME' })
-  main(cmd, { user: 2, tty: 2, host: 'HOST_MACHINE' })
-  main(cmd, { user: 3, tty: 3, host: 'HOSTNAME' })
-  main(cmd, { user: 4, tty: 4, host: 'HOST_MACHINE' })
+  for (let i = 0; i < 4; i++) {
+    let host = (i % 2) ? 'HOSTNAME' : HOST_MACHINE
+    let username = (i == 3) ? 'USERNAME' : ''
+    main(cmd, {
+      uid: i,
+      username: username,
+      host: host
+    })
+  }
 })
 */
 
 main(['mud.1'], {
   uid: 1,
-  username: '',
+  username: 'username',
   host: HOST_MACHINE
 })
-
 
 // crapup()

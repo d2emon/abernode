@@ -13,31 +13,26 @@ const proxy = require('../../proxy')
 const {
   cls
 } = require('../gmainstubs')
+const {
+  gepass
+} = require('../../blib')
 
-const testPassword = 'passwordPASSWORD'
-
-// let lump = ''
-var namegt = ''
 var qnmrq = 0
 
+// let lump = ''
+// var namegt = ''
 // var namegiv = 0
 // let usrnam = ''
 // var ttyt = 0
 
-// Dummy vars
-var MOTD = 'MOTD'
-var HOST_MACHINE = 'HOST_MACHINE'
-
 // Functions
+// login -> proxy
 // listfl -> proxy
-function fgets (num, filename) { console.log('FGETS(' + num + ', ' + filename + ')') }
-function syslog (filename) { console.log('SYSLOG(' + filename + ')') }
+// chknolog -> proxy
+// chkbnid -> proxy
+// chkname -> proxy
+// logpass -> proxy
 function fflush__stdout () { console.log('FFLUSH(STDOUT)') }
-function gepass () {
-  console.log('GEPASS()')
-  console.log(chalk.cyan(testPassword))
-  return testPassword
-}
 
 function analyseArgs(args){
   if (args.length != 2) throw Error('Must recieve only 2 args')
@@ -138,7 +133,10 @@ var parseArgs = (args, userdata) => new Promise((resolve, reject) => {
   })
 })
 var showSplash = username => new Promise((resolve, reject) => {
-  if (username) resolve(username)
+  if (username) {
+    resolve(username)
+    return
+  }
 
   /**
    * Check for all the created at stuff
@@ -224,18 +222,22 @@ module.exports = function (args, userdata) {
     parseArgs(args, userdata),
     proxy.request('testhost', { host: userdata.host })
   ]).then(response => {
-    console.log(chalk.magenta('RESPONSE\t') +
+    console.log(chalk.magenta('RESPONSE\tPARSE\t') +
       chalk.yellow(JSON.stringify(response)))
     return showSplash(response[0])
   }).then(response => {
-    console.log(chalk.magenta('RESPONSE\t') +
+    console.log(chalk.magenta('RESPONSE\tSPLASH\t') +
       chalk.yellow(JSON.stringify(response)))
     userdata.username = response
     return login(userdata)
   }).then(response => {
+    console.log(chalk.magenta('RESPONSE\tLOGIN\t') +
+      chalk.yellow(JSON.stringify(response)))
     user = response
     return showMotd()
   }).then(response => {
+    console.log(chalk.magenta('RESPONSE\tMOTD\t') +
+      chalk.yellow(JSON.stringify(response)))
     console.log(user)
     return talker(user) // Run system
   }).then(response => {

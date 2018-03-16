@@ -15,11 +15,6 @@ char *str;
 
 void gepass(str)
 {
-	char key[33],pw[16];
-
-	strcpy(key,getpass(""));
-	strcpy(pw,crypt(key,"XX"));
-	strcpy(str,pw);
 }
 
 int scan(out,in,start,skips,stops)
