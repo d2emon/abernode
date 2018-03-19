@@ -50,37 +50,51 @@ function analyseArgs(args){
 var askYN = prompt => new Promise((resolve, reject) => {
   input(prompt).then(response => {
     if (!response) reject(false)
-    if (response[0].toLowerCase() == 'n') reject(false)
+    if (response[0].toLowerCase() == 'n') reject({
+      response: {
+        data: {
+          username: false,
+          password: false,
+          error: ''
+	}
+      }
+    })
     resolve(true)
   })
 })
 
 function retryUser (userdata, resolve) {
+  console.log(chalk.white('By what name shall I call you?'))
   input('*').then(response => {
     userdata.username = response
-    return proxy.request('username', { username: userdata.username })
+
+    /* Check name */
+    return axios.post(server + '/login', {
+      uid: userdata.uid,
+      username: userdata.username
+    })
   }).then(response => {
     cls()
     console.log(JSON.stringify(userdata))
     console.info(chalk.white('\nDid I get the name right ' + userdata.username + ' ?'))
     return askYN('')
   }).then(response => {
-    /* Check name */
-    return proxy.request('username', userdata)
-  }).then(response => {
+    console.log('YES')
     console.log(JSON.stringify(response))
     console.log(JSON.stringify(userdata))
     return newUser(userdata)
   }).then(response => {
     resolve(response)
   }).catch(error => {
-    console.log(chalk.red('SECOND LOGIN ERROR\t' + JSON.stringify(error)))
-    console.log(chalk.red('USERNAME ERROR: ' + JSON.stringify(error)))
-    console.log(chalk.red(error.id))
-    console.log(error)
+    console.log('NO')
+    console.log(chalk.red(error))
+    console.log(chalk.yellow(JSON.stringify(error.response.data)))
+    console.log(chalk.yellow(error.response.data.error))
+    userdata.username = null
     setTimeout(() => {
       retryUser(userdata, resolve)
     }, 500)
+    return
   })
 }
 
@@ -176,6 +190,7 @@ var login = userdata => new Promise((resolve, reject) => {
   }).catch(error => {
     console.log(chalk.red(error))
     console.log(chalk.yellow(error.response.data.error))
+    console.log(chalk.white(error.response.data.error))
     retryUser(userdata, resolve)
   })
 })

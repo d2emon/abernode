@@ -12,10 +12,9 @@ const {
 const file = require('./file')
 
 function cuserid () { return 'CUSERID' }
-// function getkbd () { return ' user USERuserUSERuserUSERuserUSERuserUSERuserUSER' }
-function any (ch, str) { return false }
-function scan (input, start, skips, stop) { return input }
-function validname (name) { return true }
+// function any (ch, str) { return false }
+// function scan (input, start, skips, stop) { return input }
+// function validname (name) { return true }
 function logscan (uid, block) { return false }
 function qcrypt(block, length) {
   console.log('QCRYPT(' + block + ', *"", ' + length + ')')
@@ -30,41 +29,6 @@ var listfl = (filename) => new Promise((resolve, reject) => {
   }).catch(error => {
     reject('[Cannot Find -> ' + filename + ']')
   })
-})
-
-function chkname(user) {
-  return /^[a-z]{3,8}$/.test(user.toLowerCase())
-}
-
-var testUsername = user => new Promise((resolve, reject) => {
-  console.log('USER IS ' + JSON.stringify(user.username))
-  if (!user.username) reject('By what name shall I call you ?')
-  user.username = user.username.slice(0, 15)
-  /**
-   * Check for legality of names
-   */
-  if (!user.username) reject('By what name shall I call you ?')
-  if (any('.', user.username)) reject('Illegal characters in user name')
-  user.username = user.username.trim()
-  user.username = scan(user.username, 0, ' ', '')
-
-  if (!user.username) reject('By what name shall I call you ?')
-  if (!chkname(user.username)) reject('By what name shall I call you ?')
-  let usrnam = user.username
-  if (!validname(usrnam)) reject({ id: 5, msg: 'Bye Bye' })
-
-  resolve(true)
-  /*
-  // Password checking
-  logpass(user).then(response => {
-    console.log(chalk.magenta('LOGPASS\t') +
-      chalk.yellow(response))
-    resolve(response)
-  }).catch(error => {
-    // console.error(chalk.red('Username Error:\t' + JSON.stringify(error)))
-    reject(error)
-  })
-  */
 })
 
 var logEnter = user => new Promise((resolve, reject) => {
@@ -166,7 +130,6 @@ module.exports = {
     if (addr == 'motd') resolve(motd(vars))
     if (addr == 'talker') resolve(talker(vars))
 
-    if (addr == 'username') resolve(testUsername(vars))
     if (addr == 'newuser') resolve(newuser(vars))
     reject('Unknown addr "' + addr + '"')
   })
