@@ -48,17 +48,21 @@ function analyseArgs(args){
 }
 
 var askYN = prompt => new Promise((resolve, reject) => {
-  input(prompt).then(response => {
-    if (!response) reject(false)
-    if (response[0].toLowerCase() == 'n') reject({
-      response: {
-        data: {
-          username: false,
-          password: false,
-          error: ''
-	}
+  let answer = {
+    response: {
+      data: {
+        username: false,
+        password: false,
+        error: ''
       }
-    })
+    }
+  }
+  input(prompt).then(response => {
+    if (!response) {
+      reject(answer)
+      return
+    }
+    if (response[0].toLowerCase() == 'n') reject(answer)
     resolve(true)
   })
 })
@@ -71,7 +75,8 @@ function retryUser (userdata, resolve) {
     /* Check name */
     return axios.post(server + '/login', {
       uid: userdata.uid,
-      username: userdata.username
+      username: userdata.username,
+      password: false
     })
   }).then(response => {
     cls()
@@ -79,17 +84,20 @@ function retryUser (userdata, resolve) {
     console.info(chalk.white('\nDid I get the name right ' + userdata.username + ' ?'))
     return askYN('')
   }).then(response => {
-    console.log('YES')
     console.log(JSON.stringify(response))
     console.log(JSON.stringify(userdata))
     return newUser(userdata)
   }).then(response => {
     resolve(response)
   }).catch(error => {
-    console.log('NO')
     console.log(chalk.red(error))
     console.log(chalk.yellow(JSON.stringify(error.response.data)))
     console.log(chalk.yellow(error.response.data.error))
+    if (error.response.data.username) {
+      console.log(chalk.blue('USERNAME IS ' + error.response.data.username))
+      resolve(error.response.data)
+      return
+    }
     userdata.username = null
     setTimeout(() => {
       retryUser(userdata, resolve)
@@ -106,7 +114,11 @@ function retryPass (user, resolve) {
   input('*').then(response => {
     console.info('\n')
     user.password = response
-    return proxy.request('newuser', user)
+    return axios.post(server + '/login', {
+      uid: user.uid,
+      username: user.username,
+      password: user.password
+    })
   }).then(response => {
     resolve(response)
   }).catch(error => {
@@ -186,6 +198,10 @@ var login = userdata => new Promise((resolve, reject) => {
     username: userdata.username
   }).then(response => {
     userdata.response = response
+    console.log(chalk.red('RESPONSE ') + JSON.stringify(response))
+    if (response.isNew) {
+      return newUser(userdata)
+    }
     resolve(userdata)
   }).catch(error => {
     console.log(chalk.red(error))

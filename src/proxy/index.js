@@ -94,33 +94,6 @@ var logpass = username => new Promise((resolve, reject) => {
     })
   }
 })
-var newuser = vars => new Promise((resolve, reject) => {
-  if (any('.', vars.password)) {
-    reject('Illegal character in password')
-    // goto repass
-  }
-  if (!vars.password) reject('')
-  let uid = vars.username
-  let pwd = vars.password
-  let block = JSON.stringify(uid) + '.' + pwd + '....'
-
-  console.log(chalk.yellow(JSON.stringify(vars)))
-  console.log(chalk.yellow(block))
-
-  file.requestOpenAppend(PFL, true).then(response => {
-    let lump = qcrypt(block, block.length)
-    block = lump
-    return file.requestPrint(response, block + '\n')
-  }).then(response => {
-    file.requestClose(response)
-    vars.block = block
-    vars.pfl = response
-    resolve(vars)
-  }).catch(error => {
-    console.log(chalk.red('New User Error' + JSON.stringify(error)))
-    reject('No persona file....')
-  })
-})
 
 module.exports = {
   request: (addr, vars) => new Promise((resolve, reject) => {
@@ -130,7 +103,6 @@ module.exports = {
     if (addr == 'motd') resolve(motd(vars))
     if (addr == 'talker') resolve(talker(vars))
 
-    if (addr == 'newuser') resolve(newuser(vars))
     reject('Unknown addr "' + addr + '"')
   })
 }
