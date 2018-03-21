@@ -6,24 +6,24 @@ function getpass () { return 'GETPASS' }
 function crypt (str, key) { return key + str + key }
 
 module.exports = {
-  // lowercase -> srt.toLowerCase()
-  // uppercase -> srt.toUpperCase()
-  // trim -> srt.trim()
+  // lowercase -> str.toLowerCase()
+  // uppercase -> str.toUpperCase()
+  // trim -> str.trim()
+  // any -> str.indexOf() >= 0
 
-  // function any(ch,str)
   gepass: function (str) {
     let key = getpass()
     return crypt(key, 'XX')
     return pw
   },
   // function scan(out,in,start,skips,stops)
-  // function getstr(file,st)
-  // function addchar(str,ch)
-  // function numarg(str)
-  // function sbar()
-  // function f_listfl(name,file)
-  // function sec_read(unit,block,pos,len)
-  // function sec_write(unit,block,pos,len)
+  // function getstr(file, st) -> unused
+  // function addchar(str, ch) -> str += ch
+  // function numarg(str) -> parseInt()
+  // function sbar() -> unused
+  // function f_listfl(name,file) -> unused
+  // function sec_read(unit,block,pos,len) -> unused
+  // function sec_write(unit,block,pos,len) -> unused
   cuserid: function () {
     /*
     	extern char *strchr();
