@@ -10,7 +10,6 @@ const axios = require('axios')
 const moment = require('moment')
 const chalk = require('chalk')
 const readline = require('readline')
-const proxy = require('../../proxy')
 const {
   cls
 } = require('../gmainstubs')
@@ -120,7 +119,7 @@ function retryPass (user, resolve) {
       password: user.password
     })
   }).then(response => {
-    resolve(response)
+    resolve(response.data)
   }).catch(error => {
     console.log(chalk.red('PASSWORD ERROR: ' + JSON.stringify(error)))
     console.log(error)
@@ -201,10 +200,10 @@ var login = userdata => new Promise((resolve, reject) => {
     console.log(chalk.red('RESPONSE ') + JSON.stringify(response))
     if (response.isNew) {
       return newUser(userdata)
+    } else {
+      resolve(userdata)
     }
-    resolve(userdata)
   }).catch(error => {
-    console.log(chalk.red(error))
     console.log(chalk.yellow(error.response.data.error))
     console.log(chalk.white(error.response.data.error))
     retryUser(userdata, resolve)
@@ -223,10 +222,10 @@ var newUser = user => new Promise((resolve, reject) => {
 /* list the message of the day */
 var showMotd = () => new Promise((resolve, reject) => {
   if (qnmrq) resolve(1)
-  proxy.request('motd', {}).then(response => {
+  axios.get(server + '/motd', {}).then(response => {
     cls()
     console.log('\n\n')
-    console.log(chalk.white(response))
+    console.log(chalk.white(response.data.motd))
     return input('')
   }).then(response => {
     resolve(true)
@@ -237,12 +236,13 @@ var showMotd = () => new Promise((resolve, reject) => {
 })
 var talker = user => new Promise((resolve, reject) => {
   // Run system
-  proxy.request('talker', { user: user }).then(response => {
-    console.log(response)
+  axios.post(server + '/main', { user: user }).then(response => {
+    console.log(response.data)
     resolve(response)
   }).catch(error => {
-    console.log('ERROR:\t' + JSON.stringify(error))
-    reject(error)
+    console.log(chalk.red(error))
+    console.log(chalk.yellow(JSON.stringify(error.response.data)))
+    reject(error.response.data)
   })
 })
 
@@ -266,6 +266,7 @@ module.exports = function (args, userdata) {
     userdata.username = response
     return login(userdata)
   }).then(response => {
+    console.log(response)
     console.log(chalk.magenta('RESPONSE\tLOGIN\t') +
       chalk.yellow(JSON.stringify(response)))
     user = response
