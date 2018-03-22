@@ -34,7 +34,6 @@ var qnmrq = 0
 // chkbnid -> proxy
 // chkname -> proxy
 // logpass -> proxy
-function fflush__stdout () { console.log('FFLUSH(STDOUT)') }
 
 function analyseArgs(args){
   if (args.length != 2) throw Error('Must recieve only 2 args')
@@ -79,13 +78,18 @@ function retryUser (userdata, resolve) {
     })
   }).then(response => {
     cls()
+    console.log(JSON.stringify(response.data))
     console.log(JSON.stringify(userdata))
-    console.info(chalk.white('\nDid I get the name right ' + userdata.username + ' ?'))
-    return askYN('')
-  }).then(response => {
-    console.log(JSON.stringify(response))
-    console.log(JSON.stringify(userdata))
-    return newUser(userdata)
+    if (response.data.isNew) {
+      return newUser(userdata)
+    } else {
+      console.info(chalk.white('\nThis persona already exists, what is the password?'))
+      console.log(response.data)
+      resolve(response.data)
+      setTimeout(() => {
+        retryPass(response.data, false, 3, resolve, null)
+      }, 500)
+    }
   }).then(response => {
     resolve(response)
   }).catch(error => {
@@ -105,9 +109,8 @@ function retryUser (userdata, resolve) {
   })
 }
 
-function retryPass (user, resolve) {
-  console.info(chalk.white('*'))
-  fflush__stdout()
+function retryPass (user, isNew, tries, resolve, reject) {
+  console.info(chalk.white('*') + tries)
   let block = gepass()
   console.log(chalk.yellow(block))
   input('*').then(response => {
@@ -121,10 +124,19 @@ function retryPass (user, resolve) {
   }).then(response => {
     resolve(response.data)
   }).catch(error => {
-    console.log(chalk.red('PASSWORD ERROR: ' + JSON.stringify(error)))
-    console.log(error)
+    console.log(chalk.red('PASSWORD ERROR: ' + error))
+    console.log(error.response.data)
+    console.log(user)
+    console.log({
+      uid: user.uid,
+      username: user.username,
+      password: user.password
+    })
+    if (tries <= 0) {
+      if (!isNew) throw new Error('No!')
+    }
     setTimeout(() => {
-      retryPass(user, resolve)
+      retryPass(user, isNew, tries - 1, resolve, reject)
     }, 500)
   })
 }
@@ -212,12 +224,17 @@ var login = userdata => new Promise((resolve, reject) => {
 
 /* If he/she doesnt exist */
 var newUser = user => new Promise((resolve, reject) => {
-  cls()
-  console.info(chalk.white('Creating new persona...'))
-  console.info(chalk.white('Give me a password for this persona'))
-  console.info(chalk.red(JSON.stringify(user.username)))
-  /* this bit registers the new user */
-  retryPass(user, resolve)
+  console.info(chalk.white('\nDid I get the name right ' + userdata.username + '?'))
+  askYN('').then(respose => {
+    cls()
+    console.info(chalk.white('Creating new persona...'))
+    console.info(chalk.white('Give me a password for this persona'))
+    console.info(chalk.red(JSON.stringify(user.username)))
+    /* this bit registers the new user */
+    retryPass(user, true, -1, resolve, reject)
+  }).catch(error => {
+    reject(error)
+  })
 })
 /* list the message of the day */
 var showMotd = () => new Promise((resolve, reject) => {
