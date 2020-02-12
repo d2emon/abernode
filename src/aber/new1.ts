@@ -1,3 +1,7 @@
+import {
+    bprintf,
+    sendsys,
+} from './__dummies';
 import State from "./state";
 import {getItem} from "./support";
 
@@ -220,31 +224,30 @@ break;
           return;
           }
     }
+    */
 
-
- wavecom()
-    {
-    extern long curch;
-    long a,b;
-    b=ohereandget(&a);
-    if(b==-1) return;
-    switch(a)
-       {
-       case 136:
-          if((state(151)==1)&&(oloc(151)==curch))
-             {
-             setstate(150,0);
-             bprintf("The drawbridge is lowered!\n");
-             return;
-             }
-break ;
-       case 158:
-          bprintf("You are teleported!\n");
-          teletrap(-114);
-          return;
-          }
-    bprintf("Nothing happens\n");
+const wavecom = (state: State): void => {
+    const [b, itemId] = ohereandget();
+    if (b === -1) {
+        return;
     }
+    const item = getItem(state, itemId);
+    if (item.itemId == 136) {
+        const item151 = getItem(state, 151);
+        if ((__state(state, item151.itemId) === 1) && item151.locationId === state.curch) {
+            setstate(state, 150, 0);
+            return bprintf(state, 'The drawbridge is lowered!\n');
+        }
+    } else if (item.itemId == 158) {
+        bprintf(state, 'You are teleported!\n');
+        teletrap(state, -114);
+        return;
+    }
+    bprintf(state, 'Nothing happens\n');
+};
+
+
+/*
 
  blowcom()
     {
@@ -1368,7 +1371,7 @@ const iswornby = (state: State, itemId: number, characterId: number): boolean =>
     if (!iscarrby(state, item.itemId, characterId)) {
         return false;
     }
-    if (item.carriedBy === undefined) {
+    if (item.heldBy === undefined) {
         return false;
     }
     return true;

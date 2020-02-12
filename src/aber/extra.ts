@@ -2,6 +2,7 @@ import {
     bprintf,
     brkword,
     desrm,
+    sendsys,
 } from './__dummies';
 import State from "./state";
 import {getItem, holdItem} from "./support";

@@ -1,3 +1,7 @@
+import {
+    bprintf,
+    sendsys,
+} from './__dummies';
 import State from "./state";
 import {getItem} from "./support";
 
@@ -125,7 +129,7 @@ const dircom = (state: State) => {
     }
     for (let itemId = 0; itemId < state.numobs; itemId += 1) {
         const item = getItem(state, itemId);
-        const [b, c] = findzone(state, oloc(state, item.itemId));
+        const [b, c] = findzone(state, item.locationId);
         let d = `${b}${c}`;
         if (item.heldBy !== undefined) {
             d += 'CARRIED';

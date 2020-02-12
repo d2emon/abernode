@@ -56,6 +56,10 @@ export const setItem = (state: State, itemId: number, newItem: {}): void => {
     }
 };
 
+export const putItem = (state: State, itemId: number, locationId: number): void => setItem(state, itemId, {
+    locationId,
+    carryFlag: LOCATED_IN,
+});
 export const holdItem = (state: State, itemId: number, characterId: number): void => setItem(state, itemId, {
     locationId: characterId,
     carryFlag: HELD_BY,

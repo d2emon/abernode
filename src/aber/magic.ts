@@ -1,5 +1,10 @@
+import {
+    bprintf,
+    brkword,
+    sendsys,
+} from './__dummies';
 import State from "./state";
-import {getItem} from "./support";
+import {getItem, holdItem, putItem} from "./support";
 
 /*
 #include <stdio.h>
@@ -33,15 +38,11 @@ const sumcom = (state: State): void => {
         }
         const item = getItem(state, itemId);
         const locationId = item.heldBy ? ploc(state, item.heldBy) : item.locationId;
-        let x = oloc(state, item.itemId);
-        if (item.heldBy === undefined) {
-            x = ploc(state, x);
-        }
         const ms = `[p name=\"${state.globme}\"] has summoned the ${oname(state, item.itemId)}[/p]\n`;
-        sendsys(state, state.globme, state.globme, -10000, x, ms);
+        sendsys(state, state.globme, state.globme, -10000, locationId, ms);
         bprintf(state, `The ${oname(state, item.itemId)} flies into your hand, was `);
-        desrm(state, oloc(state, item.itemId), item.carryFlag);
-        setoloc(state, item.itemId, 1);
+        desrm(state, item.locationId, item.carryFlag);
+        holdItem(state, item.itemId, state.mynum);
     };
 
     const willwork = (characterId): void => {
@@ -243,39 +244,25 @@ const sumcom = (state: State): void => {
     bprintf("Ok\n");
     sillycom("\001c%s vanishes!\n\001");
     }
+*/
 
- ressurcom()
-    {
-    extern long my_lev;
-    long bf[32];
-    extern long curch;
-    long a,b;
-    extern char wordbuf[];
-    if(my_lev<10)
-       {
-       bprintf("Huh ?\n");
-       return;
-       }
-    if(brkword()== -1)
-       {
-       bprintf("Yes but what ?\n");
-       return;
-       }
-    a=fobn(wordbuf);
-    if(a== -1)
-       {
-       bprintf("You can only ressurect objects\n");
-       return;
-       }
-    if(ospare(a)!= -1)
-       {
-       bprintf("That already exists\n");
-       return;
-       }
-    ocreate(a);
-    setoloc(a,curch,0);
-    sprintf(bf,"The %s suddenly appears\n",oname(a));
-    sendsys("","",-10000,curch,bf);
+const ressurcom = (state: State): void => {
+    if (state.my_lev < 10) {
+        return bprintf(state, 'Huh ?\n')
     }
-
- */
+    if (brkword(state) === -1) {
+        return bprintf(state, 'Yes but what ?\n')
+    }
+    const itemId = fobn(state, state.wordbuf);
+    const item = getItem(state, itemId);
+    if (item.itemId === -1) {
+        return bprintf(state, 'You can only ressurect objects\n')
+    }
+    if (ospare(state, item.itemId) !== -1) {
+        return bprintf(state, 'That already exists\n')
+    }
+    ocreate(state, item.itemId);
+    putItem(state, item.itemId, state.curch);
+    const bf = `The ${oname(state, item.itemId)} suddenly appears\n`;
+    sendsys(state, null, null, -10000, state.curch, bf);
+};
