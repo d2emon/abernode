@@ -1,9 +1,10 @@
 import {
     bprintf,
+    brkword,
     sendsys,
 } from './__dummies';
 import State from "./state";
-import {getItem} from "./support";
+import {Item, getItem, putItem, putItemIn} from "./support";
 
 /*
 struct player_res
@@ -22,11 +23,9 @@ typedef struct player_res PLAYER;
  Extensions section 1
  */
 /*
-#include <stdio.h>
 
 extern FILE * openuaf();
 extern FILE * openlock();
-extern char * oname();
 extern char * pname();
 extern FILE * openroom();
 extern char globme[];
@@ -257,144 +256,125 @@ const wavecom = (state: State): void => {
     if(b== -1) return;
     bprintf("You can't blow that\n");
     }
+*/
 
+const putcom = (state: State): Promise<void> => {
+    const [b, itemId] = ohereandget();
+    if (b === -1) {
+        return Promise.resolve();
+    }
+    if (brkword(state) === -1) {
+        bprintf(state, 'where ?\n');
+        return Promise.resolve();
+    }
+    if ((state.wordbuf === 'on') || (state.wordbuf === 'in')) {
+        if (brkword(state) === -1) {
+            bprintf(state, 'What ?\n');
+            return Promise.resolve();
+        }
+    }
+    return  Promise.all([
+        getItem(state, itemId),
+        getItem(state, fobna(state, state.wordbuf)),
+    ])
+        .then(([
+            item,
+            container,
+        ]) => {
+            if (container.itemId === -1) {
+                return bprintf(state, 'There isn\'t one of those here.\n');
+            }
+            if (container.itemId === 10) {
+                if ((item.itemId < 4) || (item.itemId > 6)) {
+                    return bprintf(state, 'You can\'t do that\n');
+                }
+                if (__state(state, container.itemId) !== 2) {
+                    return bprintf(state, 'There is already a candle in it!\n');
+                }
+                bprintf(state, 'The candle fixes firmly into the candlestick\n');
+                state.my_sco += 50;
+                destroy(state, item.itemId);
+                osetbyte(state, container.itemId, 1, item.itemId);
+                osetbit(state, container.itemId, 9);
+                osetbit(state, container.itemId, 10);
+                if (otstbit(state, item.itemId, 13)) {
+                    osetbit(state, container.itemId, 13);
+                    setstate(state, container.itemId, 0);
+                } else {
+                    setstate(state, container.itemId, 1);
+                    oclearbit(state, container.itemId, 13);
+                }
+            } else if (container.itemId === 137) {
+                if (__state(state, container.itemId) === 0) {
+                    return putItem(state, item.itemId, -162)
+                        .then(() => bprintf(state, 'ok\n'));
+                }
+                destroy(state, item.itemId);
+                bprintf(state, 'It dissappears with a fizzle into the slime\n');
+                if (item.itemId === 108) {
+                    bprintf(state, 'The soap dissolves the slime away!\n');
+                    setstate(state, container.itemId, 0)
+                }
+                return;
+            } else if (container.itemId === 193) {
+                bprintf(state, 'You can\'t do that, the chute leads up from here!\n');
+                return;
+            } else if (container.itemId === 192) {
+                if (item.itemId === 32) {
+                    bprintf(state, 'You can\'t let go of it!\n');
+                    return;
+                }
+                return getItem(state, 193)
+                    .then((chute) => {
+                        bprintf(state, 'It vanishes down the chute....\n');
+                        const ar = `The ${item.name} comes out of the chute!\n`;
+                        sendsys(state, null, null, -10000, chute.locationId, ar);
+                        return putItem(state, item.itemId, chute.locationId);
+                    });
+            } else if (container.itemId === 23) {
+                if ((item.itemId === 19) && (__state(state, 21) === 1)) {
+                    bprintf(state, 'The door clicks open!\n');
+                    setstate(state, 20, 0);
+                    return;
+                }
+                return bprintf(state, 'Nothing happens\n');
+            } else if (container.itemId === item.itemId) {
+                return bprintf(state, 'What do you think this is, the goon show ?\n');
+            }
 
- putcom()
-    {
-    long a,b;
-    extern long my_sco;
-    char ar[128];
-    extern char wordbuf[];
-    extern long curch;
-    long c;
-    b=ohereandget(&a);
-    if(b== -1) return;
-    if(brkword()== -1)
-       {
-       bprintf("where ?\n");
-       return;
-       }
-    if((!strcmp(wordbuf,"on"))||(!strcmp(wordbuf,"in")))
-       {
-       if(brkword()== -1)
-          {
-          bprintf("What ?\n");
-          return;
-          }
-       }
-    c=fobna(wordbuf);
-    if(c== -1)
-       {
-       bprintf("There isn't one of those here.\n");
-       return;
-       }
-    if(c==10)
-       {
-       if((a<4)||(a>6))
-          {
-          bprintf("You can't do that\n");
-          return;
-          }
-       if(state(10)!=2)
-          {
-          bprintf("There is already a candle in it!\n");
-          return;
-          }
-       bprintf("The candle fixes firmly into the candlestick\n");
-       my_sco+=50;
-       destroy(a);
-       osetbyte(10,1,a);
-       osetbit(10,9);
-       osetbit(10,10);
-       if(otstbit(a,13))
-          {
-          osetbit(10,13);
-          setstate(10,0);
-          return;
-          }
-       else
-          {
-          setstate(10,1);
-          oclearbit(10,13);
-          }
-       return;
-       }
-    if(c==137)
-       {
-       if(state(c)==0)
-          {
-          setoloc(a,-162,0);
-          bprintf("ok\n");
-	  return;
-          }
-       destroy(a);
-       bprintf("It dissappears with a fizzle into the slime\n");
-       if(a==108)
-          {
-          bprintf("The soap dissolves the slime away!\n");
-          setstate(137,0);
-          }
-       return;
-       }
-    if(c==193)
-	{
-		bprintf("You can't do that, the chute leads up from here!\n");
-		return;
-	}
-    if(c==192)
-    {
-    	if(a==32)
-    	{
-    		bprintf("You can't let go of it!\n");
-    		return;
-    	}
-    	bprintf("It vanishes down the chute....\n");
-    	sprintf(ar,"The %s comes out of the chute!\n",oname(a));
-    	sendsys("","",-10000,oloc(193),ar);
-    	setoloc(a,oloc(193),0);
-    	return;
-    }
+            if (!otstbit(state, container.itemId, 14)) {
+                return bprintf(state, 'You can\'t do that\n');
+            }
+            if (__state(state, container.itemId) !== 0) {
+                return bprintf(state, 'That\'s not open\n');
+            }
+            if (item.flannel) {
+                return bprintf(state, 'You can\'t take that !\n');
+            }
+            if (dragget(state)) {
+                return;
+            }
+            if (item.itemId === 32) {
+                return bprintf(state, 'You can\'t let go of it!\n');
+            }
 
-    if(c==23)
-       {
-       if((a==19)&&(state(21)==1))
-          {
-          bprintf("The door clicks open!\n");
-          setstate(20,0);
-          return;
-          }
-       bprintf("Nothing happens\n");
-       return;
-       }
-    if(c==a)
-    {
-    	bprintf("What do you think this is, the goon show ?\n");
-	return;
-    }
-    if(otstbit(c,14)==0) {bprintf("You can't do that\n");return;}
-    if(state(c)!=0){bprintf("That's not open\n");return;}
-    if(oflannel(a))
-    {
-    	bprintf("You can't take that !\n");
-    	return;
-    }
-    if(dragget()) return;
-    if(a==32)
-    {
-    	bprintf("You can't let go of it!\n");
-    	return;
-    }
-    setoloc(a,c,3);
-    bprintf("Ok.\n");
-    sprintf(ar,"\001D%s\001\001c puts the %s in the %s.\n\001",globme,oname(a),oname(c));
-    sendsys(globme,globme,-10000,curch,ar);
-    if(otstbit(a,12)) setstate(a,0);
-    if(curch==-1081)
-    {
-	setstate(20,1);
-	bprintf("The door clicks shut....\n");
-    }
-}
+            return putItemIn(state, item.itemId, container.itemId)
+                .then(() => {
+                    bprintf(state, 'Ok.\n');
+                    const ar = `[D]${state.globme}[/D][c] puts the ${item.name} in the ${container.name}.\n[/c]`;
+                    sendsys(state, state.globme, state.globme, -10000, state.curch, ar);
+                    if (otstbit(state, item.itemId, 12)) {
+                        setstate(state, item.itemId, 0);
+                    }
+                    if (state.curch === -1081) {
+                        setstate(state, 20, 1);
+                        bprintf(state, 'The door clicks shut....\n');
+                    }
+                });
+        });
+};
+
+/*
 
  lightcom()
     {
@@ -449,132 +429,113 @@ const wavecom = (state: State): void => {
           bprintf("Ok\n");
           }
     }
+*/
 
- pushcom()
-    {
-    extern long curch;
-    extern char wordbuf[];
-    extern long mynum;
-    long fil;
-    long x;
-    if(brkword()== -1)
-       {
-       bprintf("Push what ?\n");
-       return;
-       }
-    nbutt:    x=fobna(wordbuf);
-    if(x== -1)
-       {
-       bprintf("That is not here\n");
-       return;
-       }
-    switch(x)
-       {
-       case 126:
-          bprintf("The tripwire moves and a huge stone crashes down from above!\n");
-          broad("\001dYou hear a thud and a squelch in the distance.\n\001");
-          loseme();
-          crapup("             S   P    L      A         T           !");
-       case 162:
-          bprintf("A trapdoor opens at your feet and you plumment downwards!\n");
-          curch= -140;trapch(curch);
-          return;
-       case 130:
-          if(state(132)==1)
-             {
-             setstate(132,0);
-             bprintf("A secret panel opens in the east wall!\n");
-             break;
-             }
-          bprintf("Nothing happens\n");
-          break;
-       case 131:
-          if(state(134)==1)
-             {
-             bprintf("Uncovering a hole behind it.\n");
-             setstate(134,0);
-             }
-          break;
-       case 138:
-          if(state(137)==0)
-             {
-             bprintf("Ok...\n");
-             break;
-             }
-          else
-             {
-             bprintf("You hear a gurgling noise and then silence.\n");
-             setstate(137,0);
-             }
-          break;
-       case 146:
-          ;
-       case 147:
-          setstate(146,1-state(146));
-          bprintf("Ok...\n");
-          break;
-       case 30:
-          setstate(28,1-state(28));
-          if(state(28))
-             {
-             sendsys("","",-10000,oloc(28),"\001cThe portcullis falls\n\001");
-             sendsys("","",-10000,oloc(29),"\001cThe portcullis falls\n\001");
-             }
-          else
-             {
-             sendsys("","",-10000,oloc(28),"\001cThe portcullis rises\n\001");
-             sendsys("","",-10000,oloc(29),"\001cThe portcullis rises\n\001");
-             }
-          break;
-       case 149:
-          setstate(150,1-state(150));
-          if(state(150))
-             {
-             sendsys("","",-10000,oloc(150),"\001cThe drawbridge rises\n\001");
-             sendsys("","",-10000,oloc(151),"\001cThe drawbridge rises\n\001");
-             }
-          else
-             {
-             sendsys("","",-10000,oloc(150),"\001cThe drawbridge is lowered\n\001");
-             sendsys("","",-10000,oloc(151),"\001cThe drawbridge is lowered\n\001");
-             }
-          break;
-       case 24:
-          if(state(26)==1)
-             {
-             setstate(26,0);
-             bprintf("A secret door slides quietly open in the south wall!!!\n");
-             }
-          else
-             bprintf("It moves but nothing seems to happen\n");
-          return;
-       case 49:
-          broad("\001dChurch bells ring out around you\n\001");break;
-       case 104:if(ptothlp(mynum)==-1)
-	{
-		bprintf("You can't shift it alone, maybe you need help\n");
-		break;
-	}
-	*//* ELSE RUN INTO DEFAULT *//*
-	goto def2;
-       default:;
-       	  def2:
-          if(otstbit(x,4))
-             {
-             setstate(x,0);
-             oplong(x);
-             return;
-             }
-          if(otstbit(x,5))
-             {
-             setstate(x,1-state(x));
-             oplong(x);
-             return;
-             }
-          bprintf("Nothing happens\n");
-          }
+const pushcom = (state: State): Promise<void> => {
+    const def2 = (item: Item): void => {
+        if (otstbit(state, item.itemId, 4)) {
+            setstate(state, item.itemId, 0);
+            oplong(state, item.itemId);
+            return;
+        }
+        if (otstbit(state, item.itemId, 5)) {
+            setstate(state, item.itemId, 1 - __state(state, item.itemId));
+            oplong(state, item.itemId);
+            return;
+        }
+        bprintf(state, 'Nothing happens\n');
+    };
+
+    if (brkword(state) === -1) {
+        bprintf(state, 'Push what ?\n');
+        return Promise.resolve();
     }
+    return getItem(state, fobna(state, state.wordbuf))
+        .then((item) => {
+            if (item.itemId === -1) {
+                return bprintf(state, 'That is not here\n');
+            } else if (item.itemId === 126) {
+                bprintf(state, 'The tripwire moves and a huge stone crashes down from above!\n');
+                broad(state, '[d]You hear a thud and a squelch in the distance.\n[/d]');
+                loseme(state);
+                return crapup(state, '             S   P    L      A         T           !');
+            } else if (item.itemId === 162) {
+                bprintf(state, 'A trapdoor opens at your feet and you plumment downwards!\n');
+                state.curch = -140;
+                trapch(state, state.curch);
+                return;
+            } else if (item.itemId === 130) {
+                if (__state(state, 132) === 1) {
+                    setstate(state, 132, 0);
+                    return bprintf(state, 'A secret panel opens in the east wall!\n');
+                }
+                return bprintf(state, 'Nothing happens\n');
+            } else if (item.itemId === 131) {
+                if (__state(state, 134) === 1) {
+                    bprintf(state, 'Uncovering a hole behind it.\n');
+                    setstate(state, 134, 0);
+                    return;
+                }
+                return;
+            } else if (item.itemId === 138) {
+                if (__state(state, 137) === 0) {
+                    return bprintf(state, 'Ok...\n');
+                } else {
+                    bprintf(state, 'You hear a gurgling noise and then silence.\n');
+                    setstate(state, 137, 0);
+                }
+                return;
+            } else if ((item.itemId === 146) || (item.itemId === 147)) {
+                setstate(state, 146, 1 - __state(state, 146));
+                return bprintf(state, 'Ok...\n');
+            } else if (item.itemId === 30) {
+                const item1 = getItem(state, 28);
+                const item2 = getItem(state, 29);
+                setstate(state, item1.itemId, 1 - __state(state, item1.itemId));
+                if (__state(state, item1.itemId)) {
+                    sendsys(state, null, null, -10000, item1.locationId, '[c]The portcullis falls\n[/c]');
+                    sendsys(state, null, null, -10000, item2.locationId, '[c]The portcullis falls\n[/c]');
+                } else {
+                    sendsys(state, null, null, -10000, item1.locationId, '[c]The portcullis rises\n[/c]');
+                    sendsys(state, null, null, -10000, item2.locationId, '[c]The portcullis rises\n[/c]');
+                }
+                return;
+            } else if (item.itemId === 149) {
+                const item1 = getItem(state, 150);
+                const item2 = getItem(state, 151);
+                setstate(state, item1.itemId, 1 - __state(state, item1.itemId));
+                if (__state(state, item1.itemId)) {
+                    sendsys(state, null, null, -10000, item1.locationId, '[c]The drawbridge rises\n[/c]');
+                    sendsys(state, null, null, -10000, item2.locationId, '[c]The drawbridge rises\n[/c]');
+                } else {
+                    sendsys(state, null, null, -10000, item1.locationId, '[c]The drawbridge is lowered\n[/c]');
+                    sendsys(state, null, null, -10000, item2.locationId, '[c]The drawbridge is lowered\n[/c]');
+                }
+                return;
+            } else if (item.itemId === 24) {
+                if (__state(state, 26) === 1) {
+                    setstate(state, 26, 0);
+                    bprintf(state, 'A secret door slides quietly open in the south wall!!!\n');
+                } else {
+                    bprintf(state, 'It moves but nothing seems to happen\n');
+                }
+                return;
+            } else if (item.itemId === 49) {
+                return broad(state, '[d]Church bells ring out around you\n[/d]');
+            } else if (item.itemId === 104) {
+                if (ptothlp(state, state.mynum) === -1) {
+                    return bprintf(state, 'You can\'t shift it alone, maybe you need help\n');
+                }
+                /* ELSE RUN INTO DEFAULT */
+                return def2(item);
+            } else {
+                return def2(item);
+            }
 
+        });
+};
+
+/*
  cripplecom()
     {
     long a,b;
@@ -1366,16 +1327,16 @@ PLAYER pinit[48]=
     }
 */
 
-const iswornby = (state: State, itemId: number, characterId: number): boolean => {
-    const item = getItem(state, itemId);
-    if (!iscarrby(state, item.itemId, characterId)) {
-        return false;
-    }
-    if (item.heldBy === undefined) {
-        return false;
-    }
-    return true;
-};
+const iswornby = (state: State, itemId: number, characterId: number): Promise<boolean> => getItem(state, itemId)
+    .then((item) => {
+        if (!iscarrby(state, item.itemId, characterId)) {
+            return false;
+        }
+        if (item.heldBy === undefined) {
+            return false;
+        }
+        return true;
+    });
 
 /*
  addforce(x)
@@ -1484,20 +1445,17 @@ long newch;
        sendsys(globme,globme,-10000,newch,block);
        trapch(curch);
 }
-
-on_flee_event()
-{
-	extern long  numobs;
-	extern long mynum;
-	long ct=0;
-	while(ct<numobs)
-	{
-		if((iscarrby(ct,mynum))&&(!iswornby(ct,mynum)))
-		{
-			setoloc(ct,ploc(mynum),0);
-		}
-		ct++;
-	}
-}
-
  */
+
+const on_flee_event = (state: State): Promise<void> => {
+    const itemIds = [];
+    for(let itemId = 0; itemId < state.numobs; itemId += 1) {
+        itemIds.push(itemId);
+    }
+    return Promise.all(itemIds.map(itemId => getItem(state, itemId)))
+        .then(items => items.forEach((item) => {
+            if ((iscarrby(state, item.itemId, state.mynum)) && (!iswornby(state, item.itemId, state.mynum))) {
+                putItem(state, item.itemId, ploc(state.mynum));
+            }
+        }));
+};

@@ -4,10 +4,9 @@ import {
     sendsys,
 } from './__dummies';
 import State from "./state";
-import {getItem, holdItem, putItem} from "./support";
+import {getItem, holdItem, Item, putItem} from "./support";
 
 /*
-#include <stdio.h>
 #include "files.h"
 
 extern long curch;
@@ -16,7 +15,6 @@ extern long my_lev;
 extern char globme[];
 extern char wordbuf[];
 extern char *pname();
-extern char *oname();
 extern FILE *openroom();
 extern FILE *openuaf();
 extern FILE *openlock();
@@ -31,16 +29,15 @@ randperc()
 }
 */
 
-const sumcom = (state: State): void => {
-    const sumob = (itemId): void => {
+const sumcom = (state: State): Promise<void> => {
+    const sumob = (item: Item): void => {
         if (state.my_lev < 10) {
             return bprintf(state, 'You can only summon people\n');
         }
-        const item = getItem(state, itemId);
         const locationId = item.heldBy ? ploc(state, item.heldBy) : item.locationId;
-        const ms = `[p name=\"${state.globme}\"] has summoned the ${oname(state, item.itemId)}[/p]\n`;
+        const ms = `[p name=\"${state.globme}\"] has summoned the ${item.name}[/p]\n`;
         sendsys(state, state.globme, state.globme, -10000, locationId, ms);
-        bprintf(state, `The ${oname(state, item.itemId)} flies into your hand, was `);
+        bprintf(state, `The ${item.name} flies into your hand, was `);
         desrm(state, item.locationId, item.carryFlag);
         holdItem(state, item.itemId, state.mynum);
     };
@@ -60,53 +57,56 @@ const sumcom = (state: State): void => {
     };
 
     if (brkword(state) === -1) {
-        return bprintf(state, 'Summon who ?\n');
+        bprintf(state, 'Summon who ?\n');
+        return Promise.resolve();
     }
 
     const itemId = fobn(state, state.wordbuf);
     if (itemId !== -1) {
-        return sumob(itemId);
+        return getItem(state, itemId).then(sumob);
     }
-    const playerId = fpbn(state, state.wordbuf);
-    if (playerId !== -1) {
-        return bprintf(state, 'I dont know who that is\n');
-    }
-    if (state.my_str < 10) {
-        return bprintf(state, 'You are too weak\n');
-    }
-    if (state.my_lev < 10) {
-        state.my_str -= 2;
-    }
-    let c = state.my_lev * 2;
-    if (state.my_lev > 9) {
-        c = 101;
-    }
-    if (iscarby(state, 111, state.mynum)) {
-        c += state.my_lev;
-    }
-    if (iscarby(state, 121, state.mynum)) {
-        c += state.my_lev;
-    }
-    if (iscarby(state, 163, state.mynum)) {
-        c += state.my_lev;
-    }
-    const d = randperc(state);
-    if (state.my_lev > 9) {
-        return willwork(playerId);
-    }
-    if (iswornby(state, 90, playerId) || (c < d)) {
-        return bprintf(state, 'The spell fails....\n');
-    }
-    if ((playerId === fpbn(state, 'wraith')) || iscarrby(state, 32, playerId) || iscarrby(state, 159, playerId) || iscarrby(state, 174, playerId)) {
-        return bprintf(state, 'Something stops your summoning from succeeding\n');
-    }
-    if (playerId === state.mynum) {
-        return bprintf(state, 'Seems a waste of effort to me....\n');
-    }
-    if ((state.curch >= -1082) && (state.curch <= -1076)) {
-        return bprintf(state, 'Something about this place makes you fumble the magic\n');
-    }
-    return willwork(playerId);
+    return Promise.resolve(fpbn(state, state.wordbuf))
+        .then((playerId) => {
+            if (playerId !== -1) {
+                return bprintf(state, 'I dont know who that is\n');
+            }
+            if (state.my_str < 10) {
+                return bprintf(state, 'You are too weak\n');
+            }
+            if (state.my_lev < 10) {
+                state.my_str -= 2;
+            }
+            let c = state.my_lev * 2;
+            if (state.my_lev > 9) {
+                c = 101;
+            }
+            if (iscarby(state, 111, state.mynum)) {
+                c += state.my_lev;
+            }
+            if (iscarby(state, 121, state.mynum)) {
+                c += state.my_lev;
+            }
+            if (iscarby(state, 163, state.mynum)) {
+                c += state.my_lev;
+            }
+            const d = randperc(state);
+            if (state.my_lev > 9) {
+                return willwork(playerId);
+            }
+            if (iswornby(state, 90, playerId) || (c < d)) {
+                return bprintf(state, 'The spell fails....\n');
+            }
+            if ((playerId === fpbn(state, 'wraith')) || iscarrby(state, 32, playerId) || iscarrby(state, 159, playerId) || iscarrby(state, 174, playerId)) {
+                return bprintf(state, 'Something stops your summoning from succeeding\n');
+            }
+            if (playerId === state.mynum) {
+                return bprintf(state, 'Seems a waste of effort to me....\n');
+            }
+            if ((state.curch >= -1082) && (state.curch <= -1076)) {
+                return bprintf(state, 'Something about this place makes you fumble the magic\n');
+            }
+            return willwork(playerId);
+        });
 };
 
 /*
@@ -246,23 +246,26 @@ const sumcom = (state: State): void => {
     }
 */
 
-const ressurcom = (state: State): void => {
+const ressurcom = (state: State): Promise<void> => {
     if (state.my_lev < 10) {
-        return bprintf(state, 'Huh ?\n')
+        bprintf(state, 'Huh ?\n');
+        return Promise.resolve();
     }
     if (brkword(state) === -1) {
-        return bprintf(state, 'Yes but what ?\n')
+        bprintf(state, 'Yes but what ?\n');
+        return Promise.resolve();
     }
-    const itemId = fobn(state, state.wordbuf);
-    const item = getItem(state, itemId);
-    if (item.itemId === -1) {
-        return bprintf(state, 'You can only ressurect objects\n')
-    }
-    if (ospare(state, item.itemId) !== -1) {
-        return bprintf(state, 'That already exists\n')
-    }
-    ocreate(state, item.itemId);
-    putItem(state, item.itemId, state.curch);
-    const bf = `The ${oname(state, item.itemId)} suddenly appears\n`;
-    sendsys(state, null, null, -10000, state.curch, bf);
+    return getItem(state, fobn(state, state.wordbuf))
+        .then((item) => {
+            if (item.itemId === -1) {
+                return bprintf(state, 'You can only ressurect objects\n')
+            }
+            if (ospare(state, item.itemId) !== -1) {
+                return bprintf(state, 'That already exists\n')
+            }
+            ocreate(state, item.itemId);
+            putItem(state, item.itemId, state.curch);
+            const bf = `The ${item.name} suddenly appears\n`;
+            sendsys(state, null, null, -10000, state.curch, bf);
+        });
 };

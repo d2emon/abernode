@@ -7,6 +7,6 @@ export default interface Item {
     name: string,
     descriptions: string[],
     maxState: number,
-    value: number,
+    baseValue: number,
     flannel: boolean,
 }

@@ -7,6 +7,10 @@ import ItemInterface, {
 } from './object';
 import { LOG_FILE } from './files';
 
+const __state = (itemId: number): number => 0;
+const tscale = (state: State): number => 1;
+const otstbit = (itemId: number, bitId: number): boolean => false;
+
 /**
  * Some more basic functions
  *
@@ -19,7 +23,7 @@ import { LOG_FILE } from './files';
  * are elsewhere
  */
 
-interface Item extends ItemInterface {
+export interface Item extends ItemInterface {
     itemId: number,
 
     locationId: number,
@@ -29,16 +33,20 @@ interface Item extends ItemInterface {
     locatedIn?: number,
     wearingBy?: number,
     containedIn?: number,
+
+    description: string,
+    value: number,
+    isDestroyed: boolean,
 }
 
-export const getItem = (state: State, itemId: number): Item => ({
+export const getItem = (state: State, itemId: number): Promise<Item> => Promise.resolve({
     itemId,
 
-    name: '',
-    descriptions: [],
-    maxState: 0,
-    value: 0,
-    flannel: false,
+    name: state.objects[itemId].name,
+    descriptions: state.objects[itemId].descriptions, // Remove
+    maxState: state.objects[itemId].maxState,
+    baseValue: state.objects[itemId].baseValue,
+    flannel: state.objects[itemId].flannel,
 
     locationId: state.objinfo[itemId].locationId,
     carryFlag: state.objinfo[itemId].carryFlag,
@@ -47,155 +55,33 @@ export const getItem = (state: State, itemId: number): Item => ({
     locatedIn: state.objinfo[itemId].carryFlag === LOCATED_IN ? state.objinfo[itemId].locationId : undefined,
     wearingBy: state.objinfo[itemId].carryFlag === WEARING_BY ? state.objinfo[itemId].locationId : undefined,
     containedIn: state.objinfo[itemId].carryFlag === CONTAINED_IN ? state.objinfo[itemId].locationId : undefined,
+
+    description: state.objects[itemId].descriptions[__state(itemId)],
+    value: (tscale(state) * state.objects[itemId].baseValue) / 5,
+    isDestroyed: otstbit(itemId, 0),
 });
 
-export const setItem = (state: State, itemId: number, newItem: {}): void => {
+export const setItem = (state: State, itemId: number, newItem: {}): Promise<void> => new Promise(() => {
     state.objinfo[itemId] = {
         ...state.objinfo[itemId],
         ...newItem,
     }
-};
+});
 
-export const putItem = (state: State, itemId: number, locationId: number): void => setItem(state, itemId, {
+export const putItem = (state: State, itemId: number, locationId: number): Promise<void> => setItem(state, itemId, {
     locationId,
     carryFlag: LOCATED_IN,
 });
-export const holdItem = (state: State, itemId: number, characterId: number): void => setItem(state, itemId, {
+export const holdItem = (state: State, itemId: number, characterId: number): Promise<void> => setItem(state, itemId, {
     locationId: characterId,
     carryFlag: HELD_BY,
 });
+export const putItemIn = (state: State, itemId: number, locationId: number): Promise<void> => setItem(state, itemId, {
+    locationId,
+    carryFlag: CONTAINED_IN,
+});
 
 /*
- oloc(ob)
-    {
-    extern long objinfo[];
-    return(objinfo[4*ob]);
-    }
-
- setoloc(ob,l,c)
-    {
-    extern long objinfo[];
-    objinfo[4*ob]=l;
-    objinfo[4*ob+3]=c;
-    }
-
-
-
- ploc(chr)
-    {
-    extern long ublock[];
-    return((ublock[16*chr+4]));
-    }
-
-char * pname(chr)
-    {
-    extern long ublock[];
-    return((char *)(ublock+16*chr));
-    }
-
- plev(chr)
-    {
-    extern long ublock[];
-    return(ublock[16*chr+10]);
-    }
-
- setplev(chr,v)
-    {
-    extern long ublock[];
-    ublock[16*chr+10]=v;
-    }
-
- pchan(chr)
-    {
-    extern long ublock[];
-    return(ublock[16*chr+4]);
-    }
-
- pstr(chr)
-    {
-    extern long ublock[];
-    return(ublock[16*chr+7]);
-    }
-
- setpstr(chr,v)
-    {
-    extern long ublock[];
-    ublock[16*chr+7]=v;
-    }
-
- pvis(chr)
-    {
-    extern long ublock[];
-    return(ublock[16*chr+8]);
-    }
-
- setpvis(chr,v)
-    {
-    extern long ublock[];
-    ublock[16*chr+8]=v;
-    }
-
- psex(chr)
-    {
-    extern long ublock[];
-    return(ublock[16*chr+9]%2);
-    }
-
- setpsex(chr,v)
-    {
-    extern long ublock[];
-    ublock[16*chr+9]&=~1;
-    ublock[16*chr+9]|=v;
-    }
-setpsexall(chr,v)
-long v;
-{
-	extern long ublock[];
-	ublock[16*chr+9]=v;
-}
-
-psexall(chr)
-long chr;
-{
-	extern long ublock[];
-	return(ublock[16*chr+9]);
-}
-
-char * oname(ob)
-    {
-    extern OBJECT objects[];
-    return(objects[ob].o_name);
-    }
-
-char * olongt(ob,st)
-{
-	extern OBJECT objects[];
-	return(objects[ob].o_desc[st]);
-}
-
-
- omaxstate(ob)
-    {
-    extern OBJECT objects[];
-    return(objects[ob].o_maxstate);
-    }
-
- obflannel(ob)  *//* Old version *//*
-    {
-    return(oflannel(ob));
-    }
- oflannel(ob)
-    {
-    extern OBJECT objects[];
-    return(objects[ob].o_flannel);
-    }
-
- obaseval(ob)
-    {
-    extern OBJECT objects[];
-    return(objects[ob].o_value);
-    }
-
  isdest(ob)
     {
     if(otstbit(ob,0))return(1);
@@ -395,4 +281,86 @@ long x;
 	return(ublock[16*ch+9]&(1<<x));
 }
 
+ */
+
+/*
+ ploc(chr)
+    {
+    extern long ublock[];
+    return((ublock[16*chr+4]));
+    }
+
+char * pname(chr)
+    {
+    extern long ublock[];
+    return((char *)(ublock+16*chr));
+    }
+
+ plev(chr)
+    {
+    extern long ublock[];
+    return(ublock[16*chr+10]);
+    }
+
+ setplev(chr,v)
+    {
+    extern long ublock[];
+    ublock[16*chr+10]=v;
+    }
+
+ pchan(chr)
+    {
+    extern long ublock[];
+    return(ublock[16*chr+4]);
+    }
+
+ pstr(chr)
+    {
+    extern long ublock[];
+    return(ublock[16*chr+7]);
+    }
+
+ setpstr(chr,v)
+    {
+    extern long ublock[];
+    ublock[16*chr+7]=v;
+    }
+
+ pvis(chr)
+    {
+    extern long ublock[];
+    return(ublock[16*chr+8]);
+    }
+
+ setpvis(chr,v)
+    {
+    extern long ublock[];
+    ublock[16*chr+8]=v;
+    }
+
+ psex(chr)
+    {
+    extern long ublock[];
+    return(ublock[16*chr+9]%2);
+    }
+
+ setpsex(chr,v)
+    {
+    extern long ublock[];
+    ublock[16*chr+9]&=~1;
+    ublock[16*chr+9]|=v;
+    }
+setpsexall(chr,v)
+long v;
+{
+	extern long ublock[];
+	ublock[16*chr+9]=v;
+}
+
+psexall(chr)
+long chr;
+{
+	extern long ublock[];
+	return(ublock[16*chr+9]);
+}
  */

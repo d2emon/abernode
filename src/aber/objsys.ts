@@ -1,5 +1,6 @@
 import State from "./state";
-import {getItem} from "./support";
+import {getItem, holdItem, putItem} from "./support";
+import {bprintf, brkword, sendsys} from "./__dummies";
 
 /*
 
@@ -19,12 +20,10 @@ import {getItem} from "./support";
 /*
 #define NOBS 194
 #define OBMUL 8
-#include <stdio.h>
 
 long numobs=NOBS;
 extern FILE *openlock();
 extern FILE *openworld();
-extern char * oname();
 extern char * pname();
 
 long objinfo[NOBS*4];
@@ -50,115 +49,138 @@ lobjsat(loc)
 {
 aobjsat(loc,1);
 }
-
-
-aobjsat(loc,mode)  *//* Carried Loc ! *//*
-    {
-    long a,b,c,d,e,f;
-    char x[6],y[6];
-    extern long debug_mode;
-    b=0;
-    c=0;
-    d=0;
-    e=0;
-    f=0;
-    while(c<NOBS)
-       {
-       if(((iscarrby(c,loc))&&(mode==1))||
-((iscontin(c,loc))&&(mode==3)))
-          {
-          e=1;
-              f+=1+strlen(oname(c));
-if(debug_mode){ f+=5;sprintf(x,"%d",c);sprintf(y,"{%-3s}",x);}
-if(isdest(c)) f+=2;
-if(iswornby(c,loc)) f+=strlen("<worn> ");
-          if(f>79)
-             {
-             f=0;
-            bprintf("\n");
-             }
-if(isdest(c)) bprintf("(");
-         bprintf("%s",oname(c));
-         if(debug_mode) bprintf(y);
-if(iswornby(c,loc)) bprintf(" <worn>");
-if(isdest(c)) bprintf(")");
-bprintf(" ");
-          f++;
-          }
-       d+=4;
-       c++;
-       }
-    if(!e)bprintf("Nothing");
-   bprintf("\n");
-    }
 */
 
-const iscontin = (state: State, itemId1: number, itemId2: number): boolean => {
-    const item1 = getItem(state, itemId1);
-    if (item1.containedIn === undefined) {
-        return false;
+const aobjsat = (state: State, locationId: number, mode: number): Promise<void> => {
+    /* Carried Loc ! */
+    let d = 0;
+    let e = 0;
+    let f = 0;
+    const itemIds = [];
+    for (let itemId = 0; itemId < state.NOBS; itemId += 1) {
+        itemIds.push(itemId);
     }
-    if (oloc(state, item1.itemId) !== itemId2) {
-        return false;
+    return Promise.all(itemIds.map(itemId => getItem(state, itemId)))
+        .then(items => items.forEach((item) => {
+            if ((iscarrby(state, item.itemId, locationId) && (mode === 1)) || (iscontin(state, item.itemId, locationId) && (mode === 3))) {
+                let x = '';
+                e = 1;
+                f += 1 + item.name.length;
+                if (state.debug_mode) {
+                    f += 5;
+                    x = `${item.itemId}`;
+                }
+                if (item.isDestroyed) {
+                    f += 2;
+                }
+                if (iswornby(state, item.itemId, locationId)) {
+                    f += '<worn> '.length;
+                }
+                if (f > 79) {
+                    f = 0;
+                    bprintf(state, '\n');
+                }
+
+                if (item.isDestroyed) {
+                    bprintf(state, '(');
+                }
+                bprintf(state, item.name);
+                if (state.debug_mode) {
+                    bprintf(state, x);
+                }
+                if (iswornby(state, item.itemId, locationId)) {
+                    bprintf(state, ' <worn>');
+                }
+                if (item.isDestroyed) {
+                    bprintf(state, ')');
+                }
+                bprintf(state, ' ');
+                f += 1;
+            }
+            d += 4;
+        }))
+        .then(() => {
+            if (!e) {
+                bprintf(state, 'Nothing');
+            }
+            bprintf(state, '\n');
+        });
+};
+
+const iscontin = (state: State, itemId1: number, itemId2: number): Promise<boolean> => getItem(state, itemId1)
+    .then((item1) => {
+        if (item1.containedIn === undefined) {
+            return false;
+        }
+        if (item1.locationId !== itemId2) {
+            return false;
+        }
+        if ((state.my_lev < 10) && iddest(state, itemId1)) {
+            return false;
+        }
+        return true;
+    });
+
+const fobnsys = (state: State, name: string, control: number, ctInf: number): Promise<number> => {
+    const l1 = name.toLowerCase();
+    const a = 0;
+    if (l1 === 'red') {
+        brkword(state);
+        return Promise.resolve(4);
+    } else if (l1 === 'blue') {
+        brkword(state);
+        return Promise.resolve(5);
+    } else if (l1 === 'green') {
+        brkword(state);
+        return Promise.resolve(6);
     }
-    if ((state.my_lev < 10) && iddest(state, itemId1)) {
-        return false;
+    const itemIds = [];
+    for (let itemId = 0; itemId < state.NOBS; itemId += 1) {
+        itemIds.push(itemId);
     }
-    return true;
+    let found = undefined;
+    return Promise.all(itemIds.map(item => getItem(state, item)))
+        .then(items => items.forEach((item) => {
+            if (found !== undefined) return;
+            const l2 = item.name.toLowerCase();
+            if (l1 === l2) {
+                state.wd_it = name;
+                if (control === 0) {
+                    found = item.itemId;
+                } else if (control === 1) {
+                    /* Patch for shields */
+                    if ((item.itemId === 112) && iscarrby(state, 113, state.mynum)) {
+                        found = 113;
+                    } else if ((item.itemId === 112) && iscarrby(state, 114, state.mynum)) {
+                        found = 114;
+                    } else if (isavl(state, item.itemId)) {
+                        found = item.itemId
+                    }
+                } else if (control === 2) {
+                    if (iscarrby(state, item.itemId, state.mynum)) {
+                        found = item.itemId;
+                    }
+                } else if (control === 3) {
+                    if (iscarrby(state, item.itemId, ctInf)) {
+                        found = item.itemId;
+                    }
+                } else if (control === 4) {
+                    if (ishere(state, item.itemId)) {
+                        found = item.itemId;
+                    }
+                } else if (control === 5) {
+                    if (iscontin(state, item.itemId, ctInf)) {
+                        found = item.itemId;
+                    }
+                } else {
+                    found = item.itemId;
+                }
+            }
+        }))
+        .then(() => (found === undefined) ? -1 : found);
 };
 
 /*
-fobnsys(nam,ctrl,ct_inf)
-char *nam;
-long ctrl,ct_inf;
-{
-    extern char wd_it[];
-    extern long mynum;
-    long a;
-    long l1[32],l2[32];
-    extern char wordbuf[];
-    strcpy(l1,nam);lowercase(l1);
-    a=0;
-if(!strcmp(l1,"red")) {brkword();return(4);}
-if(!strcmp(l1,"blue")) {brkword();return(5);}
-if(!strcmp(l1,"green")) {brkword();return(6);}
-    while(a<NOBS)
-       {
-       strcpy(l2,oname(a));lowercase(l2);
-       if(!strcmp(l1,l2))
-          {
-	  strcpy(wd_it,nam);
-          switch(ctrl)
-             {
-             case 0:
-                return(a);
-             case 1:*//* Patch for shields *//*
-                if((a==112)&&(iscarrby(113,mynum))) return(113);
-                if((a==112)&&(iscarrby(114,mynum))) return(114);
-                if(isavl(a)) return(a);
-                break;
-             case 2:
-                if(iscarrby(a,mynum)) return(a);
-                break;
-             case 3:
-                if(iscarrby(a,ct_inf)) return(a);
-                break
-                ;
-             case 4:
-                if(ishere(a)) return(a);
-                break;
-             case 5:
-                if(iscontin(a,ct_inf)) return(a);
-                break;
-             default:
-                return(a);
-                }
-          }
-       a++;
-       }
-    return(-1);
-    }
-
  fobn(word)
  char *word;
     {
@@ -198,199 +220,204 @@ if(x!=-1) return(x);
     {
     return(fobnsys(word,4,0));
     }
-
- getobj()
-    {
-    extern long mynum;
-    extern char globme[];
-    extern long curch;
-    extern char wordbuf[];
-    long a,b;
-    long i;
-    long des_inf= -1;
-    extern long stp;
-    char bf[256];
-    if(brkword()==-1)
-       {
-      bprintf("Get what ?\n");
-       return;
-       }
-    a=fobnh(wordbuf);
-    *//* Hold *//*
-    i=stp;
-    strcpy(bf,wordbuf);
-    if((brkword()!=-1)&&((strcmp(wordbuf,"from")==0)||(strcmp(wordbuf,"out")==0)))
-    {
-    	if(brkword()==-1)
-    	{
-    		bprintf("From what ?\n");
-    		return;
-    	}
-    	des_inf=fobna(wordbuf);
-    	if(des_inf==-1)
-    	{
-    		bprintf("You can't take things from that - it's not here\n");
-    		return;
-    	}
-    	a=fobnin(bf,des_inf);
-    }
-    stp=i;
-    if(a==-1)
-       {
-      bprintf("That is not here.\n");
-       return;
-       }
-if((a==112)&&(des_inf==-1))
-{
-if(isdest(113)) a=113;
-else if(isdest(114)) a=114;
-if((a==113)||(a==114)) oclrbit(a,0);
-else bprintf("The shields are all to firmly secured to the walls\n");
-}
-    if(obflannel(a)==1)
-       {
-      bprintf("You can't take that!\n");
-       return;
-       }
-if(dragget()) return;
-    if(!cancarry(mynum))
-       {
-      bprintf("You can't carry any more\n");
-       return;
-}
-if((a==32)&&(state(a)==1)&&(ptothlp(mynum)==-1))
-{
-	bprintf("Its too well embedded to shift alone.\n");
-	return;
-}
-    setoloc(a,mynum,1);
-    sprintf(bf,"\001D%s\001\001c takes the %s\n\001",globme,oname(a));
-   bprintf("Ok...\n");
-    sendsys(globme,globme,-10000,curch,bf);
-if(otstbit(a,12)) setstate(a,0);
-if(curch==-1081)
-{
-	setstate(20,1);
-	bprintf("The door clicks shut....\n");
-}
-    }
 */
 
-const ishere = (state: State, itemId: number): boolean => {
-    if ((state.my_lev < 10) && iddest(state, itemId)) {
-        return false;
+const getobj = (state: State): Promise<void> => {
+    let des_inf: number = -1;
+
+    if (brkword(state) === -1) {
+        bprintf(state, 'Get what ?\n');
+        return Promise.resolve();
     }
-    const item = getItem(state, itemId);
-    if (item.locatedIn !== undefined) {
-        return false
-    }
-    if (oloc(state, item.itemId) !== state.curch) {
-        return false;
-    }
-    return true;
+    return getItem(state, fobnh(state, state.wordbuf))
+        .then((item) => {
+            /* Hold */
+            const i = state.stp;
+            const bf = state.wordbuf;
+            if ((brkword(state) !== -1) && ((state.wordbuf === 'from') || (state.wordbuf === 'out'))) {
+                if (brkword(state) === -1) {
+                    return bprintf(state, 'From what ?\n')
+                }
+                des_inf = fobna(state, state.wordbuf);
+                if (des_inf === -1) {
+                    return bprintf(state, 'You can\'t take things from that - it\'s not here\n');
+                }
+                state.stp = i;
+                return getItem(state, fobnin(state, bf, des_inf));
+            }
+            state.stp = i;
+            return item;
+        })
+        .then((item) => {
+            if (item.itemId === -1) {
+                return bprintf(state, 'That is not here.\n');
+            }
+
+            if ((item.itemId === 112) && (des_inf === -1)) {
+                return Promise.all([
+                    getItem(state, 113),
+                    getItem(state, 114),
+                ])
+                    .then(([shield1, shield2]) => {
+                        if (shield1.isDestroyed) {
+                            return shield1;
+                        } else if (shield2.isDestroyed) {
+                            return shield2;
+                        } else {
+                            return undefined;
+                        }
+                    })
+                    .then((shield) => {
+                        if (shield !== undefined) {
+                            item = shield;
+                            oclrbit(state, shield.itemId, 0);
+                        } else {
+                            return bprintf(state, 'The shields are all to firmly secured to the walls\n');
+                        }
+                    })
+            }
+
+            if (item.flannel) {
+                return bprintf(state, 'You can\'t take that!\n');
+            }
+            if (dragget(state)) {
+                return;
+            }
+            if (!cancarry(state, state.mynum)) {
+                return bprintf(state, 'You can\'t carry any more\n');
+            }
+            if ((item.itemId === 32) && (__state(state, item.itemId) === 1) && (ptothlp(state, state.mynum)) === -1) {
+                return bprintf(state, 'Its too well embedded to shift alone.\n');
+            }
+            holdItem(state, item.itemId, state.mynum);
+            const bf2 = `[D]${state.globme}[/D][c] takes the ${item.name}\n[/c]`;
+            bprintf(state, 'Ok...\n');
+            sendsys(state, state.globme, state.globme, -10000, state.curch, bf2);
+            if (otstsbit(state, item.itemId, 12)) {
+                setstate(state, item.itemId, 0);
+            }
+            if (state.curch === -1081) {
+                setstate(state, 20, 1);
+                bprintf(state, 'The door clicks shut....\n');
+            }
+        });
 };
 
-const iscarrby = (state: State, itemId: number, characterId: number): boolean => {
-    if ((state.my_lev < 10) && iddest(state, itemId)) {
-        return false;
+const ishere = (state: State, itemId: number): Promise<boolean> => getItem(state, itemId)
+    .then((item) => {
+        if ((state.my_lev < 10) && item.isDestroyed) {
+            return false;
+        }
+        if (item.locatedIn !== undefined) {
+            return false
+        }
+        if (item.locationId !== state.curch) {
+            return false;
+        }
+        return true;
+    });
+
+const iscarrby = (state: State, itemId: number, characterId: number): Promise<boolean> => getItem(state, itemId)
+    .then((item) => {
+        if ((state.my_lev < 10) && iddest(state, item.itemId)) {
+            return false;
+        }
+        if (item.locatedIn === undefined && item.heldBy === undefined) {
+            return false
+        }
+        if (item.locationId !== characterId) {
+            return false;
+        }
+        return true;
+    });
+
+const dropitem = (state: State): Promise<void> => {
+    if (brkword(state) === -1) {
+        bprintf(state, 'Drop what ?\n');
+        return Promise.resolve();
     }
-    const item = getItem(state, itemId);
-    if (item.locatedIn === undefined && item.carriedBy === undefined) {
-        return false
-    }
-    if (oloc(state, item.itemId) !== characterId) {
-        return false;
-    }
-    return true;
+    return getItem(state, fobnc(state, state.wordbuf))
+        .then((item) => {
+            if (item.itemId === -1) {
+                return bprintf(state, 'You are not carrying that.\n');
+            }
+
+            if ((state.my_lev < 10) && (item.itemId === 32)) {
+                return bprintf(state, 'You can\'t let go of it!\n');
+            }
+            return putItem(state, item.itemId, state.curch)
+                .then(() => {
+                    bprintf(state, 'OK..\n');
+                    const bf = `[D]${state.globme}[/D][c] drops the ${state.wordbuf}.\n\n[/c]`;
+                    sendsys(state, state.globme, state.globme, -10000, state.curch, bf);
+                    if ((state.curch !== -183) && (state.curch !== -183)) {
+                        return;
+                    }
+                    const bf2 = `The ${state.wordbuf} disappears into the bottomless pit.\n`;
+                    bprintf(state, 'It disappears down into the bottomless pit.....\n');
+                    sendsys(state, state.globme, state.globme, -10000, state.curch, bf2);
+                    state.my_sco += item.value;
+                    calibme(state);
+                    return putItem(state, item.itemId, -6);
+                });
+        });
 };
 
 /*
- dropitem()
-    {
-    extern long mynum,curch;
-    extern char wordbuf[],globme[];
-    extern long my_sco;
-    long a,b,bf[32];
-    extern long my_lev;
-    if(brkword()==-1)
-       {
-      bprintf("Drop what ?\n");
-       return;
-       }
-    a=fobnc(wordbuf);
-    if(a==-1)
-       {
-      bprintf("You are not carrying that.\n");
-       return;
-       }
-
-if((my_lev<10)&&(a==32))
-{
-bprintf("You can't let go of it!\n");
-return;
-}
-    setoloc(a,curch,0);
-   bprintf("OK..\n");
-    sprintf(bf,"\001D%s\001\001c drops the %s.\n\n\001",globme,wordbuf);
-    sendsys(globme,globme,-10000,curch,bf);
-    if((curch!=-183)&&(curch!=-5))return;
-   sprintf(bf,"The %s disappears into the bottomless pit.\n",wordbuf);
-   bprintf("It disappears down into the bottomless pit.....\n");
-    sendsys(globme,globme,-10000,curch,bf);
-    my_sco+=(tscale()*obaseval(a))/5;
-    calibme();
-setoloc(a,-6,0);
-    }
  lisobs()
     {
     lojal2(1);
     showwthr();
     lojal2(0);
     }
+*/
 
- lojal2(n)
-    {
-    extern char wd_it[];
-    long a;
-    a=0;
-    while(a<NOBS)
-       {
-       if((ishere(a))&&(oflannel(a)==n))
-          {
-              if(state(a)>3) continue;
-              if(!!strlen(olongt(a,state(a)))) *//*OLONGT NOTE TO BE ADDED *//*
-		{
-			if(isdest(a)) bprintf("--");
-
-				oplong(a);
-		          strcpy(wd_it,oname(a));
-		}
-          }
-       a++;
-       }
+const lojal2 = (state: State, flannel: boolean): Promise<void> => {
+    const itemIds = [];
+    for(let itemId = 0; itemId < state.NOBS; itemId += 1) {
+        itemIds.push(itemId);
     }
+    return Promise.all(itemIds.map(itemId => getItem(state, itemId)))
+        .then(items => items.forEach((item) => {
+            if (ishere(state, item.itemId) && (item.flannel === flannel)) {
+                if (__state(state, item.itemId) > 3) {
+                    return;
+                }
+                if (item.description) {
+                    /*OLONGT NOTE TO BE ADDED */
+                    if (item.isDestroyed) {
+                        bprintf(state, '--');
+                    }
+                    oplong(state, item.itemId);
+                    state.wd_it = item.name;
+                }
+            }
+        }))
+};
+
+/*
  dumpitems()
     {
     extern long mynum;
     extern long curch;
     dumpstuff(mynum,curch);
     }
+*/
 
- dumpstuff(n,loc)
-    {
-    long b;
-    b=0;
-    while(b<NOBS)
-       {
-       if(iscarrby(b,n))
-
-          {
-          setoloc(b,loc,0);
-          }
-       b++;
-       }
+const dumpstuff = (state: State, playerId: number, locationId: number): Promise<void> => {
+    const itemIds = [];
+    for(let itemId = 0; itemId < state.NOBS; itemId += 1) {
+        itemIds.push(itemId);
     }
+    return Promise.all(itemIds.map(itemId => getItem(state, itemId)))
+        .then(items => items.forEach((item) => {
+            if (iscarrby(state, item.itemId, playerId)) {
+                return putItem(state, item.itemId, locationId);
+            }
+        }))
+};
 
+/*
 long ublock[16*49];
 
 
@@ -602,18 +629,14 @@ my_lev=0;
 whocom();
 my_lev=a;
 }
-
-oplong(x)
-{
-extern long debug_mode;
-if(debug_mode)
-{
-	bprintf("{%d} %s\n",x,olongt(x,state(x)));
-	return;
-}
-if(strlen(olongt(x,state(x))))
-   bprintf("%s\n",olongt(x,state(x)));
-}
-
-
  */
+
+const oplong = (state: State, itemId: number): Promise<void> => getItem(state, itemId)
+    .then((item) => {
+        if (state.debug_mode) {
+            return bprintf(state, `{${item.itemId}} ${item.description}\n`);
+        }
+        if (item.description) {
+            return bprintf(state, `${item.description}\n`);
+        }
+    });

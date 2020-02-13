@@ -1,5 +1,6 @@
 import State from "./state";
-import {getItem} from "./support";
+import {getItem, Item} from "./support";
+import {bprintf, brkword} from "./__dummies";
 
 /*
 #include <stdio.h>
@@ -8,7 +9,6 @@ extern FILE *openlock();
 extern FILE *openuaf();
 extern FILE *openroom();
 extern FILE *openworld();
-extern char *oname();
 extern char *pname();
 extern char globme[];
 extern char wordbuf[];
@@ -349,140 +349,131 @@ starts sizzling with magical energy\n\001");
     if(b<plev(plyr)+5) return(1);
     return(0);
     }
-
-
- setcom()
-    {
-    long a,b,c;
-    extern long my_lev;
-    extern char wordbuf[];
-    if(brkword()== -1)
-       {
-       bprintf("set what\n");
-       return;
-       }
-    if(my_lev<10)
-       {
-       bprintf("Sorry, wizards only\n");
-       return;
-       }
-    a=fobna(wordbuf);
-    if(a== -1)
-       {
-         goto setmobile;
-       }
-    if(brkword()== -1)
-       {
-       bprintf("Set to what value ?\n");
-       return;
-       }
-       if(strcmp(wordbuf,"bit")==0) goto bitset;
-       if(strcmp(wordbuf,"byte")==0) goto byteset;
-    b=numarg(wordbuf);
-    if(b>omaxstate(a))
-       {
-       bprintf("Sorry max state for that is %d\n",omaxstate(a));
-       return;
-       }
-    if(b<0)
-       {
-       bprintf("States start at 0\n");
-       return;
-       }
-    setstate(a,b);
-    return;
-bitset:if(brkword()==-1)
-       {
-       	   bprintf("Which bit ?\n");
-       	   return;
-       	}
-       	b=numarg(wordbuf);
-       	if(brkword()==-1)
-       	{
-       	   bprintf("The bit is %s\n",otstbit(a,b)?"TRUE":"FALSE");
-       	   return;
-       	}
-       	c=numarg(wordbuf);
-       	if((c<0)||(c>1)||(b<0)||(b>15))
-       	{
-       		bprintf("Number out of range\n");
-       		return;
-       	}
-       	if(c==0) oclrbit(a,b);
-       	else osetbit(a,b);
-       	return;
-byteset:if(brkword()==-1)
-       {
-       	   bprintf("Which byte ?\n");
-       	   return;
-       	}
-       	b=numarg(wordbuf);
-       	if(brkword()==-1)
-       	{
-       	   bprintf("Current Value is : %d\n",obyte(a,b));
-       	   return;
-       	}
-       	c=numarg(wordbuf);
-       	if((b<0)||(b>1)||(c<0)||(c>255))
-       	{
-       		bprintf("Number out of range\n");
-       		return;
-       	}
-	osetbyte(a,b,c);
-       	return;
-setmobile:a=fpbn(wordbuf);
-           if(a==-1)
-           {
-           	bprintf("Set what ?\n");
-           	return;
-           }
-           if(a<16)
-           {
-           	bprintf("Mobiles only\n");
-           	return;
-           }
-           if(brkword()==-1)
-           {
-           	bprintf("To what value ?\n");
-           	return;
-           }
-           b=numarg(wordbuf);
-           setpstr(a,b);
-    }
 */
 
-const isdark = (state: State): boolean => {
-    const idk = () => {
-        for (let itemId = 0; itemId < state.numobs; itemId += 1) {
-            const item = getItem(state, itemId);
-            if ((item.itemId !== 32) && !otstbit(state, item.itemId, 13)) {
-                continue;
-            }
-            if (ishere(state, item.itemId)) {
-                return false;
-            }
-            if ((item.heldBy === undefined) && (item.wearingBy === undefined)) {
-                continue;
-            }
-            if (ploc(state, oloc(state, item.itemId)) !== state.curch) {
-                continue;
-            }
-            return false;
+const setcom = (state: State): Promise<void> => {
+    const setmobile = () => {
+        const playerId = fpbn(state, state.wordbuf);
+        if (playerId === -1) {
+            return bprintf(state, 'Set what ?\n');
         }
-        return true;
+        if (playerId < 16) {
+            return bprintf(state, 'Mobiles only\n');
+        }
+        if (brkword(state) === -1) {
+            return bprintf(state, 'To what value ?\n');
+        }
+        const b = Number(state, state.wordbuf);
+        setpstr(state, playerId, b);
+    };
+
+    const bitset = (item: Item) => {
+        if (brkword(state) === -1) {
+            return bprintf(state, 'Which bit ?\n');
+        }
+        const b = Number(state, state.wordbuf);
+        if (brkword(state) === -1) {
+            return bprintf(state, `The bit is ${otstbit(state, item.itemId, b) ? 'TRUE' : 'FALSE'}\n`);
+        }
+        const c = Number(state, state.wordbuf);
+        if ((c < 0) || (c > 1) || (b < 0) || (b > 15)) {
+            return bprintf(state, 'Number out of range\n');
+        }
+        if (c === 0) {
+            oclrbit(state, item.itemId, b);
+        } else {
+            osetbit(state, item.itemId, b);
+        }
+    };
+
+    const byteset = (item: Item) => {
+        if (brkword(state) === -1) {
+            return bprintf(state, 'Which byte ?\n');
+        }
+        const b = Number(state, state.wordbuf);
+        if (brkword(state) === -1) {
+            return bprintf(state, `Current Value is : ${obyte(state, item.itemId, b)}\n`);
+        }
+        const c = Number(state, state.wordbuf);
+        if ((c < 0) || (c > 255) || (b < 0) || (b > 1)) {
+            return bprintf(state, 'Number out of range\n');
+        }
+        osetbyte(state, item.itemId, b, c);
+    };
+
+    if (brkword(state) === -1) {
+        bprintf(state, 'set what\n');
+        return Promise.resolve();
+    }
+    if (state.my_lev < 10) {
+        bprintf(state, 'Sorry, wizards only\n');
+        return Promise.resolve();
+    }
+    return getItem(state, fobna(state, state.wordbuf))
+        .then((item) => {
+            if (item.itemId === -1) {
+                return setmobile();
+            }
+            if (brkword(state) === -1) {
+                bprintf(state, 'Set to what value ?\n');
+                return Promise.resolve();
+            }
+            if (state.wordbuf === 'bit') {
+                return bitset(item);
+            }
+            if (state.wordbuf === 'byte') {
+                return byteset(item);
+            }
+            const b = Number(state.wordbuf);
+            if (b > item.maxState) {
+                return bprintf(state, `Sorry max state for that is ${item.maxState}\n`);
+            }
+            if (b < 0) {
+                return bprintf(state, 'States start at 0\n');
+            }
+            setstate(state, item.itemId, b);
+        })
+};
+
+const isdark = (state: State): Promise<boolean> => {
+    const idk = () => {
+        const itemIds = [];
+        for (let itemId = 0; itemId < state.numobs; itemId += 1) {
+            itemIds.push(itemId);
+        }
+        let found = undefined;
+        return Promise.all(itemIds.map(itemId => getItem(state, itemId)))
+            .then(items => items.forEach((item) => {
+                if (found !== undefined) return;
+                if ((item.itemId !== 32) && !otstbit(state, item.itemId, 13)) {
+                    return;
+                }
+                if (ishere(state, item.itemId)) {
+                    found = false;
+                    return;
+                }
+                if ((item.heldBy === undefined) && (item.wearingBy === undefined)) {
+                    return;
+                }
+                if (ploc(state, item.locationId) !== state.curch) {
+                    return;
+                }
+                found = false;
+            }))
+            .then(() => (found === undefined) ? true : found);
     };
 
     if (state.my_lev > 9) {
-        return false;
+        return Promise.resolve(false);
     }
     if ((state.curch === -1100) || (state.curch === -1101)) {
-        return false;
+        return Promise.resolve(false);
     }
     if ((state.curch <= -1113) || (state.curch >= -1123)) {
         return idk();
     }
     if ((state.curch < -399) || (state.curch > -300)) {
-        return false;
+        return Promise.resolve(false);
     }
     return idk();
 };

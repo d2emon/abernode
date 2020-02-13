@@ -5,16 +5,16 @@ import {
     sendsys,
 } from './__dummies';
 import State from "./state";
-import {getItem, holdItem} from "./support";
+import {getItem, holdItem, Item} from "./support";
 import { EXAMINES } from "./files";
+import get = Reflect.get;
+import {CONTAINED_IN, HELD_BY, LOCATED_IN} from "./object";
 
 /*
-#include <stdio.h>
 #include "files.h"
 extern FILE * openlock();
 extern FILE * openuaf();
 extern FILE * openroom();
-extern char *oname();
 extern char *pname();
 extern char globme[];
 extern char wordbuf[];
@@ -88,136 +88,150 @@ if(brkword()!= -1)
     closeworld();
     bprintf("\001f%s\001",LEVELS);
     }
-
- valuecom()
-    {
-    long a,b;
-    extern char wordbuf[];
-    extern long mynum;
-    if(brkword()== -1)
-       {
-       bprintf("Value what ?\n");
-       return;
-       }
-    b=fobna(wordbuf);
-    if(b== -1)
-       {
-       bprintf("There isn't one of those here.\n");
-       return;
-       }
-    bprintf("%s : %d points\n",wordbuf,(tscale()*(obaseval(b)))/5);
-    return;
-    }
 */
 
-const stacom = (state: State): void => {
+const valuecom = (state: State): Promise<void> => {
     if (brkword(state) == -1) {
-        return bprintf(state, 'STATS what ?\n');
+        bprintf(state, 'Value what ?\n');
+        return Promise.resolve();
     }
-    if (state.my_lev < 10) {
-        return bprintf(state, 'Sorry, this is a wizard command buster...\n');
-    }
+    return getItem(state, fobna(state, state.wordbuf))
+        .then((item) => {
+            if (item.itemId === -1) {
+                return bprintf(state, 'There isn\'t one of those here.\n');
+            }
+            bprintf(state, `${state.wordbuf} : ${item.value} points\n`);
+        })
 
-    const item = getItem(state, fobn(state, state.wordbuf));
-    if (item.itemId === -1) {
-        return statplyr(state);
-    }
-
-    bprintf(state, `\nItem        :${oname(state, item.itemId)}`);
-    if (item.containedIn !== undefined) {
-        bprintf(state, `\nContained in:${oname(state, item.containedIn)}`);
-    } else if (item.heldBy !== undefined) {
-        bprintf(state, `\nHeld By     :${pname(state, item.heldBy)}`);
-    } else {
-        bprintf(state, '\nPosition    :');
-        showname(state, item.locationId);
-    }
-
-    bprintf(state, `\nState       :${__state(state, item.itemId)}`);
-    bprintf(state, `\nCarr_Flag   :${item.carryFlag}`);
-    bprintf(state, `\nSpare       :${ospare(state, item.itemId)}`);
-    bprintf(state, `\nMax State   :${omaxstate(state, item.itemId)}`);
-    bprintf(state, `\nBase Value  :${obaseval(state, item.itemId)}`);
-    bprintf(state, '\n');
 };
 
-const examcom = (state: State): void => {
+const stacom = (state: State): Promise<void> => {
     if (brkword(state) == -1) {
-        return bprintf(state, 'Examine what ?\n');
+        bprintf(state, 'STATS what ?\n');
+        return Promise.resolve();
     }
-    const itemId = fobna(state.wordbuf);
-    const item = getItem(state, itemId);
-    if (item.itemId === -1) {
-        return bprintf(state, 'You see nothing special at all\n');
-    }
-    if (item.itemId === 144) {
-        if (obyte(state, item.itemId, 0) == 0) {
-            osetbyte(state, item.itemId, 0, 1);
-            bprintf(state, 'You take a scroll from the tube.\n');
-            ocreate(state, 145);
-            holdItem(state, 145, state.mynum);
-            return;
-        }
-    } else if (item.itemId === 145) {
-        state.curch = -114;
-        bprintf(state, 'As you read the scroll you are teleported!\n');
-        destroy(state, item.itemId);
-        trapch(state, state.curch);
-        return;
-    } else if (item.itemId === 101) {
-        if (obyte(state, item.itemId, 0) == 0) {
-            bprintf(state, 'You take a key from one pocket\n');
-            osetbyte(state, item.itemId, 0, 1);
-            oclrbit(state, 107, 0);
-            holdItem(state, 107, state.mynum);
-            return;
-        }
-    } else if (item.itemId === 7) {
-        setstate(state, item.itemId, randperc(state) % 3 + 1)
-        if (__state(state, item.itemId) === 1) {
-            bprintf(state, 'It glows red');
-        } else if (__state(state, item.itemId) === 2) {
-            bprintf(state, 'It glows blue');
-        } else if (__state(state, item.itemId) === 3) {
-            bprintf(state, 'It glows green');
-        }
-        bprintf(state, '\n');
-        return;
-    } else if (item.itemId === 8) {
-        if (__state(state, 7) !== 0) {
-            if (iscarrby(state, 3 + __state(state, 7), state.mynum) && otstbit(state, 3 + __state(state, 7), 13)) {
-                bprintf(state, 'Everything shimmers and then solidifies into a different view!\n');
-                destroy(state, item.itemId);
-                teletrap(state, -1074);
-                return;
-            }
-        }
-    } else if (item.itemId === 85) {
-        if (!obyte(state, 83, 0)) {
-            bprintf(state, 'Aha. under the bed you find a loaf and a rabbit pie\n');
-            ocreate(state, 83);
-            ocreate(state, 84);
-            osetbyte(state, 83, 0, 1);
-            return;
-        }
-    } else if (item.itemId === 91) {
-        if (!obyte(state, 90, 0)) {
-            ocreate(state, 90);
-            bprintf(state, 'You pull an amulet from the bedding\n');
-            osetbyte(state, 90, 0, 1);
-            return;
-        }
+    if (state.my_lev < 10) {
+        bprintf(state, 'Sorry, this is a wizard command buster...\n');
+        return Promise.resolve();
     }
 
-    const r = `${EXAMINES}${item.itemId}`;
-    const x = fopen(r, 'r');
-    if (x === null) {
-        return bprintf(state, 'You see nothing special.\n');
+    return getItem(state, fobn(state, state.wordbuf))
+        .then((item: Item) => (
+            item.containedIn !== undefined)
+                ? getItem(state, item.containedIn).then((container: Item) => [
+                    item,
+                    container,
+                ])
+                : [item]
+        )
+        .then(([
+            item,
+            container,
+        ]) => {
+            if (item.itemId === -1) {
+                return statplyr(state);
+            }
+
+            bprintf(state, `\nItem        :${item.name}`);
+            if (item.containedIn !== undefined) {
+                bprintf(state, `\nContained in:${container.name}`);
+            } else if (item.heldBy !== undefined) {
+                bprintf(state, `\nHeld By     :${pname(state, item.heldBy)}`);
+            } else {
+                bprintf(state, '\nPosition    :');
+                showname(state, item.locationId);
+            }
+
+            bprintf(state, `\nState       :${__state(state, item.itemId)}`);
+            bprintf(state, `\nCarr_Flag   :${item.carryFlag}`);
+            bprintf(state, `\nSpare       :${ospare(state, item.itemId)}`);
+            bprintf(state, `\nMax State   :${item.maxState}`);
+            bprintf(state, `\nBase Value  :${item.baseValue}`);
+            bprintf(state, '\n');
+        });
+};
+
+const examcom = (state: State): Promise<void> => {
+    if (brkword(state) == -1) {
+        bprintf(state, 'Examine what ?\n');
+        return Promise.resolve();
     }
-    while (getstr(x, r)) {
-        bprintf(state, `${r}\n`);
-    }
-    fclose(x);
+    return getItem(state, fobna(state.wordbuf))
+        .then((item: Item) => {
+            if (item.itemId === -1) {
+                return bprintf(state, 'You see nothing special at all\n');
+            }
+            if (item.itemId === 144) {
+                if (obyte(state, item.itemId, 0) == 0) {
+                    osetbyte(state, item.itemId, 0, 1);
+                    bprintf(state, 'You take a scroll from the tube.\n');
+                    ocreate(state, 145);
+                    holdItem(state, 145, state.mynum);
+                    return;
+                }
+            } else if (item.itemId === 145) {
+                state.curch = -114;
+                bprintf(state, 'As you read the scroll you are teleported!\n');
+                destroy(state, item.itemId);
+                trapch(state, state.curch);
+                return;
+            } else if (item.itemId === 101) {
+                if (obyte(state, item.itemId, 0) == 0) {
+                    bprintf(state, 'You take a key from one pocket\n');
+                    osetbyte(state, item.itemId, 0, 1);
+                    oclrbit(state, 107, 0);
+                    holdItem(state, 107, state.mynum);
+                    return;
+                }
+            } else if (item.itemId === 7) {
+                setstate(state, item.itemId, randperc(state) % 3 + 1);
+                if (__state(state, item.itemId) === 1) {
+                    bprintf(state, 'It glows red');
+                } else if (__state(state, item.itemId) === 2) {
+                    bprintf(state, 'It glows blue');
+                } else if (__state(state, item.itemId) === 3) {
+                    bprintf(state, 'It glows green');
+                }
+                bprintf(state, '\n');
+                return;
+            } else if (item.itemId === 8) {
+                if (__state(state, 7) !== 0) {
+                    if (iscarrby(state, 3 + __state(state, 7), state.mynum) && otstbit(state, 3 + __state(state, 7), 13)) {
+                        bprintf(state, 'Everything shimmers and then solidifies into a different view!\n');
+                        destroy(state, item.itemId);
+                        teletrap(state, -1074);
+                        return;
+                    }
+                }
+            } else if (item.itemId === 85) {
+                if (!obyte(state, 83, 0)) {
+                    bprintf(state, 'Aha. under the bed you find a loaf and a rabbit pie\n');
+                    ocreate(state, 83);
+                    ocreate(state, 84);
+                    osetbyte(state, 83, 0, 1);
+                    return;
+                }
+            } else if (item.itemId === 91) {
+                if (!obyte(state, 90, 0)) {
+                    ocreate(state, 90);
+                    bprintf(state, 'You pull an amulet from the bedding\n');
+                    osetbyte(state, 90, 0, 1);
+                    return;
+                }
+            }
+
+            const r = `${EXAMINES}${item.itemId}`;
+            return  fopen(r, 'r')
+                .then((x) => {
+                    if (x === null) {
+                        throw new Error('You see nothing special.\n');
+                    }
+                    getstr(x).forEach(s => bprintf(state, `${s}\n`));
+                    return x;
+                })
+                .then(fclose)
+                .catch(err => bprintf(state, err));
+        });
 };
 
 /*
@@ -345,9 +359,10 @@ long jumtb[]={-643,-633,-1050,-662,-1082,-1053,0,0};
 
 */
 
-const wherecom = (state: State): void => {
+const wherecom = (state: State): Promise<void> => {
     if (state.my_str < 10) {
-        return bprintf(state, 'You are too weak\n');
+        bprintf(state, 'You are too weak\n');
+        return Promise.resolve();
     }
     if (state.my_lev < 10) {
         state.my_str -= 2;
@@ -360,79 +375,83 @@ const wherecom = (state: State): void => {
     }
     closeworld(state);
     if (rnd > cha) {
-        return bprintf(state, 'Your spell fails...\n');
+        bprintf(state, 'Your spell fails...\n');
+        return Promise.resolve();
     }
 
     if (brkword(state) === -1) {
-        return bprintf(state, 'What is that ?\n');
+        bprintf(state, 'What is that ?\n');
+        return Promise.resolve();
     }
 
-    let found = false;
+    const itemIds = [];
     for(let itemId=0; itemId < state.numobs; itemId += 1) {
-        const item = getItem(state, itemId);
-        if (oname(state, item.itemId) === state.wordbuf) {
-            found = true;
-            if (state.my_lev > 9999) {
-                bprintf(state, `[${item.itemId}]`);
-            }
-            bprintf(state, `${oname(state, item.itemId)} - `);
-            if ((state.my_lev < 10) && (ospare(state, item.itemId) === -1)) {
-                bprintf(state, 'Nowhere\n');
-            } else {
-                desrm(state, item.locationId, item.carryFlag);
-            }
-        }
+        itemIds.push(itemId);
     }
+    let found = false;
+    Promise
+        .all(itemIds.map(itemId => getItem(state, itemId)))
+        .then((items) => items.forEach((item) => {
+            if (item.name === state.wordbuf) {
+                found = true;
+                if (state.my_lev > 9999) {
+                    bprintf(state, `[${item.itemId}]`);
+                }
+                bprintf(state, `${item.name} - `);
+                if ((state.my_lev < 10) && (ospare(state, item.itemId) === -1)) {
+                    bprintf(state, 'Nowhere\n');
+                } else {
+                    desrm(state, item.locationId, item.carryFlag);
+                }
+            }
+        }))
+        .then(() => {
+            const playerId: number = fpbn(state.wordbuf);
+            if (playerId !== -1) {
+                found = true;
+                bprintf(state, `${pname(state, playerId)} - `);
+                desrm(state, ploc(state, playerId),0);
+            }
+            if (!found) {
+                return bprintf(state, 'I dont know what that is\n');
+            }
+        });
+};
 
-    const playerId: number = fpbn(state.wordbuf);
-    if (playerId !== -1) {
-        found = true;
-        bprintf(state, `${pname(state, playerId)} - `);
-        desrm(state, ploc(state, playerId),0);
+const desrm = (state: State, locationId: number, carryFlag: number): Promise<void> => {
+    if ((state.my_lev < 10) && (carryFlag === LOCATED_IN) && (locationId > -5)) {
+        bprintf(state, 'Somewhere.....\n');
+        return Promise.resolve()
     }
-    if (!found) {
-        return bprintf(state, 'I dont know what that is\n');
+    if (carryFlag === CONTAINED_IN) {
+        return getItem(state, locationId)
+            .then((item) => bprintf(state, `In the ${item.name}\n`));
     }
+    if (carryFlag > 0) {
+        bprintf(state, `Carried by [c]${pname(state, locationId)}[/c]\n`);
+        return Promise.resolve()
+    }
+    return openroom(locationId, 'r')
+        .then((unit) => {
+            if (unit === null) {
+                return bprintf(state, 'Out in the void\n');
+            }
+            let x = '';
+            for (let b = 0; b <= 7; b++) {
+                x = getstr(unit);
+            }
+            bprintf(state, x);
+            if (state.my_lev > 9) {
+                bprintf(state, ' | ');
+                showname(state, locationId);
+            } else {
+                bprintf(state, '\n');
+            }
+            return fclose(unit);
+        });
 };
 
 /*
- desrm(loc,cf)
- {
- extern long my_lev;
- FILE *a;
- FILE *unit;
- long b;
- long x[32];
- if((my_lev<10)&&(cf==0)&&(loc>-5))
- {
- bprintf("Somewhere.....\n");
- return;
- }
-if(cf==3){
-bprintf("In the %s\n",oname(loc));
-return;
-}
- if(cf>0)
- {
- bprintf("Carried by \001c%s\001\n",pname(loc));
- return;
- }
- unit=openroom(loc,"r");
- if(unit==NULL)
- {
- bprintf("Out in the void\n");
- return;
- }
- b=0;
- while(b++<7) getstr(unit,x);
- bprintf("%-36s",x);
-if(my_lev>9){bprintf(" | ");showname(loc);;}
-else bprintf("\n");
- fclose(unit);
- }
-
-
-
 edit_world()
 {
 	extern long my_lev,numobs;

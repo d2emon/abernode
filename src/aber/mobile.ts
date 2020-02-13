@@ -11,7 +11,6 @@ import {getItem} from "./support";
 
 extern FILE *openlock();
 extern char *pname(  ) ;
-extern char *oname(  ) ;
 
 on_timing()
 {
@@ -123,29 +122,36 @@ return ;
 
 /* More new stuff */
 
-const dircom = (state: State) => {
+const dircom = (state: State): Promise<void> => {
     if (state.my_lev < 10) {
-        return bprintf(state, 'That\'s a wiz command\n');
+        bprintf(state, 'That\'s a wiz command\n');
+        return Promise.resolve();
     }
+    const itemIds = [];
     for (let itemId = 0; itemId < state.numobs; itemId += 1) {
-        const item = getItem(state, itemId);
-        const [b, c] = findzone(state, item.locationId);
-        let d = `${b}${c}`;
-        if (item.heldBy !== undefined) {
-            d += 'CARRIED';
-        }
-        if (item.containedIn !== undefined) {
-            d += 'IN ITEM';
-        }
-        bprintf(state, `${oname(state, item.itemId)}${d}`);
-        if (item.itemId % 3 === 2) {
-            bprintf(state, '\n');
-        }
-        if (item.itemId % 18 === 17) {
-            pbfr(state);
-        }
+        itemIds.push(itemId);
     }
-    bprintf(state, '\n');
+    return Promise.all(itemIds.map(itemId => getItem(state, itemId)))
+        .then((items) => items.forEach((item) => {
+            const [b, c] = findzone(state, item.locationId);
+            let d = `${b}${c}`;
+            if (item.heldBy !== undefined) {
+                d += ' CARRIED';
+            }
+            if (item.containedIn !== undefined) {
+                d += ' IN ITEM';
+            }
+            bprintf(state, `${item.name} ${d}`);
+            if (item.itemId % 3 === 2) {
+                bprintf(state, '\n');
+            }
+            if (item.itemId % 18 === 17) {
+                pbfr(state);
+            }
+
+
+        }))
+        .then(() => bprintf(state, '\n'));
 };
 
 /*
@@ -201,26 +207,28 @@ errk:t=my_lev ;
     }
  */
 
-const pepdrop = (state: State): void => {
+const pepdrop = (state: State): Promise<void> => {
     sendsys(state, null, null, -10000, state.curch, 'You start sneezing ATISCCHHOOOOOO!!!!\n');
     if (!pname(state, 32).length || (ploc(state, 32) !== state.curch)) {
-        return;
+        return Promise.resolve();
     }
     /* Ok dragon and pepper time */
-    const pepper = getItem(state, 89);
-    if (iscarrby(state, pepper.itemId, state.mynum) && (pepper.carriedBy !== undefined)) {
-        /* Fried dragon */
-        setpname(state, 32, '');
-        /* No dragon */
-        state.my_sco += 100;
-        calibme(state);
-        return;
-    }
-    /* Whoops !*/
-    bprintf(state, 'The dragon sneezes forth a massive ball of flame.....\n');
-    bprintf(state, 'Unfortunately you seem to have been fried\n');
-    loseme();
-    crapup(state, 'Whoops.....   Frying tonight\n');
+    return getItem(state, 89)
+        .then((pepper) => {
+            if (iscarrby(state, pepper.itemId, state.mynum) && (pepper.carriedBy !== undefined)) {
+                /* Fried dragon */
+                setpname(state, 32, '');
+                /* No dragon */
+                state.my_sco += 100;
+                calibme(state);
+                return;
+            }
+            /* Whoops !*/
+            bprintf(state, 'The dragon sneezes forth a massive ball of flame.....\n');
+            bprintf(state, 'Unfortunately you seem to have been fried\n');
+            loseme();
+            crapup(state, 'Whoops.....   Frying tonight\n');
+        });
 };
 
 /*
