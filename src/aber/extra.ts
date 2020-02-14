@@ -5,7 +5,7 @@ import {
     sendsys,
 } from './__dummies';
 import State from "./state";
-import {getItem, holdItem, Item} from "./support";
+import {createItem, getItem, holdItem, Item, setItem} from "./support";
 import { EXAMINES } from "./files";
 import get = Reflect.get;
 import {CONTAINED_IN, HELD_BY, LOCATED_IN} from "./object";
@@ -144,7 +144,7 @@ const stacom = (state: State): Promise<void> => {
 
             bprintf(state, `\nState       :${__state(state, item.itemId)}`);
             bprintf(state, `\nCarr_Flag   :${item.carryFlag}`);
-            bprintf(state, `\nSpare       :${ospare(state, item.itemId)}`);
+            bprintf(state, `\nSpare       :${item.isDestroyed ? -1 : 0}`);
             bprintf(state, `\nMax State   :${item.maxState}`);
             bprintf(state, `\nBase Value  :${item.baseValue}`);
             bprintf(state, '\n');
@@ -162,12 +162,11 @@ const examcom = (state: State): Promise<void> => {
                 return bprintf(state, 'You see nothing special at all\n');
             }
             if (item.itemId === 144) {
-                if (obyte(state, item.itemId, 0) == 0) {
-                    osetbyte(state, item.itemId, 0, 1);
+                if (!item.payload.used) {
                     bprintf(state, 'You take a scroll from the tube.\n');
-                    ocreate(state, 145);
-                    holdItem(state, 145, state.mynum);
-                    return;
+                    setItem(state, item.itemId, { payload: { used: true } })
+                        .then(() => createItem(state, 145))
+                        .then((item145) => holdItem(state, item145.itemId, state.mynum));
                 }
             } else if (item.itemId === 145) {
                 state.curch = -114;
@@ -176,12 +175,11 @@ const examcom = (state: State): Promise<void> => {
                 trapch(state, state.curch);
                 return;
             } else if (item.itemId === 101) {
-                if (obyte(state, item.itemId, 0) == 0) {
+                if (!item.payload.used) {
                     bprintf(state, 'You take a key from one pocket\n');
-                    osetbyte(state, item.itemId, 0, 1);
-                    oclrbit(state, 107, 0);
-                    holdItem(state, 107, state.mynum);
-                    return;
+                    return setItem(state, item.itemId, { payload: { used: true } })
+                        .then(() => createItem(state, 107))
+                        .then((item107) => holdItem(state, item107.itemId, state.mynum));
                 }
             } else if (item.itemId === 7) {
                 setstate(state, item.itemId, randperc(state) % 3 + 1);
@@ -196,28 +194,35 @@ const examcom = (state: State): Promise<void> => {
                 return;
             } else if (item.itemId === 8) {
                 if (__state(state, 7) !== 0) {
-                    if (iscarrby(state, 3 + __state(state, 7), state.mynum) && otstbit(state, 3 + __state(state, 7), 13)) {
-                        bprintf(state, 'Everything shimmers and then solidifies into a different view!\n');
-                        destroy(state, item.itemId);
-                        teletrap(state, -1074);
-                        return;
-                    }
+                    getItem(state, 3 + __state(state, 7))
+                        .then((connected) => {
+                            if (iscarrby(state, connected.itemId, state.mynum) && connected.isLit) {
+                                bprintf(state, 'Everything shimmers and then solidifies into a different view!\n');
+                                destroy(state, item.itemId);
+                                teletrap(state, -1074);
+                                return;
+                            }
+                        })
                 }
             } else if (item.itemId === 85) {
-                if (!obyte(state, 83, 0)) {
-                    bprintf(state, 'Aha. under the bed you find a loaf and a rabbit pie\n');
-                    ocreate(state, 83);
-                    ocreate(state, 84);
-                    osetbyte(state, 83, 0, 1);
-                    return;
-                }
+                getItem(state, 83)
+                    .then((item83) => {
+                        if (!item83.payload.used) {
+                            bprintf(state, 'Aha. under the bed you find a loaf and a rabbit pie\n');
+                            return Promise.all([
+                                createItem(state, 83, { payload: { used: true } }),
+                                createItem(state, 84),
+                            ]);
+                        }
+                    });
             } else if (item.itemId === 91) {
-                if (!obyte(state, 90, 0)) {
-                    ocreate(state, 90);
-                    bprintf(state, 'You pull an amulet from the bedding\n');
-                    osetbyte(state, 90, 0, 1);
-                    return;
-                }
+                getItem(state, 90)
+                    .then((item90) => {
+                        if (!item90.payload.used) {
+                            bprintf(state, 'You pull an amulet from the bedding\n');
+                            return createItem(state, 90, { payload: { used: true } });
+                        }
+                    });
             }
 
             const r = `${EXAMINES}${item.itemId}`;
@@ -398,7 +403,7 @@ const wherecom = (state: State): Promise<void> => {
                     bprintf(state, `[${item.itemId}]`);
                 }
                 bprintf(state, `${item.name} - `);
-                if ((state.my_lev < 10) && (ospare(state, item.itemId) === -1)) {
+                if ((state.my_lev < 10) && item.isDestroyed) {
                     bprintf(state, 'Nowhere\n');
                 } else {
                     desrm(state, item.locationId, item.carryFlag);

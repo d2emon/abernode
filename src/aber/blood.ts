@@ -18,21 +18,16 @@ interface Attack {
 
 long in_fight=0;
 long  fighting= -1;
+*/
 
-
-
-int dambyitem(it)
-long it;
-    {
-    switch(it)
-       {
-case -1:return(4);
-default:if(!otstbit(it,15))return(-1);
-else return(obyte(it,0));
-          }
-
+const dambyitem = (state: State, itemId: number): Promise<number> => {
+    if (itemId === -1) {
+        return Promise.resolve(4);
     }
+    return getItem(state, itemId).then(item => item.damage);
+};
 
+/*
 long wpnheld= -1;
 
 void weapcom()

@@ -1,9 +1,40 @@
-import Item from './object';
+import Item, {
+    IS_DESTROYED,
+    HAS_CONNECTED,
+    CAN_BE_OPENED,
+    CAN_BE_LOCKED,
+    CAN_BE_LIT,
+    CAN_BE_EXTINGUISHED,
+    IS_KEY,
+    CHANGE_STATE_ON_TAKE,
+    IS_LIT,
+    IS_CONTAINER,
+    IS_WEAPON, IS_LEVER, IS_SWITCH, IS_FOOD, CAN_BE_WORN,
+} from './object';
+
+export interface ItemFlags {
+    [IS_DESTROYED]: boolean,
+    [HAS_CONNECTED]: boolean,
+    [CAN_BE_OPENED]: boolean,
+    [CAN_BE_LOCKED]: boolean,
+    [IS_LEVER]: boolean,
+    [IS_SWITCH]: boolean,
+    [IS_FOOD]: boolean,
+    [CAN_BE_WORN]: boolean,
+    [CAN_BE_LIT]: boolean,
+    [CAN_BE_EXTINGUISHED]: boolean,
+    [IS_KEY]: boolean,
+    [CHANGE_STATE_ON_TAKE]: boolean,
+    [IS_LIT]: boolean,
+    [IS_CONTAINER]: boolean,
+    [IS_WEAPON]: boolean,
+}
 
 interface ItemData {
     locationId: number,
-    value1: number,
-    value2: number,
+    state: number,
+    flags: ItemFlags,
+    payload: any,
     carryFlag: number,
 }
 

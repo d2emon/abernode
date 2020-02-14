@@ -1,5 +1,5 @@
 import State from "./state";
-import {getItem, holdItem} from "./support";
+import {createItem, getItem, holdItem, itemIsAvailable} from "./support";
 import {bprintf, brkword} from "./__dummies";
 
 /*
@@ -1092,71 +1092,55 @@ long me_cal=0;
     if(vic>15)woundmn(vic,10000); *//* DIE *//*
     broad("\001dYou hear an ominous clap of thunder in the distance\n\001");
     }
+*/
 
- eatcom()
-    {
-    long b;
-    extern char wordbuf[];
-    extern long curch;
-    extern long mynum;
-    extern long curch;
-    extern long my_str;
-    extern long my_lev;
-    extern long my_sco;
-    if(brkword()== -1)
-       {
-       bprintf("What\n");
-       return;
-       }
-
-    if((curch== -609)&&(!strcmp(wordbuf,"water"))) strcpy(wordbuf,"spring");
-    if(!strcmp(wordbuf,"from")) brkword();
-    b=fobna(wordbuf);
-    if(b== -1)
-       {
-       bprintf("There isn't one of those here\n");
-       return;
-       }
-
-    switch(b)
-       {
-       case 11:
-          bprintf("You feel funny, and then pass out\n");
-          bprintf("You wake up elsewhere....\n");
-          teletrap(-1076);
-          break;
-       case 75:
-          bprintf("very refreshing\n");
-          break;
-       case 175:
-          if(my_lev<3)
-             {
-             my_sco+=40;
-             calibme();
-             bprintf("You feel a wave of energy sweeping through you.\n");
-             break;
-             }
-          else
-             {
-             bprintf("Faintly magical by the taste.\n");
-             if(my_str<40) my_str+=2;
-             calibme();
-             }
-          break;
-       default:
-          if(otstbit(b,6))
-             {
-             destroy(b);
-             bprintf("Ok....\n");
-             my_str+=12;
-             calibme();
-             }
-          else
-             bprintf("Thats sure not the latest in health food....\n");
-          break;
-       }
+const eatcom = (state: State): Promise<void> => {
+    if (brkword(state) === -1) {
+        bprintf(state, 'What\n');
+        return Promise.resolve();
     }
+    if ((state.curch === -609) && (state.wordbuf === 'water')) {
+        state.wordbuf = 'spring';
+    }
+    if (state.wordbuf === 'from') {
+        brkword(state);
+    }
+    return getItem(state, fobna(state, state.wordbuf))
+        .then((item) => {
+            if (item.itemId === -1) {
+                return bprintf(state, 'There isn\'t one of those here\n');
+            } else if (item.itemId === 11) {
+                bprintf(state, 'You feel funny, and then pass out\n');
+                bprintf(state, 'You wake up elsewhere....\n');
+                teletrap(state, -1076);
+                return;
+            } else if (item.itemId === 75) {
+                return bprintf(state, 'very refreshing\n');
+            } else if (item.itemId === 175) {
+                if (state.my_lev < 3) {
+                    state.my_sco += 40;
+                    calibme(state);
+                    bprintf(state, 'You feel a wave of energy sweeping through you.\n');
+                } else {
+                    bprintf(state, 'Faintly magical by the taste.\n');
+                    if (state.my_str < 40) {
+                        state.my_str += 2;
+                    }
+                    calibme(state);
+                }
+                return;
+            } else if (item.isFood) {
+                destroy(state, item.itemId);
+                bprintf(state, 'Ok....\n');
+                state.my_str += 12;
+                calibme(state);
+            } else {
+                return bprintf(state, 'Thats sure not the latest in health food....\n');
+            }
+        });
+};
 
+/*
  calibme()
     {
     *//* Routine to correct me in user file *//*
@@ -1202,30 +1186,25 @@ long me_cal=0;
     return(10);
     }
 
- playcom()
-    {
-    extern char wordbuf[];
-    extern long curch;
-    extern long mynum;
-    long  a,b;
-    if(brkword()== -1)
-       {
-       bprintf("Play what ?\n");
-       return;
-       }
-    a=fobna(wordbuf);
-    if(a== -1)
-       {
-       bprintf("That isn't here\n");
-       return;
-       }
-    if(!isavl(a))
-       {
-       bprintf("That isn't here\n");
-       return;
-       }
-    }
+*/
 
+const playcom = (state: State): Promise<void> => {
+    if (brkword(state) === -1) {
+        bprintf(state, 'Play what ?\n');
+        return Promise.resolve();
+    }
+    return getItem(state, fobna(state, state.wordbuf))
+        .then((item) => {
+            if (item.itemId === -1) {
+                return bprintf(state, 'That isn\'t here\n');
+            }
+            if (!itemIsAvailable(state, item)) {
+                return bprintf(state, 'That isn\'t here\n');
+            }
+        })
+};
+
+/*
  getreinput(blob)
     {
     extern long stp;
@@ -1762,10 +1741,10 @@ const look_cmd = (state: State): Promise<void> => {
             if (item.itemId === -1) {
                 return bprintf(state, 'What ?\n');
             }
-            if (!otstbit(state, item.itemId, 14)) {
+            if (!item.isContainer) {
                 return bprintf(state, 'That isn\'t a container\n');
             }
-            if (otstbit(state, item.itemId, 2) && (__state(state, item.itemId) !== 0)) {
+            if (item.canBeOpened && (__state(state, item.itemId) !== 0)) {
                 return bprintf(state, 'It\'s closed!\n');
             }
             bprintf(state, `The ${item.name} contains:\n`);
@@ -1820,11 +1799,10 @@ setherecom()
 */
 
 const digcom = (state: State): Promise<void> => getItem(state, 186)
-    .then((item186) => {
-        if ((item186.locationId === state.curch) && item186.isDestroyed) {
+    .then((slab) => {
+        if ((slab.locationId === state.curch) && slab.isDestroyed) {
             bprintf(state, 'You uncover a stone slab!\n');
-            ocreate(state, item186.itemId);
-            return;
+            return createItem(state, slab.itemId).then(() => undefined);
         }
         if ((state.curch !== -172) && (state.curch !== -192)) {
             return bprintf(state, 'You find nothing.\n');

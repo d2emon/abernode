@@ -1,5 +1,5 @@
 import State from "./state";
-import {getItem, Item} from "./support";
+import {getItem, Item, setItem} from "./support";
 import {bprintf, brkword} from "./__dummies";
 
 /*
@@ -333,23 +333,30 @@ starts sizzling with magical energy\n\001");
     bprintf("You start to moan\n");
     }
 
- cancarry(plyr)
-    {
-    extern long numobs;
-    long a,b;
-    a=0;
-    b=0;
-    if(plev(plyr)>9) return(1);
-    if(plev(plyr)<0) return(1);
-    while(a<numobs)
-       {
-       if((iscarrby(a,plyr))&&(!isdest(a))) b++;
-       a++;
-       }
-    if(b<plev(plyr)+5) return(1);
-    return(0);
-    }
 */
+
+const cancarry = (state: State, playerId: number): Promise<boolean> => {
+    if (plev(state, playerId) > 9) {
+        return Promise.resolve(true);
+    }
+    if (plev(state, playerId) < 0) {
+        return Promise.resolve(true);
+    }
+    const itemIds = [];
+    for (let itemId = 0; itemId < state.numobs; itemId += 1) {
+        itemIds.push(itemId);
+    }
+    return Promise.all(itemIds.map(itemId => getItem(state, itemId)))
+        .then(items => items.reduce((count, item)  => {
+            if (iscarrby(state, item.itemId, playerId) && !item.isDestroyed) {
+                return count + 1;
+            } else {
+                return count;
+            }
+        }, 0))
+        .then(count => (count < plev(state, playerId) + 5));
+
+};
 
 const setcom = (state: State): Promise<void> => {
     const setmobile = () => {
@@ -373,17 +380,13 @@ const setcom = (state: State): Promise<void> => {
         }
         const b = Number(state, state.wordbuf);
         if (brkword(state) === -1) {
-            return bprintf(state, `The bit is ${otstbit(state, item.itemId, b) ? 'TRUE' : 'FALSE'}\n`);
+            return bprintf(state, `The bit is ${item.flags[b] ? 'TRUE' : 'FALSE'}\n`);
         }
         const c = Number(state, state.wordbuf);
         if ((c < 0) || (c > 1) || (b < 0) || (b > 15)) {
             return bprintf(state, 'Number out of range\n');
         }
-        if (c === 0) {
-            oclrbit(state, item.itemId, b);
-        } else {
-            osetbit(state, item.itemId, b);
-        }
+        return setItem(state, item.itemId, { flags: { [b]: !!c } });
     };
 
     const byteset = (item: Item) => {
@@ -392,13 +395,13 @@ const setcom = (state: State): Promise<void> => {
         }
         const b = Number(state, state.wordbuf);
         if (brkword(state) === -1) {
-            return bprintf(state, `Current Value is : ${obyte(state, item.itemId, b)}\n`);
+            return bprintf(state, `Current Value is : ${item.payload[b]}\n`);
         }
         const c = Number(state, state.wordbuf);
         if ((c < 0) || (c > 255) || (b < 0) || (b > 1)) {
             return bprintf(state, 'Number out of range\n');
         }
-        osetbyte(state, item.itemId, b, c);
+        return setItem(state, item.itemId, { payload: { [b]: c } });
     };
 
     if (brkword(state) === -1) {
@@ -445,7 +448,7 @@ const isdark = (state: State): Promise<boolean> => {
         return Promise.all(itemIds.map(itemId => getItem(state, itemId)))
             .then(items => items.forEach((item) => {
                 if (found !== undefined) return;
-                if ((item.itemId !== 32) && !otstbit(state, item.itemId, 13)) {
+                if ((item.itemId !== 32) && !item.isLit) {
                     return;
                 }
                 if (ishere(state, item.itemId)) {

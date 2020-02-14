@@ -4,7 +4,13 @@ import {
     sendsys,
 } from './__dummies';
 import State from "./state";
-import {Item, getItem, putItem, putItemIn} from "./support";
+import {Item, getItem, putItem, putItemIn, setItem, availableByMask} from "./support";
+import {
+    IS_DESTROYED,
+    CAN_BE_LIT,
+    CAN_BE_EXTINGUISHED,
+    IS_LIT, IS_KEY,
+} from "./object";
 
 /*
 struct player_res
@@ -79,151 +85,131 @@ extern char wordbuf[];
     extern long objinfo[];
     return(objinfo[4*ob+1]);
     }
+*/
 
-
- opencom()
-    {
-    extern long mynum,curch;
-    long a,b;
-    b=ohereandget(&a);
-    if(b==-1) return;
-    switch(a)
-       {
-       case 21:if(state(21)==0) bprintf("It is\n");
-     else bprintf("It seems to be magically closed\n");
-break;
-       case 1:
-          if(state(1)==1)
-             {
-             bprintf("It is!\n");
-             }
-          else
-             {
-             setstate(1,1);
-             bprintf("The Umbrella Opens\n");
-             }
-          break;
-       case 20:
-          bprintf("You can't shift the door from this side!!!!\n");break;
-       default:
-          if(otstbit(a,2)==0)
-             {
-             bprintf("You can't open that\n");
-             return;
-             }
-          if(state(a)==0)
-             {
-             bprintf("It already is\n");
-             return;
-             }
-          if(state(a)==2)
-             {
-             bprintf("It's locked!\n");
-             return;
-             }
-          setstate(a,0);bprintf("Ok\n");
-
-          }
+const opencom = (state: State): Promise<void> => {
+    const [b, itemId] = ohereandget();
+    if (b === -1) {
+        return Promise.resolve();
     }
+    return getItem(state, itemId)
+        .then((item) => {
+            if (item.itemId === 21) {
+                if (__state(state, item.itemId) == 0) {
+                    return bprintf(state, 'It is\n');
+                } else {
+                    return bprintf(state, 'It seems to be magically closed\n');
+                }
+            } else if (item.itemId === 1) {
+                if (__state(state, item.itemId) == 1) {
+                    return bprintf(state, 'It is\n');
+                } else {
+                    setstate(state, item.itemId, 1);
+                    return bprintf(state, 'The Umbrella Opens\n');
+                }
+            } else if (item.itemId === 20) {
+                return bprintf(state, 'You can\'t shift the door from this side!!!!\n');
+            }
 
- setstate(o,v)
-    {
-    extern long objinfo[];
-    objinfo[4*o+1]=v;
-    if(otstbit(o,1)) objinfo[4*(o^1)+1]=v;
+            if (!item.canBeOpened) {
+                return bprintf(state, 'You can\'t open that\n');
+            }
+            if (__state(state, item.itemId) === 0) {
+                return bprintf(state, 'It already is\n');
+            }
+            if (__state(state, item.itemId) === 2) {
+                return bprintf(state, 'It\'s locked!\n');
+            }
+            setstate(state, item.itemId, 0);
+            bprintf(state, 'Ok\n')
+        });
+};
 
+const setstate = (state: State, itemId: number, value: number): Promise<void> => setItem(state, itemId, {
+    state: value,
+})
+    .then(() => getItem(state, itemId))
+    .then((item) => {
+        if (item.connectedItemId !== undefined) {
+            return setItem(state, item.connectedItemId, { state: value });
+        }
+    });
+
+const closecom = (state: State): Promise<void> => {
+    const [b, itemId] = ohereandget();
+    if (b === -1) {
+        return Promise.resolve();
     }
+    return getItem(state, itemId)
+        .then((item) => {
+            if (item.itemId === 1) {
+                if (__state(state, item.itemId) === 0) {
+                    return bprintf(state, 'It is closed, silly!\n');
+                } else {
+                    bprintf(state, 'Ok\n');
+                    setstate(state, item.itemId, 0);
+                    return;
+                }
+            }
 
- closecom()
-    {
-    long a,b;
-    b=ohereandget(&a);
-    if(b==-1) return;
-    switch(a)
-       {
-       case 1:
-          if(state(1)==0) bprintf("It is closed, silly!\n");
-          else
-             {
-             bprintf("Ok\n");
-             setstate(1,0);
-             }
-             break;
-       default:
-          if(otstbit(a,2)==0)
-             {
-             bprintf("You can't close that\n");
-             return;
-             }
-          if(state(a)!=0)
-             {
-             bprintf("It is open already\n");
-             return;
-             }
-          setstate(a,1);
-          bprintf("Ok\n");
-          }
-    }
+            if (!item.canBeOpened) {
+                return bprintf(state, 'You can\'t close that\n');
+            }
+            if (__state(state, item.itemId) !== 0) {
+                return bprintf(state, 'It is open already\n');
+            }
+            setstate(state, item.itemId, 1);
+            bprintf(state, 'Ok\n')
+        });
+};
 
- lockcom()
-    {
-    long a,b;
-    extern long mynum;
-    b=ohereandget(&a);
-    if(b==-1) return;
-    if(!ohany((1<<11)))
-       {
-       bprintf("You haven't got a key\n");
-       return;
-       }
-    switch(a)
-       {
-       default:
-          if(!otstbit(a,3))
-             {
-             bprintf("You can't lock that!\n");
-             return;
-             }
-          if(state(a)==2)
-             {
-             bprintf("It's already locked\n");
-             return;
-             }
-          setstate(a,2);
-          bprintf("Ok\n");
-          }
+const lockcom = (state: State): Promise<void> => {
+    const [b, itemId] = ohereandget();
+    if (b === -1) {
+        return Promise.resolve();
     }
+    return availableByMask(state, { [IS_KEY]: true })
+        .then((found) => {
+            if (found) {
+                return bprintf(state, 'You haven\'t got a key\n');
+            }
+            return getItem(state, itemId)
+                .then((item) => {
+                    if (!item.canBeLocked) {
+                        return bprintf(state, 'You can\'t lock that!\n');
+                    }
+                    if (__state(state, item.itemId) === 2) {
+                        return bprintf(state, 'It\'s already locked\n');
+                    }
+                    setstate(state, item.itemId, 2);
+                    bprintf(state, 'Ok\n')
+                });
+        })
+};
 
- unlockcom()
-    {
-    long a,b;
-    extern long mynum;
-    b=ohereandget(&a);
-    if(b==-1) return;
-    if(!ohany(1<<11))
-       {
-       bprintf("You have no keys\n");
-       return;
-       }
-    switch(a)
-       {
-       default:
-          if(!otstbit(a,3))
-             {
-             bprintf("You can't unlock that\n");
-             return;
-             }
-          if(state(a)!=2)
-             {
-             bprintf("Its not locked!\n");
-             return;
-             }
-          printf("Ok...\n");
-          setstate(a,1);
-          return;
-          }
+const unlockcom = (state: State): Promise<void> => {
+    const [b, itemId] = ohereandget();
+    if (b === -1) {
+        return Promise.resolve();
     }
-    */
+    return availableByMask(state, { [IS_KEY]: true })
+        .then((found) => {
+            if (found) {
+                return bprintf(state, 'You have no keys\n');
+            }
+            return getItem(state, itemId)
+                .then((item) => {
+                    if (!item.canBeLocked) {
+                        return bprintf(state, 'You can\'t unlock that\n');
+                    }
+                    if (__state(state, item.itemId) !== 2) {
+                        return bprintf(state, 'Its not locked!\n');
+                    }
+                    setstate(state, item.itemId, 1);
+                    bprintf(state, 'Ok\n')
+                });
+        })
+};
 
 const wavecom = (state: State): void => {
     const [b, itemId] = ohereandget();
@@ -294,16 +280,17 @@ const putcom = (state: State): Promise<void> => {
                 bprintf(state, 'The candle fixes firmly into the candlestick\n');
                 state.my_sco += 50;
                 destroy(state, item.itemId);
-                osetbyte(state, container.itemId, 1, item.itemId);
-                osetbit(state, container.itemId, 9);
-                osetbit(state, container.itemId, 10);
-                if (otstbit(state, item.itemId, 13)) {
-                    osetbit(state, container.itemId, 13);
-                    setstate(state, container.itemId, 0);
-                } else {
-                    setstate(state, container.itemId, 1);
-                    oclearbit(state, container.itemId, 13);
-                }
+                setItem(state, container.itemId, {
+                    flags: {
+                        [CAN_BE_LIT]: true,
+                        [CAN_BE_EXTINGUISHED]: true,
+                        [IS_LIT]: item.isLit,
+                    },
+                    payload: {
+                        1: item.itemId,
+                    }
+                });
+                setstate(state, container.itemId, item.isLit ? 0 : 1);
             } else if (container.itemId === 137) {
                 if (__state(state, container.itemId) === 0) {
                     return putItem(state, item.itemId, -162)
@@ -342,7 +329,7 @@ const putcom = (state: State): Promise<void> => {
                 return bprintf(state, 'What do you think this is, the goon show ?\n');
             }
 
-            if (!otstbit(state, container.itemId, 14)) {
+            if (!container.isContainer) {
                 return bprintf(state, 'You can\'t do that\n');
             }
             if (__state(state, container.itemId) !== 0) {
@@ -363,7 +350,7 @@ const putcom = (state: State): Promise<void> => {
                     bprintf(state, 'Ok.\n');
                     const ar = `[D]${state.globme}[/D][c] puts the ${item.name} in the ${container.name}.\n[/c]`;
                     sendsys(state, state.globme, state.globme, -10000, state.curch, ar);
-                    if (otstbit(state, item.itemId, 12)) {
+                    if (item.changeStateOnTake) {
                         setstate(state, item.itemId, 0);
                     }
                     if (state.curch === -1081) {
@@ -374,71 +361,63 @@ const putcom = (state: State): Promise<void> => {
         });
 };
 
-/*
-
- lightcom()
-    {
-    extern long mynum,curch;
-    long a,b;
-    b=ohereandget(&a);
-    if(b== -1) return;
-    if(!ohany(1<<13))
-       {
-       bprintf("You have nothing to light things from\n");
-       return;
-       }
-    switch(a)
-       {
-       default:
-          if(!otstbit(a,9))
-             {
-             bprintf("You can't light that!\n");
-             return;
-             }
-          if(state(a)==0)
-             {
-             bprintf("It is lit\n");
-             return;
-             }
-          setstate(a,0);
-          osetbit(a,13);
-          bprintf("Ok\n");
-          }
+const lightcom = (state: State): Promise<void> => {
+    const [b, itemId] = ohereandget();
+    if (b === -1) {
+        return Promise.resolve();
     }
+    return Promise.all([
+        getItem(state, itemId),
+        availableByMask(state, { [IS_LIT]: true }),
+    ])
+        .then(([
+            item,
+            found,
+        ]) => {
+            if (!found) {
+                return bprintf(state, 'You have nothing to light things from\n');
+            }
+            if (item.canBeLit) {
+                return bprintf(state, 'You can\'t light that!\n');
+            }
+            if (__state(state, item.itemId) === 0) {
+                return bprintf(state, 'It is lit\n');
+            }
+            setstate(state, item.itemId, 0);
+            return setItem(state, item.itemId, { flags: { [IS_LIT]: true } })
+                .then(() => bprintf(state, 'Ok\n'));
+        });
 
- extinguishcom()
-    {
-    long a,b;
-    b=ohereandget(&a);
-    if(b== -1) return;
-    switch(a)
-       {
-       default:
-          if(!otstbit(a,13))
-             {
-             bprintf("That isn't lit\n");
-             return;
-             }
-          if(!otstbit(a,10))
-             {
-             bprintf("You can't extinguish that!\n");
-             return;
-             }
-          setstate(a,1);
-          oclearbit(a,13);
-          bprintf("Ok\n");
-          }
+};
+
+const extinguishcom = (state: State): Promise<void> => {
+    const [b, itemId] = ohereandget();
+    if (b === -1) {
+        return Promise.resolve();
     }
-*/
+    return getItem(state, itemId)
+        .then((item) => {
+            if (item.isLit) {
+                return bprintf(state, 'That isn\'t lit\n');
+            }
+            if (item.canBeExtinguished) {
+                return bprintf(state, 'You can\'t extinguish that!\n');
+            }
+            setstate(state, item.itemId, 1);
+            return setItem(state, item.itemId, { flags: { [IS_LIT]: false } })
+                .then(() => bprintf(state, 'Ok\n'));
+        })
+
+};
 
 const pushcom = (state: State): Promise<void> => {
     const def2 = (item: Item): void => {
-        if (otstbit(state, item.itemId, 4)) {
+        if (item.isLever) {
             setstate(state, item.itemId, 0);
             oplong(state, item.itemId);
             return;
         }
-        if (otstbit(state, item.itemId, 5)) {
+        if (item.isSwitch) {
             setstate(state, item.itemId, 1 - __state(state, item.itemId));
             oplong(state, item.itemId);
             return;
@@ -1086,12 +1065,13 @@ long  ail_deaf=0;
              }
           }
     }
+*/
 
- destroy(ob)
-    {
-    osetbit(ob,0);
-    }
+const destroy = (state: State, itemId: Item): Promise<void> => setItem(state, itemId, {
+    flags: { [IS_DESTROYED]: true }
+});
 
+/*
  tscale()
     {
     long a,b;
@@ -1388,15 +1368,12 @@ case 33:return(10);
           return(10);
           }
     }
- canwear(a)
-    {
-    switch(a)
-       {
-       default:
-          if(otstbit(a,8)) return(1);
-          return(0);
-          }
-    }
+*/
+
+const canwear = (state: State, itemId: number): Promise<boolean> => getItem(state, itemId)
+    .then((item) => item.canBeWorn);
+
+/*
  iam(x)
  char *x;
     {

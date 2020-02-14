@@ -1,5 +1,5 @@
 import State from "./state";
-import {getItem, holdItem, putItem} from "./support";
+import {createItem, getItem, holdItem, itemIsAvailable, putItem} from "./support";
 import {bprintf, brkword, sendsys} from "./__dummies";
 
 /*
@@ -153,7 +153,7 @@ const fobnsys = (state: State, name: string, control: number, ctInf: number): Pr
                         found = 113;
                     } else if ((item.itemId === 112) && iscarrby(state, 114, state.mynum)) {
                         found = 114;
-                    } else if (isavl(state, item.itemId)) {
+                    } else if (itemIsAvailable(state, item)) {
                         found = item.itemId
                     }
                 } else if (control === 2) {
@@ -269,8 +269,10 @@ const getobj = (state: State): Promise<void> => {
                     })
                     .then((shield) => {
                         if (shield !== undefined) {
-                            item = shield;
-                            oclrbit(state, shield.itemId, 0);
+                            createItem(state, shield.itemId)
+                                .then((created) => {
+                                    item = created;
+                                });
                         } else {
                             return bprintf(state, 'The shields are all to firmly secured to the walls\n');
                         }
@@ -293,7 +295,7 @@ const getobj = (state: State): Promise<void> => {
             const bf2 = `[D]${state.globme}[/D][c] takes the ${item.name}\n[/c]`;
             bprintf(state, 'Ok...\n');
             sendsys(state, state.globme, state.globme, -10000, state.curch, bf2);
-            if (otstsbit(state, item.itemId, 12)) {
+            if (item.changeStateOnTake) {
                 setstate(state, item.itemId, 0);
             }
             if (state.curch === -1081) {

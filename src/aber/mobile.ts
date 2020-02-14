@@ -3,7 +3,8 @@ import {
     sendsys,
 } from './__dummies';
 import State from "./state";
-import {getItem} from "./support";
+import {availableByMask, getItem} from "./support";
+import {IS_LIT} from "./object";
 
 /*
 #include <stdio.h>
@@ -38,24 +39,38 @@ chkfight( fpbns( "guardian"));
 if( iscarrby( 32, mynum ) ) dorune(  ) ;
 if(phelping(mynum)!=-1) helpchkr();
     }
+*/
 
- chkfight( x )
-    {
-    extern long curch ;
-    extern long mynum ;
-    if( x<0 ) return ; *//* No such being *//*
-    consid_move( x); *//* Maybe move it *//*
-    if( !strlen( pname( x ) ) ) return ;
-    if( ploc( x )!=curch ) return ;
-    if( pvis( mynum ) ) return ; *//* Im invis *//*
-    if(randperc()>40) return;
-if( ( x==fpbns( "yeti" ) )&&( ohany( ( 1<<13 ) ) ) )
-{
-return ;
-}
-    mhitplayer( x, mynum ) ;
+const chkfight = (state: State, playerId: number): Promise<void> => {
+    if (playerId < 0) {
+        /* No such being */
+        return Promise.resolve();
     }
+    /* Maybe move it */
+    consid_move(state, playerId);
+    if (!pname(state, playerId)) {
+        return Promise.resolve();
+    }
+    if (ploc(state, playerId) !== state.curch) {
+        return Promise.resolve();
+    }
+    if (pvis(state, state.mynum)) {
+        /* Im invis */
+        return Promise.resolve();
+    }
+    if (randperc(state) > 40) {
+        return Promise.resolve();
+    }
+    return availableByMask(state, { [IS_LIT]: true })
+        .then((found) => {
+            if ((playerId === fpbns('yeti')) && found) {
+                return;
+            }
+            mhitplayer(state, playerId, state.mynum);
+        })
+};
 
+/*
  consid_move(x)
  {;}
 

@@ -4,7 +4,7 @@ import {
     sendsys,
 } from './__dummies';
 import State from "./state";
-import {getItem, holdItem, Item, putItem} from "./support";
+import {createItem, getItem, holdItem, Item, putItem} from "./support";
 
 /*
 #include "files.h"
@@ -260,12 +260,14 @@ const ressurcom = (state: State): Promise<void> => {
             if (item.itemId === -1) {
                 return bprintf(state, 'You can only ressurect objects\n')
             }
-            if (ospare(state, item.itemId) !== -1) {
+            if (!item.isDestroyed) {
                 return bprintf(state, 'That already exists\n')
             }
-            ocreate(state, item.itemId);
-            putItem(state, item.itemId, state.curch);
-            const bf = `The ${item.name} suddenly appears\n`;
-            sendsys(state, null, null, -10000, state.curch, bf);
+            return createItem(state, item.itemId)
+                .then((created) => putItem(state, created.itemId, state.curch))
+                .then(() => {
+                    const bf = `The ${item.name} suddenly appears\n`;
+                    sendsys(state, null, null, -10000, state.curch, bf);
+                });
         });
 };
