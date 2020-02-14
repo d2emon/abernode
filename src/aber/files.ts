@@ -1,3 +1,5 @@
+import State from "./state";
+
 export const UAF_RAND = '/cygdrive/c/Programs/Adv/AberMUD2/mud/uaf.rand';
 export const ROOMS = '/cygdrive/c/Programs/Adv/AberMUD2/mud/TEXT/ROOMS/';
 export const LOG_FILE = '/cygdrive/c/Programs/Adv/AberMUD2/mud/mud_syslog';
@@ -21,3 +23,14 @@ export const EXE = '/cygdrive/c/Programs/Adv/AberMUD2/mud/mud.exe';
 export const EXE2 = '/cygdrive/c/Programs/Adv/AberMUD2/mud/mud.1';
 export const SNOOP = '/cygdrive/c/Programs/Adv/AberMUD2/mud/SNOOP/';
 export const HOST_MACHINE = 'DAVIDPOOTER';
+
+export const logger = {
+    write: (message: string): Promise<void> => new Promise<void>((resolve) => {
+        const date = new Date();
+        console.log(LOG_FILE, `${date.toString()}: ${message}`);
+        resolve();
+        // On Error
+        // loseme(state)
+        // crapup(state, 'Log fault : Access Failure');
+    }),
+};

@@ -1,6 +1,7 @@
 import State from "./state";
 import {createItem, getItem, holdItem, itemIsAvailable} from "./support";
 import {bprintf, brkword} from "./__dummies";
+import {logger} from "./files";
 
 /*
 #include "files.h"
@@ -1063,36 +1064,32 @@ long me_cal=0;
     fclose(a);
     resetplayers();
     }
-
- lightning()
-    {
-    extern long my_lev;
-    long  vic;
-    extern char wordbuf[];
-    extern char globme[];
-    extern long curch;
-    if(my_lev<10)
-       {
-       bprintf("Your spell fails.....\n");
-       return;
-       }
-    if(brkword()== -1)
-       {
-       bprintf("But who do you wish to blast into pieces....\n");
-       return;
-       }
-    vic=fpbn(wordbuf);
-    if(vic== -1)
-       {
-       bprintf("There is no one on with that name\n");
-       return;
-       }
-    sendsys(pname(vic),globme,-10001,ploc(vic),"");
-    syslog("%s zapped %s",globme,pname(vic));
-    if(vic>15)woundmn(vic,10000); *//* DIE *//*
-    broad("\001dYou hear an ominous clap of thunder in the distance\n\001");
-    }
 */
+
+const lightning = (state: State): Promise<void> => {
+    if (state.my_lev < 10) {
+        bprintf(state, 'Your spell fails.....\n');
+        return Promise.resolve();
+    }
+    if (brkword(state) === -1) {
+        bprintf(state, 'But who do you wish to blast into pieces....\n');
+        return Promise.resolve();
+    }
+    const playerId = fpbn(state, state.wordbuf);
+    if (playerId === -1) {
+        bprintf(state, 'There is no one on with that name\n');
+        return Promise.resolve();
+    }
+    sendsys(state, pname(state, playerId), state.globme, -10001, ploc(state, playerId), null);
+    return logger.write(`${state.globme} zapped ${pname(state, playerId)}`)
+        .then(() => {
+            if (playerId > 15) {
+                woundmn(state, playerId, 10000);
+                /* DIE */
+            }
+            broad(state, '[d]You hear an ominous clap of thunder in the distance\n[/d]');
+        });
+};
 
 const eatcom = (state: State): Promise<void> => {
     if (brkword(state) === -1) {
@@ -1140,35 +1137,35 @@ const eatcom = (state: State): Promise<void> => {
         });
 };
 
-/*
- calibme()
-    {
-    *//* Routine to correct me in user file *//*
-    long  a;
-    extern long mynum,my_sco,my_lev,my_str,my_sex,wpnheld;
-    extern char globme[];
-    long  b;
-    char *sp[128];
-    extern long i_setup;
-    if(!i_setup) return;
-    b=levelof(my_sco);
-    if(b!=my_lev)
-       {
-       my_lev=b;
-       bprintf("You are now %s ",globme);
-       syslog("%s to level %d",globme,b);
-       disle3(b,my_sex);
-       sprintf(sp,"\001p%s\001 is now level %d\n",globme,my_lev);
-       sendsys(globme,globme,-10113,ploc(mynum),sp);
-       if(b==10) bprintf("\001f%s\001",GWIZ);
-       }
-    setplev(mynum,my_lev);
-    if(my_str>(30+10*my_lev)) my_str=30+10*my_lev;
-    setpstr(mynum,my_str);
-    setpsex(mynum,my_sex);
-    setpwpn(mynum,wpnheld);
+const calibme = (state: State): Promise<void> => {
+    /* Routine to correct me in user file */
+    if (!state.i_setup) {
+        return;
     }
+    const level = levelof(state, state.my_sco);
+    if (level !== state.my_lev) {
+        state.my_lev = level;
+        bprintf(state, `You are now ${state.globme} `);
+        logger.write(`${state.globme} to level ${level}`)
+            .then(() => {
+                disle3(state, level, state.my_sex);
+                const sp = `[p]${state.globme}[/p] is now level ${level}\n`;
+                sendsys(state, state.globme, state.globme, -10113, ploc(state, state.mynum), sp);
+                if (level === 10) {
+                    bprintf(state, `[f]${GWIZ}[/f]`);
+                }
+            });
+    }
+    setplev(state, state.mynum, state.my_lev);
+    if (state.my_str > (30 + 10 * state.my_lev)) {
+        state.my_str = 30 + 10 * state.my_lev;
+    }
+    setpstr(state, state.mynum, state.my_str);
+    setpsex(state, state.mynum, state.my_sex);
+    setpwpn(state, state.mynum, state.wpnheld);
+};
 
+/*
  levelof(score)
     {
     extern long my_lev;
@@ -1276,41 +1273,35 @@ const playcom = (state: State): Promise<void> => {
           my_str,50+8*my_lev,my_sco,globme);
     disle3(my_lev,my_sex);
     }
+*/
 
- exorcom()
-    {
-    long  x,a;
-    extern long curch;
-    extern long my_lev;
-    extern char globme[];
-    extern char wordbuf[];
-    if(my_lev<10)
-       {
-       bprintf("No chance....\n");
-       return;
-       }
-    if(brkword()== -1)
-       {
-       bprintf("Exorcise who ?\n");
-       return;
-       }
-    x=fpbn(wordbuf);
-    if(x== -1)
-       {
-       bprintf("They aren't playing\n");
-       return;
-       }
-       if(ptstflg(x,1))
-       {
-       	bprintf("You can't exorcise them, they dont want to be exorcised\n");
-       	return;
-       	}
-    syslog("%s exorcised %s",globme,pname(x));
-    dumpstuff(x,ploc(x));
-    sendsys(pname(x),globme,-10010,curch,"");
-    pname(x)[0]=0;
+const exorcom = (state: State): Promise<void> => {
+    if (state.my_lev < 10) {
+        bprintf(state, 'No chance....\n');
+        return Promise.resolve();
     }
+    if (brkword(state) === -1) {
+        bprintf(state, 'Exorcise who ?\n');
+        return Promise.resolve();
+    }
+    const playerId = fpbn(state, state.wordbuf);
+    if (playerId === -1) {
+        bprintf(state, 'They aren\'t playing\n');
+        return Promise.resolve();
+    }
+    if (ptstflg(state, playerId, 1)) {
+        bprintf(state, 'You can\'t exorcise them, they dont want to be exorcised\n');
+        return Promise.resolve();
+    }
+    return logger.write(`${state.globme} exorcised ${pname(state, playerId)}`)
+        .then(() => {
+            dumpstuff(state, playerId, ploc(state, playerId));
+            sendsys(state, pname(state, playerId), state.globme, -10010, state.curch, null);
+            setpname(state, playerId, '');
+        });
+};
 
+/*
  givecom()
     {
     auto long  a,b;
@@ -1691,25 +1682,18 @@ long brmode=0;
        }
     debug2();
     }
-
-bugcom()
-{
-	char x[120];
-	extern char globme[];
-	getreinput(x);
-	syslog("Bug by %s : %s",globme,x);
-}
-
-typocom()
-{
-	char x[120],y[32];
-	extern char globme[];
-	extern long curch;
-	sprintf(y,"%s in %d",globme,curch);
-	getreinput(x);
-	syslog("Typo by %s : %s",y,x);
-}
 */
+
+const bugcom = (state: State): Promise<void> => {
+    const x = getreinput(state);
+    return logger.write(`Bug by ${state.globme} : ${x}`);
+};
+
+const typocom = (state: State): Promise<void> => {
+    const y = `${state.globme} in ${state.curch}`;
+    const x = getreinput(state);
+    return logger.write(`Typo by ${y} : ${x}`);
+};
 
 const look_cmd = (state: State): Promise<void> => {
     /*

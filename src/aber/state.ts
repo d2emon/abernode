@@ -40,6 +40,7 @@ interface ItemData {
 
 export default interface State {
     NOBS: number,
+    argv_p: any,
     brmode: boolean,
     curch: number,
     debug_mode: boolean,
@@ -47,9 +48,11 @@ export default interface State {
     exittxt: string[],
     fighting: number,
     globme: string,
+    i_setup: boolean,
     in_fight: number,
     me_cal: number,
     my_lev: number,
+    my_sex: number,
     my_sco: number,
     my_str: number,
     mynum: number,
@@ -58,7 +61,9 @@ export default interface State {
     objinfo: ItemData[],
     out_ms: string,
     stp: number,
+    sysbuf: string,
     wd_it: string,
     wordbuf: string,
     wpnheld: number,
+    zapped: boolean,
 }

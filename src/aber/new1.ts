@@ -11,6 +11,7 @@ import {
     CAN_BE_EXTINGUISHED,
     IS_LIT, IS_KEY,
 } from "./object";
+import {logger} from "./files";
 
 /*
 struct player_res
@@ -1133,32 +1134,34 @@ const destroy = (state: State, itemId: Item): Promise<void> => setItem(state, it
     if(!ail_deaf) return(0);
     return(1);
     }
+*/
 
- wounded(n)
-    {
-    extern long my_str,my_lev,curch;
-    extern long me_cal;
-    extern long zapped;
-    extern char globme[];
-    char ms[128];
-    if(my_lev>9) return;
-    my_str-=n;
-    me_cal=1;
-    if(my_str>=0) return;
-    closeworld();
-    syslog("%s slain magically",globme);
-    delpers(globme);
-    zapped=1;
-    openworld();
-    dumpitems();
-    loseme();
-    sprintf(ms,"%s has just died\n",globme);
-    sendsys(globme,globme,-10000,curch,ms);
-    sprintf(ms,"[ %s has just died ]\n",globme);
-    sendsys(globme,globme,-10113,curch,ms);
-    crapup("Oh dear you just died\n");
+const wounded = (state: State, damage: number): Promise<void> => {
+    if (state.my_lev > 9) {
+        return Promise.resolve();
     }
+    state.my_str -= damage;
+    state.me_cal = 1;
+    if (state.my_lev >= 0) {
+        return Promise.resolve();
+    }
+    closeworld(state);
+    logger.write(`${state.globme} slain magically`)
+        .then(() => {
+            delpers(state, state.globme);
+            state.zapped = true;
+            openworld(state);
+            dumpitems(state);
+            loseme(state);
+            const ms1 = `${state.globme} has just died\n`;
+            sendsys(state, state.globme, state.globme, -10000, state.curch, ms1);
+            const ms2 = `[ ${state.globme} has just died ]\n`;
+            sendsys(state, state.globme, state.globme, -10113, state.curch, ms1);
+            crapup(state, 'Oh dear you just died\n');
+        });
+};
 
+/*
  woundmn(mon,am)
     {
     extern long mynum;

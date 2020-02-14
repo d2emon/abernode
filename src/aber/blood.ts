@@ -1,6 +1,7 @@
 import State from "./state";
 import {bprintf, sendsys} from "./__dummies";
 import {Item, getItem} from "./support";
+import {logger} from "./files";
 
 interface Attack {
     characterId: number,
@@ -253,7 +254,7 @@ const bloodrcv = (state: State, attack: Attack, isMe: boolean): Promise<void> =>
             }
         }
         if (state.my_str < 0) {
-            syslog(state, `${state.globme} slain by ${pname(state, characterId)}`);
+            logger.write(`${state.globme} slain by ${pname(state, characterId)}`);
             dumpitems(state);
             loseme(state);
             closeworld(state);

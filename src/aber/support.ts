@@ -18,7 +18,6 @@ import ItemInterface, {
     CAN_BE_EXTINGUISHED,
     CHANGE_STATE_ON_TAKE, IS_LEVER, IS_SWITCH, CAN_BE_WORN, IS_FOOD,
 } from './object';
-import { LOG_FILE } from './files';
 
 const ishere = (state: State, itemId: number, playerId: number): boolean => false;
 const iscarrby = (state: State, itemId: number, playerId: number): boolean => false;
@@ -351,24 +350,3 @@ long x;
 6 May be snooped upon
 
 */
-
-/*
-syslog(args,arg1,arg2)
-char *args,*arg1,*arg2;
-{
-extern char *strchr();
-extern char *ctime();
-long tm;
-FILE *x;
-char *z;
-time(&tm);
-z=ctime(&tm);
-*strchr(z,'\n')=0;
-x=openlock(LOG_FILE,"a");
-if(x==NULL) {loseme();crapup("Log fault : Access Failure"); }
-fprintf(x,"%s:  ",z);
-fprintf(x,args,arg1,arg2);
-fprintf(x,"\n");
-fclose(x);
-}
- */
