@@ -4,7 +4,7 @@ import {
     sendsys,
 } from './__dummies';
 import State from "./state";
-import {Item, getItem, putItem, putItemIn, setItem, availableByMask} from "./support";
+import {Item, getItem, putItem, putItemIn, setItem, availableByMask, getItems} from "./support";
 import {
     IS_DESTROYED,
     CAN_BE_LIT,
@@ -1427,15 +1427,10 @@ long newch;
 }
  */
 
-const on_flee_event = (state: State): Promise<void> => {
-    const itemIds = [];
-    for(let itemId = 0; itemId < state.numobs; itemId += 1) {
-        itemIds.push(itemId);
-    }
-    return Promise.all(itemIds.map(itemId => getItem(state, itemId)))
-        .then(items => items.forEach((item) => {
-            if ((iscarrby(state, item.itemId, state.mynum)) && (!iswornby(state, item.itemId, state.mynum))) {
-                putItem(state, item.itemId, ploc(state.mynum));
-            }
-        }));
-};
+const on_flee_event = (state: State): Promise<void> => getItems(state)
+    .then(items => items.forEach((item) => {
+        if ((iscarrby(state, item.itemId, state.mynum)) && (!iswornby(state, item.itemId, state.mynum))) {
+            return putItem(state, item.itemId, ploc(state.mynum));
+        }
+    }))
+    .then(() => undefined);

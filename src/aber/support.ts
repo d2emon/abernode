@@ -71,7 +71,7 @@ export interface Item extends ItemInterface {
     damage: number,
 }
 
-export const getItem = (state: State, itemId: number): Promise<Item> => Promise.resolve({
+const itemFromState = (state: State, itemId: number): Item => ({
     itemId,
 
     name: state.objects[itemId].name,
@@ -115,6 +115,12 @@ export const getItem = (state: State, itemId: number): Promise<Item> => Promise.
         ? state.objinfo[itemId].payload.damage
         : -1,
 });
+export const getItem = (state: State, itemId: number): Promise<Item> => Promise.resolve(
+    itemFromState(state, itemId)
+);
+export const getItems = (state: State): Promise<Item[]> => Promise.all(
+    state.objects.map((item, itemId) => getItem(state, itemId))
+);
 
 export const setItem = (state: State, itemId: number, newItem: {}): Promise<void> => new Promise(() => {
     state.objinfo[itemId] = {
@@ -150,14 +156,10 @@ export const createItem = (state: State, itemId: number, newItem: {} = {}): Prom
 })
     .then(() => getItem(state, itemId));
 
-export const availableByMask = (state: State, mask: { [flagId: number]: boolean }): Promise<boolean> => {
-    const itemIds = [];
-    for(let itemId = 0; itemId < state.numobs; itemId += 1) { itemIds.push(itemId); }
-    return Promise.all(itemIds.map(itemId => getItem(state, itemId)))
-        .then(items => items.some((item) => itemIsAvailable(state, item)
-            && Object.keys(mask).every((key) => item.flags[key] === mask[key])
-        ));
-};
+export const availableByMask = (state: State, mask: { [flagId: number]: boolean }): Promise<boolean> => getItems(state)
+    .then(items => items.some((item) => itemIsAvailable(state, item)
+        && Object.keys(mask).every((key) => item.flags[key] === mask[key])
+    ));
 
 /*
  ploc(chr)

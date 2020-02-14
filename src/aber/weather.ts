@@ -1,5 +1,5 @@
 import State from "./state";
-import {getItem, Item, setItem} from "./support";
+import {getItem, getItems, Item, setItem} from "./support";
 import {bprintf, brkword} from "./__dummies";
 
 /*
@@ -342,11 +342,7 @@ const cancarry = (state: State, playerId: number): Promise<boolean> => {
     if (plev(state, playerId) < 0) {
         return Promise.resolve(true);
     }
-    const itemIds = [];
-    for (let itemId = 0; itemId < state.numobs; itemId += 1) {
-        itemIds.push(itemId);
-    }
-    return Promise.all(itemIds.map(itemId => getItem(state, itemId)))
+    return getItems(state)
         .then(items => items.reduce((count, item)  => {
             if (iscarrby(state, item.itemId, playerId) && !item.isDestroyed) {
                 return count + 1;
@@ -440,12 +436,8 @@ const setcom = (state: State): Promise<void> => {
 
 const isdark = (state: State): Promise<boolean> => {
     const idk = () => {
-        const itemIds = [];
-        for (let itemId = 0; itemId < state.numobs; itemId += 1) {
-            itemIds.push(itemId);
-        }
         let found = undefined;
-        return Promise.all(itemIds.map(itemId => getItem(state, itemId)))
+        return getItems(state)
             .then(items => items.forEach((item) => {
                 if (found !== undefined) return;
                 if ((item.itemId !== 32) && !item.isLit) {
@@ -482,21 +474,6 @@ const isdark = (state: State): Promise<boolean> => {
 };
 
 /*
-
-
-isdark()
-    {
-long c;
-extern long curch,my_lev;
-extern long numobs;
-if(my_lev>9) return(0);
-if((curch==-1100)||(curch==-1101)) return(0);
-if((curch<=-1113)&&(curch>=-1123)) goto idk;
-if((curch<-399)||(curch>-300)) return(0);
-}
-
-
-
 modifwthr(n)
 {
 extern long curch;

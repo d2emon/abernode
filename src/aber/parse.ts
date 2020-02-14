@@ -1,7 +1,7 @@
 import State from "./state";
-import {createItem, getItem, holdItem, itemIsAvailable} from "./support";
+import {createItem, getItem, getItems, holdItem, itemIsAvailable} from "./support";
 import {bprintf, brkword} from "./__dummies";
-import {logger} from "./files";
+import {logger, RESET_DATA} from "./files";
 
 /*
 #include "files.h"
@@ -1037,34 +1037,25 @@ FILE *openroom(n,mod)
     }
 
 long me_cal=0;
-
- rescom()
-    {
-    extern long my_lev;
-    extern long objinfo[],numobs;
-    FILE *b;
-    char dabk[32];
-    long i;
-    FILE *a;
-    if(my_lev<10)
-       {
-       bprintf("What ?\n");
-       return;
-       }
-    broad("Reset in progress....\nReset Completed....\n");
-    b=openlock(RESET_DATA,"r");
-    sec_read(b,objinfo,0,4*numobs);
-    fcloselock(b);
-    time(&i);
-    a=fopen(RESET_T,"w");
-    fprintf(a,"Last Reset At %s\n",ctime(&i));
-    fclose(a);
-    a=fopen(RESET_N,"w");
-    fprintf(a,"%ld\n",i);
-    fclose(a);
-    resetplayers();
-    }
 */
+
+const rescom = (state: State): Promise<void> => {
+    if (state.my_lev < 10) {
+        bprintf(state, 'What ?\\n');
+        return Promise.resolve();
+    }
+    broad(state, 'Reset in progress....\\nReset Completed....\\n');
+    return openlock(RESET_DATA, 'r')
+        .then((b) => {
+            state.objinfo = sec_read(state, b, 0, 4 * state.numobs);
+            return fcloselock(b);
+        })
+        .then(() => fopen(RESET_T, 'w'))
+        .then((s) => fprintf(state, s, `Last Reset At ${ctime(time())}\n`).then(() => fclose(a)))
+        .then(() => fopen(RESET_N, 'w'))
+        .then((s) => fprintf(state, s, time()).then(() => fclose(a)))
+        .then(() => resetplayers(state));
+}
 
 const lightning = (state: State): Promise<void> => {
     if (state.my_lev < 10) {
@@ -1805,11 +1796,7 @@ const emptycom = (state: State): Promise<void> => {
             if (b === -1) {
                 return Promise.resolve();
             }
-            const itemIds = [];
-            for(let itemId = 0; itemId < state.numobs; itemId += 1) {
-                itemIds.push(itemId);
-            }
-            return Promise.all(itemIds.map(itemId => getItem(state, itemId)))
+            return getItems(state)
                 .then(items => items.forEach((item) => {
                     if (iscontin(state, item.itemId, container.itemId)) {
                         return holdItem(state, item.itemId, state.mynum)

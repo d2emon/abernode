@@ -3,7 +3,7 @@ import {
     sendsys,
 } from './__dummies';
 import State from "./state";
-import {availableByMask, getItem} from "./support";
+import {availableByMask, getItem, getItems} from "./support";
 import {IS_LIT} from "./object";
 
 /*
@@ -142,11 +142,7 @@ const dircom = (state: State): Promise<void> => {
         bprintf(state, 'That\'s a wiz command\n');
         return Promise.resolve();
     }
-    const itemIds = [];
-    for (let itemId = 0; itemId < state.numobs; itemId += 1) {
-        itemIds.push(itemId);
-    }
-    return Promise.all(itemIds.map(itemId => getItem(state, itemId)))
+    return getItems(state)
         .then((items) => items.forEach((item) => {
             const [b, c] = findzone(state, item.locationId);
             let d = `${b}${c}`;

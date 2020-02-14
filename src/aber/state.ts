@@ -12,6 +12,8 @@ import Item, {
     IS_WEAPON, IS_LEVER, IS_SWITCH, IS_FOOD, CAN_BE_WORN,
 } from './object';
 
+export const NOBS = 194;
+
 export interface ItemFlags {
     [IS_DESTROYED]: boolean,
     [HAS_CONNECTED]: boolean,
@@ -39,7 +41,9 @@ interface ItemData {
 }
 
 export default interface State {
-    NOBS: number,
+    // objsys
+    numobs: number; // NOBS
+    //
     argv_p: any,
     brmode: boolean,
     curch: number,
@@ -56,7 +60,6 @@ export default interface State {
     my_sco: number,
     my_str: number,
     mynum: number,
-    numobs: number,
     objects: Item[],
     objinfo: ItemData[],
     out_ms: string,

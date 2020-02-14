@@ -5,7 +5,7 @@ import {
     sendsys,
 } from './__dummies';
 import State from "./state";
-import {createItem, getItem, holdItem, Item, setItem} from "./support";
+import {createItem, getItem, getItems, holdItem, Item, setItem} from "./support";
 import { EXAMINES } from "./files";
 import get = Reflect.get;
 import {CONTAINED_IN, HELD_BY, LOCATED_IN} from "./object";
@@ -389,13 +389,8 @@ const wherecom = (state: State): Promise<void> => {
         return Promise.resolve();
     }
 
-    const itemIds = [];
-    for(let itemId=0; itemId < state.numobs; itemId += 1) {
-        itemIds.push(itemId);
-    }
     let found = false;
-    Promise
-        .all(itemIds.map(itemId => getItem(state, itemId)))
+    return getItems(state)
         .then((items) => items.forEach((item) => {
             if (item.name === state.wordbuf) {
                 found = true;
@@ -456,6 +451,56 @@ const desrm = (state: State, locationId: number, carryFlag: number): Promise<voi
         });
 };
 
+const edit_world = (state: State): Promise<void> => {
+    const ePlayer = () => {
+        const b = getnarg(state, 0, 47);
+        if (b === -1) {
+            return Promise.resolve();
+        }
+        const c = getnarg(state, 0, 15);
+        if (c === -1) {
+            return Promise.resolve();
+        }
+        const d = getnarg(state, 0, 0);
+        if (d === -1) {
+            return Promise.resolve();
+        }
+        setPlayer(state, b, { [c]: d });
+        bprintf(state, 'Tis done\n');
+        return Promise.resolve();
+    };
+
+    if (!ptstbit(state, state.mynum, 5)) {
+        bprintf(state, 'Must be Game Administrator\n');
+        return Promise.resolve();
+    }
+    if (brkword(state) === -1) {
+        bprintf(state, 'Must Specify Player or Object\n');
+        return Promise.resolve();
+    }
+    if (state.wordbuf === 'player') {
+        return ePlayer();
+    }
+    if (state.wordbuf !== 'player') {
+        bprintf(state, 'Must Specify Player or Object\n');
+        return Promise.resolve();
+    }
+    const b = getnarg(state, 0, state.numobs - 1);
+    if (b === -1) {
+        return Promise.resolve();
+    }
+    const c = getnarg(state, 0, 3);
+    if (c === -1) {
+        return Promise.resolve();
+    }
+    const d = getnarg(state, 0, 0);
+    if (d === -1) {
+        return Promise.resolve();
+    }
+    return setItem(state, b, { [c]: d })
+        .then(() => bprintf(state, 'Tis done\n'));
+};
+
 /*
 edit_world()
 {
@@ -466,40 +511,6 @@ edit_world()
 	char a[80],b,c,d;
 	extern long genarg();
 	extern long mynum;
-	if(!ptstbit(mynum,5))
-	{
-		bprintf("Must be Game Administrator\n");
-		return;
-	}
-	if(brkword()==-1)
-	{
-		bprintf("Must Specify Player or Object\n");
-		return;
-	}
-	if(!strcmp(wordbuf,"player")) goto e_player;
-	if(strcmp(wordbuf,"object"))
-	{
-		bprintf("Must specify Player or Object\n");
-		return;
-	}
-	b=getnarg(0,numobs-1);
-	if(b==-1) return;
-	c=getnarg(0,3);
-	if(c==-1) return;
-	d=getnarg(0,0);
-	if(d==-1) return;
-	objinfo[4*b+c]=d;
-        bprintf("Tis done\n");
-        return;
-e_player:b=getnarg(0,47);
-	if(b==-1) return;
-	c=getnarg(0,15);
-	if(c==-1) return;
-	d=getnarg(0,0);
-	if(d==-1) return;
-	ublock[16*b+c]=d;
-        bprintf("Tis done\n");
-        return;
 }
 
 long getnarg(bt,to)

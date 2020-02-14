@@ -1,5 +1,5 @@
 import State from "./state";
-import {createItem, getItem, holdItem, itemIsAvailable, putItem} from "./support";
+import {createItem, getItem, getItems, holdItem, itemIsAvailable, putItem} from "./support";
 import {bprintf, brkword, sendsys} from "./__dummies";
 
 /*
@@ -18,16 +18,11 @@ import {bprintf, brkword, sendsys} from "./__dummies";
  */
 
 /*
-#define NOBS 194
 #define OBMUL 8
 
-long numobs=NOBS;
 extern FILE *openlock();
 extern FILE *openworld();
 extern char * pname();
-
-long objinfo[NOBS*4];
-
 
  inventory()
     {
@@ -56,11 +51,7 @@ const aobjsat = (state: State, locationId: number, mode: number): Promise<void> 
     let d = 0;
     let e = 0;
     let f = 0;
-    const itemIds = [];
-    for (let itemId = 0; itemId < state.NOBS; itemId += 1) {
-        itemIds.push(itemId);
-    }
-    return Promise.all(itemIds.map(itemId => getItem(state, itemId)))
+    return getItems(state)
         .then(items => items.forEach((item) => {
             if ((iscarrby(state, item.itemId, locationId) && (mode === 1)) || (iscontin(state, item.itemId, locationId) && (mode === 3))) {
                 let x = '';
@@ -134,12 +125,9 @@ const fobnsys = (state: State, name: string, control: number, ctInf: number): Pr
         brkword(state);
         return Promise.resolve(6);
     }
-    const itemIds = [];
-    for (let itemId = 0; itemId < state.NOBS; itemId += 1) {
-        itemIds.push(itemId);
-    }
+
     let found = undefined;
-    return Promise.all(itemIds.map(item => getItem(state, item)))
+    return getItems(state)
         .then(items => items.forEach((item) => {
             if (found !== undefined) return;
             const l2 = item.name.toLowerCase();
@@ -374,28 +362,22 @@ const dropitem = (state: State): Promise<void> => {
     }
 */
 
-const lojal2 = (state: State, flannel: boolean): Promise<void> => {
-    const itemIds = [];
-    for(let itemId = 0; itemId < state.NOBS; itemId += 1) {
-        itemIds.push(itemId);
-    }
-    return Promise.all(itemIds.map(itemId => getItem(state, itemId)))
-        .then(items => items.forEach((item) => {
-            if (ishere(state, item.itemId) && (item.flannel === flannel)) {
-                if (__state(state, item.itemId) > 3) {
-                    return;
-                }
-                if (item.description) {
-                    /*OLONGT NOTE TO BE ADDED */
-                    if (item.isDestroyed) {
-                        bprintf(state, '--');
-                    }
-                    oplong(state, item.itemId);
-                    state.wd_it = item.name;
-                }
+const lojal2 = (state: State, flannel: boolean): Promise<void> => getItems(state)
+    .then(items => items.forEach((item) => {
+        if (ishere(state, item.itemId) && (item.flannel === flannel)) {
+            if (__state(state, item.itemId) > 3) {
+                return;
             }
-        }))
-};
+            if (item.description) {
+                /*OLONGT NOTE TO BE ADDED */
+                if (item.isDestroyed) {
+                    bprintf(state, '--');
+                }
+                oplong(state, item.itemId);
+                state.wd_it = item.name;
+            }
+        }
+    }));
 
 /*
  dumpitems()
@@ -406,18 +388,12 @@ const lojal2 = (state: State, flannel: boolean): Promise<void> => {
     }
 */
 
-const dumpstuff = (state: State, playerId: number, locationId: number): Promise<void> => {
-    const itemIds = [];
-    for(let itemId = 0; itemId < state.NOBS; itemId += 1) {
-        itemIds.push(itemId);
-    }
-    return Promise.all(itemIds.map(itemId => getItem(state, itemId)))
-        .then(items => items.forEach((item) => {
-            if (iscarrby(state, item.itemId, playerId)) {
-                return putItem(state, item.itemId, locationId);
-            }
-        }))
-};
+const dumpstuff = (state: State, playerId: number, locationId: number): Promise<void> => getItems(state)
+    .then(items => items.forEach((item) => {
+        if (iscarrby(state, item.itemId, playerId)) {
+            return putItem(state, item.itemId, locationId);
+        }
+    }));
 
 /*
 long ublock[16*49];
