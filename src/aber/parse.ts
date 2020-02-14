@@ -1,5 +1,5 @@
 import State from "./state";
-import {createItem, getItem, getItems, holdItem, itemIsAvailable} from "./support";
+import {createItem, getItem, getItems, holdItem, itemIsAvailable, setItem} from "./support";
 import {bprintf, brkword} from "./__dummies";
 import {logger, RESET_DATA} from "./files";
 
@@ -751,7 +751,7 @@ const dodirn = (state: State, n: number): Promise<void> => {
                     getItem(state, drnum ^ 1 /* other door side */),
                 ])
                     .then(([drnum, droff]) => {
-                        if (__state(state, drnum.itemId) !== 0) {
+                        if (drnum.state !== 0) {
                             if ((drnum.name === "door") || isdark(state) || !drnum.description.length) {
                                 throw new Error('You can\'t go that way\n');
                                 /* Invis doors */
@@ -1047,8 +1047,9 @@ const rescom = (state: State): Promise<void> => {
     broad(state, 'Reset in progress....\\nReset Completed....\\n');
     return openlock(RESET_DATA, 'r')
         .then((b) => {
-            state.objinfo = sec_read(state, b, 0, 4 * state.numobs);
-            return fcloselock(b);
+            return Promise.all(sec_read(state, b, 0, 4 * state.numobs))
+                .then(items => items.map((data, itemId) => setItem(state, itemId, data)))
+                .then(() => fcloselock(b));
         })
         .then(() => fopen(RESET_T, 'w'))
         .then((s) => fprintf(state, s, `Last Reset At ${ctime(time())}\n`).then(() => fclose(a)))
@@ -1719,7 +1720,7 @@ const look_cmd = (state: State): Promise<void> => {
             if (!item.isContainer) {
                 return bprintf(state, 'That isn\'t a container\n');
             }
-            if (item.canBeOpened && (__state(state, item.itemId) !== 0)) {
+            if (item.canBeOpened && (item.state !== 0)) {
                 return bprintf(state, 'It\'s closed!\n');
             }
             bprintf(state, `The ${item.name} contains:\n`);
@@ -1782,11 +1783,14 @@ const digcom = (state: State): Promise<void> => getItem(state, 186)
         if ((state.curch !== -172) && (state.curch !== -192)) {
             return bprintf(state, 'You find nothing.\n');
         }
-        if (__state(176) === 0) {
-            return bprintf(state, 'You widen the hole, but with little effect.\n');
-        }
-        setstate(state, 176, 0);
-        bprintf(state, 'You rapidly dig through to another passage.\n');
+        return getItem(state, 176)
+            .then((item176) => {
+                if (item176.state === 0) {
+                    return bprintf(state, 'You widen the hole, but with little effect.\n');
+                }
+                bprintf(state, 'You rapidly dig through to another passage.\n');
+                return setItem(state, item176.itemId, { state: 0 })
+            });
     });
 
 const emptycom = (state: State): Promise<void> => {

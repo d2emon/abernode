@@ -40,6 +40,7 @@ export interface Item extends ItemInterface {
     itemId: number,
 
     locationId: number,
+    state: number,
     flags: ItemFlags,
     payload: any,
     carryFlag: number,
@@ -81,6 +82,7 @@ const itemFromState = (state: State, itemId: number): Item => ({
     flannel: state.objects[itemId].flannel,
 
     locationId: state.objinfo[itemId].locationId,
+    state: state.objinfo[itemId].state,
     flags: state.objinfo[itemId].flags,
     payload: state.objinfo[itemId].payload,
     carryFlag: state.objinfo[itemId].carryFlag,
@@ -122,16 +124,26 @@ export const getItems = (state: State): Promise<Item[]> => Promise.all(
     state.objects.map((item, itemId) => getItem(state, itemId))
 );
 
-export const setItem = (state: State, itemId: number, newItem: {}): Promise<void> => new Promise(() => {
+export const setItem = (state: State, itemId: number, newItem: { state?: number, [key: string]: any }): Promise<void> => new Promise(() => {
     state.objinfo[itemId] = {
         ...state.objinfo[itemId],
         ...newItem,
+    };
+    if (newItem.state !== undefined) {
+        const item = itemFromState(state, itemId);
+        if (item.connectedItemId !== undefined) {
+            state.objinfo[item.connectedItemId].state = newItem.state;
+        }
     }
 });
 
 export const putItem = (state: State, itemId: number, locationId: number): Promise<void> => setItem(state, itemId, {
     locationId,
     carryFlag: LOCATED_IN,
+});
+export const wearItem = (state: State, itemId: number, characterId: number): Promise<void> => setItem(state, itemId, {
+    locationId: characterId,
+    carryFlag: WEARING_BY,
 });
 export const holdItem = (state: State, itemId: number, characterId: number): Promise<void> => setItem(state, itemId, {
     locationId: characterId,

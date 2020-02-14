@@ -142,7 +142,7 @@ const stacom = (state: State): Promise<void> => {
                 showname(state, item.locationId);
             }
 
-            bprintf(state, `\nState       :${__state(state, item.itemId)}`);
+            bprintf(state, `\nState       :${item.state}`);
             bprintf(state, `\nCarr_Flag   :${item.carryFlag}`);
             bprintf(state, `\nSpare       :${item.isDestroyed ? -1 : 0}`);
             bprintf(state, `\nMax State   :${item.maxState}`);
@@ -182,28 +182,34 @@ const examcom = (state: State): Promise<void> => {
                         .then((item107) => holdItem(state, item107.itemId, state.mynum));
                 }
             } else if (item.itemId === 7) {
-                setstate(state, item.itemId, randperc(state) % 3 + 1);
-                if (__state(state, item.itemId) === 1) {
-                    bprintf(state, 'It glows red');
-                } else if (__state(state, item.itemId) === 2) {
-                    bprintf(state, 'It glows blue');
-                } else if (__state(state, item.itemId) === 3) {
-                    bprintf(state, 'It glows green');
-                }
-                bprintf(state, '\n');
-                return;
+                return setItem(state, item.itemId, { state: randperc(state) % 3 + 1 })
+                    .then(() => getItem(state, item.itemId))
+                    .then((item) => {
+                        if (item.state === 1) {
+                            bprintf(state, 'It glows red');
+                        } else if (item.state === 2) {
+                            bprintf(state, 'It glows blue');
+                        } else if (item.state === 3) {
+                            bprintf(state, 'It glows green');
+                        }
+                        bprintf(state, '\n');
+                        return;
+                    });
             } else if (item.itemId === 8) {
-                if (__state(state, 7) !== 0) {
-                    getItem(state, 3 + __state(state, 7))
-                        .then((connected) => {
-                            if (iscarrby(state, connected.itemId, state.mynum) && connected.isLit) {
-                                bprintf(state, 'Everything shimmers and then solidifies into a different view!\n');
-                                destroy(state, item.itemId);
-                                teletrap(state, -1074);
-                                return;
-                            }
-                        })
-                }
+                getItem(state, 7)
+                    .then((item7) => {
+                        if (item7.state !== 0) {
+                            getItem(state, 3 + item7.state)
+                                .then((connected) => {
+                                    if (iscarrby(state, connected.itemId, state.mynum) && connected.isLit) {
+                                        bprintf(state, 'Everything shimmers and then solidifies into a different view!\n');
+                                        destroy(state, item.itemId);
+                                        teletrap(state, -1074);
+                                        return;
+                                    }
+                                })
+                        }
+                    })
             } else if (item.itemId === 85) {
                 getItem(state, 83)
                     .then((item83) => {
@@ -328,39 +334,39 @@ if(unit==NULL){curch=y;bprintf("No such room\n");return;}
  lightcom();
  }
 
- jumpcom()
- {
- long a,b;
- extern long jumtb[],mynum,curch;
- extern long my_lev;
- char ms[128];
- extern char globme[];
- a=0;
- b=0;
- while(jumtb[a])
- {
- if(jumtb[a]==curch){b=jumtb[a+1];break;}
- a+=2;
- }
- if(b==0){bprintf("Wheeeeee....\n");
- return;}
- if((my_lev<10)&&((!iscarrby(1,mynum))||(state(1)==0)))
- {
- 	curch=b;
- bprintf("Wheeeeeeeeeeeeeeeee  <<<<SPLAT>>>>\n");
- bprintf("You seem to be splattered all over the place\n");
- loseme();
- crapup("I suppose you could be scraped up - with a spatula");
- }
- sprintf(ms,"\001s%s\001%s has just left\n\001",globme,globme);
- sendsys(globme,globme,-10000,curch,ms);
- curch=b;
- sprintf(ms,"\001s%s\001%s has just dropped in\n\001",globme,globme);
- sendsys(globme,globme,-10000,curch,ms);
- trapch(b);
- }
+*/
 
-long jumtb[]={-643,-633,-1050,-662,-1082,-1053,0,0};
+const jumpcom = (state: State): Promise<void> => {
+    let b = 0;
+    for(let a = 0; state.jumtb[a]; a += 2) {
+        if (state.jumtb[a] === state.curch) {
+            b = state.jumtb[a + 1];
+        }
+    }
+    if (b === 0) {
+        bprintf(state, 'Wheeeeee....\n');
+        return Promise.resolve();
+    }
+    return getItem(state, 1)
+        .then((umbrella) => {
+            if ((state.my_lev < 10) && (!iscarrby(state, umbrella.itemId, state.mynum) || (umbrella.state === 0))) {
+                state.curch = b;
+                bprintf(state, 'Wheeeeeeeeeeeeeeeee  <<<<SPLAT>>>>\n');
+                bprintf(state, 'You seem to be splattered all over the place\n');
+                loseme();
+                crapup(state, 'I suppose you could be scraped up - with a spatula');
+            }
+            const ms1 = `[s name=\"${state.globme}\"]${state.globme} has just left\n[/s]`;
+            sendsys(state, state.globme, state.globme, -10000, state.curch, ms1);
+            state.curch = b;
+            const ms2 = `[s name=\"${state.globme}\"]${state.globme} has just dropped in\n[/s]`;
+            sendsys(state, state.globme, state.globme, -10000, state.curch, ms2);
+            trapch(b);
+        });
+};
+
+/*
+ ong jumtb[]={-643,-633,-1050,-662,-1082,-1053,0,0};
 
 */
 
@@ -502,17 +508,6 @@ const edit_world = (state: State): Promise<void> => {
 };
 
 /*
-edit_world()
-{
-	extern long my_lev,numobs;
-	extern char wordbuf[];
-	extern long ublock[];
-	extern long objinfo[];
-	char a[80],b,c,d;
-	extern long genarg();
-	extern long mynum;
-}
-
 long getnarg(bt,to)
 long bt,to;
 {

@@ -4,7 +4,7 @@ import {
     sendsys,
 } from './__dummies';
 import State from "./state";
-import {Item, getItem, putItem, putItemIn, setItem, availableByMask, getItems} from "./support";
+import {Item, getItem, putItem, holdItem, wearItem, putItemIn, setItem, availableByMask, getItems} from "./support";
 import {
     IS_DESTROYED,
     CAN_BE_LIT,
@@ -80,12 +80,6 @@ extern char wordbuf[];
        }
     return(1);
     }
-
- state(ob)
-    {
-    extern long objinfo[];
-    return(objinfo[4*ob+1]);
-    }
 */
 
 const opencom = (state: State): Promise<void> => {
@@ -96,17 +90,17 @@ const opencom = (state: State): Promise<void> => {
     return getItem(state, itemId)
         .then((item) => {
             if (item.itemId === 21) {
-                if (__state(state, item.itemId) == 0) {
+                if (item.state == 0) {
                     return bprintf(state, 'It is\n');
                 } else {
                     return bprintf(state, 'It seems to be magically closed\n');
                 }
             } else if (item.itemId === 1) {
-                if (__state(state, item.itemId) == 1) {
+                if (item.state == 1) {
                     return bprintf(state, 'It is\n');
                 } else {
-                    setstate(state, item.itemId, 1);
-                    return bprintf(state, 'The Umbrella Opens\n');
+                    return setItem(state, item.itemId, { state: 1 })
+                        .then(() => bprintf(state, 'The Umbrella Opens\n'));
                 }
             } else if (item.itemId === 20) {
                 return bprintf(state, 'You can\'t shift the door from this side!!!!\n');
@@ -115,26 +109,16 @@ const opencom = (state: State): Promise<void> => {
             if (!item.canBeOpened) {
                 return bprintf(state, 'You can\'t open that\n');
             }
-            if (__state(state, item.itemId) === 0) {
+            if (item.state === 0) {
                 return bprintf(state, 'It already is\n');
             }
-            if (__state(state, item.itemId) === 2) {
+            if (item.state === 2) {
                 return bprintf(state, 'It\'s locked!\n');
             }
-            setstate(state, item.itemId, 0);
-            bprintf(state, 'Ok\n')
+            return setItem(state, item.itemId, { state: 0 })
+                .then(() => bprintf(state, 'Ok\n'));
         });
 };
-
-const setstate = (state: State, itemId: number, value: number): Promise<void> => setItem(state, itemId, {
-    state: value,
-})
-    .then(() => getItem(state, itemId))
-    .then((item) => {
-        if (item.connectedItemId !== undefined) {
-            return setItem(state, item.connectedItemId, { state: value });
-        }
-    });
 
 const closecom = (state: State): Promise<void> => {
     const [b, itemId] = ohereandget();
@@ -144,23 +128,22 @@ const closecom = (state: State): Promise<void> => {
     return getItem(state, itemId)
         .then((item) => {
             if (item.itemId === 1) {
-                if (__state(state, item.itemId) === 0) {
+                if (item.state === 0) {
                     return bprintf(state, 'It is closed, silly!\n');
                 } else {
                     bprintf(state, 'Ok\n');
-                    setstate(state, item.itemId, 0);
-                    return;
+                    return setItem(state, item.itemId, { state: 0 });
                 }
             }
 
             if (!item.canBeOpened) {
                 return bprintf(state, 'You can\'t close that\n');
             }
-            if (__state(state, item.itemId) !== 0) {
+            if (item.state !== 0) {
                 return bprintf(state, 'It is open already\n');
             }
-            setstate(state, item.itemId, 1);
-            bprintf(state, 'Ok\n')
+            bprintf(state, 'Ok\n');
+            return setItem(state, item.itemId, { state: 1 });
         });
 };
 
@@ -179,11 +162,11 @@ const lockcom = (state: State): Promise<void> => {
                     if (!item.canBeLocked) {
                         return bprintf(state, 'You can\'t lock that!\n');
                     }
-                    if (__state(state, item.itemId) === 2) {
+                    if (item.state === 2) {
                         return bprintf(state, 'It\'s already locked\n');
                     }
-                    setstate(state, item.itemId, 2);
-                    bprintf(state, 'Ok\n')
+                    bprintf(state, 'Ok\n');
+                    return setItem(state, item.itemId, { state: 2 });
                 });
         })
 };
@@ -203,33 +186,37 @@ const unlockcom = (state: State): Promise<void> => {
                     if (!item.canBeLocked) {
                         return bprintf(state, 'You can\'t unlock that\n');
                     }
-                    if (__state(state, item.itemId) !== 2) {
+                    if (item.state !== 2) {
                         return bprintf(state, 'Its not locked!\n');
                     }
-                    setstate(state, item.itemId, 1);
                     bprintf(state, 'Ok\n')
+                    return setItem(state, item.itemId, { state: 1 });
                 });
         })
 };
 
-const wavecom = (state: State): void => {
+const wavecom = (state: State): Promise<void> => {
     const [b, itemId] = ohereandget();
     if (b === -1) {
-        return;
+        return Promise.resolve();
     }
-    const item = getItem(state, itemId);
-    if (item.itemId == 136) {
-        const item151 = getItem(state, 151);
-        if ((__state(state, item151.itemId) === 1) && item151.locationId === state.curch) {
-            setstate(state, 150, 0);
-            return bprintf(state, 'The drawbridge is lowered!\n');
-        }
-    } else if (item.itemId == 158) {
-        bprintf(state, 'You are teleported!\n');
-        teletrap(state, -114);
-        return;
-    }
-    bprintf(state, 'Nothing happens\n');
+    return getItem(state, itemId)
+        .then((item) => {
+            if (item.itemId == 136) {
+                getItem(state, 151)
+                    .then((item151) => {
+                        if ((item151.state === 1) && item151.locationId === state.curch) {
+                            return setItem(state, 150, { state: 0 })
+                                .then(() => bprintf(state, 'The drawbridge is lowered!\n'));
+                        }
+                    });
+            } else if (item.itemId == 158) {
+                bprintf(state, 'You are teleported!\n');
+                teletrap(state, -114);
+                return;
+            }
+            bprintf(state, 'Nothing happens\n');
+        });
 };
 
 
@@ -275,7 +262,7 @@ const putcom = (state: State): Promise<void> => {
                 if ((item.itemId < 4) || (item.itemId > 6)) {
                     return bprintf(state, 'You can\'t do that\n');
                 }
-                if (__state(state, container.itemId) !== 2) {
+                if (container.state !== 2) {
                     return bprintf(state, 'There is already a candle in it!\n');
                 }
                 bprintf(state, 'The candle fixes firmly into the candlestick\n');
@@ -289,11 +276,11 @@ const putcom = (state: State): Promise<void> => {
                     },
                     payload: {
                         1: item.itemId,
-                    }
+                    },
+                    state: item.isLit ? 0 : 1,
                 });
-                setstate(state, container.itemId, item.isLit ? 0 : 1);
             } else if (container.itemId === 137) {
-                if (__state(state, container.itemId) === 0) {
+                if (container.state === 0) {
                     return putItem(state, item.itemId, -162)
                         .then(() => bprintf(state, 'ok\n'));
                 }
@@ -301,7 +288,7 @@ const putcom = (state: State): Promise<void> => {
                 bprintf(state, 'It dissappears with a fizzle into the slime\n');
                 if (item.itemId === 108) {
                     bprintf(state, 'The soap dissolves the slime away!\n');
-                    setstate(state, container.itemId, 0)
+                    return setItem(state, container.itemId, { state: 0 })
                 }
                 return;
             } else if (container.itemId === 193) {
@@ -320,12 +307,14 @@ const putcom = (state: State): Promise<void> => {
                         return putItem(state, item.itemId, chute.locationId);
                     });
             } else if (container.itemId === 23) {
-                if ((item.itemId === 19) && (__state(state, 21) === 1)) {
-                    bprintf(state, 'The door clicks open!\n');
-                    setstate(state, 20, 0);
-                    return;
-                }
-                return bprintf(state, 'Nothing happens\n');
+                return getItem(state, 21)
+                    .then((item21) => {
+                        if ((item.itemId === 19) && (item21.state === 1)) {
+                            bprintf(state, 'The door clicks open!\n');
+                            return setItem(state, 20, { state: 0 });
+                        }
+                        return bprintf(state, 'Nothing happens\n');
+                    });
             } else if (container.itemId === item.itemId) {
                 return bprintf(state, 'What do you think this is, the goon show ?\n');
             }
@@ -333,7 +322,7 @@ const putcom = (state: State): Promise<void> => {
             if (!container.isContainer) {
                 return bprintf(state, 'You can\'t do that\n');
             }
-            if (__state(state, container.itemId) !== 0) {
+            if (container.state !== 0) {
                 return bprintf(state, 'That\'s not open\n');
             }
             if (item.flannel) {
@@ -352,10 +341,10 @@ const putcom = (state: State): Promise<void> => {
                     const ar = `[D]${state.globme}[/D][c] puts the ${item.name} in the ${container.name}.\n[/c]`;
                     sendsys(state, state.globme, state.globme, -10000, state.curch, ar);
                     if (item.changeStateOnTake) {
-                        setstate(state, item.itemId, 0);
+                        setItem(state, item.itemId, { state: 0 });
                     }
                     if (state.curch === -1081) {
-                        setstate(state, 20, 1);
+                        setItem(state, 20, { state: 1 });
                         bprintf(state, 'The door clicks shut....\n');
                     }
                 });
@@ -381,11 +370,13 @@ const lightcom = (state: State): Promise<void> => {
             if (item.canBeLit) {
                 return bprintf(state, 'You can\'t light that!\n');
             }
-            if (__state(state, item.itemId) === 0) {
+            if (item.state === 0) {
                 return bprintf(state, 'It is lit\n');
             }
-            setstate(state, item.itemId, 0);
-            return setItem(state, item.itemId, { flags: { [IS_LIT]: true } })
+            return setItem(state, item.itemId, {
+                flags: { [IS_LIT]: true },
+                state: 0,
+            })
                 .then(() => bprintf(state, 'Ok\n'));
         });
 
@@ -404,8 +395,10 @@ const extinguishcom = (state: State): Promise<void> => {
             if (item.canBeExtinguished) {
                 return bprintf(state, 'You can\'t extinguish that!\n');
             }
-            setstate(state, item.itemId, 1);
-            return setItem(state, item.itemId, { flags: { [IS_LIT]: false } })
+            return setItem(state, item.itemId, {
+                flags: { [IS_LIT]: false },
+                state: 1,
+            })
                 .then(() => bprintf(state, 'Ok\n'));
         })
 
@@ -414,14 +407,12 @@ const extinguishcom = (state: State): Promise<void> => {
 const pushcom = (state: State): Promise<void> => {
     const def2 = (item: Item): void => {
         if (item.isLever) {
-            setstate(state, item.itemId, 0);
-            oplong(state, item.itemId);
-            return;
+            return setItem(state, item.itemId, { state: 0 })
+                .then(() => oplong(state, item.itemId));
         }
         if (item.isSwitch) {
-            setstate(state, item.itemId, 1 - __state(state, item.itemId));
-            oplong(state, item.itemId);
-            return;
+            return setItem(state, item.itemId, { state: 1 - item.state })
+                .then(() => oplong(state, item.itemId));
         }
         bprintf(state, 'Nothing happens\n');
     };
@@ -445,61 +436,84 @@ const pushcom = (state: State): Promise<void> => {
                 trapch(state, state.curch);
                 return;
             } else if (item.itemId === 130) {
-                if (__state(state, 132) === 1) {
-                    setstate(state, 132, 0);
-                    return bprintf(state, 'A secret panel opens in the east wall!\n');
-                }
-                return bprintf(state, 'Nothing happens\n');
+                return getItem(state, 132)
+                    .then((item132) => {
+                        if (item132.state === 1) {
+                            return setItem(state, item132.itemId, { state: 0 })
+                                .then(() => bprintf(state, 'A secret panel opens in the east wall!\n'));
+                        }
+                        return bprintf(state, 'Nothing happens\n');
+                    })
             } else if (item.itemId === 131) {
-                if (__state(state, 134) === 1) {
-                    bprintf(state, 'Uncovering a hole behind it.\n');
-                    setstate(state, 134, 0);
-                    return;
-                }
-                return;
+                return getItem(state, 134)
+                    .then((item134) => {
+                        if (item134.state === 1) {
+                            bprintf(state, 'Uncovering a hole behind it.\n');
+                            return setItem(state, item134.itemId, { state: 0 });
+                        }
+                    })
             } else if (item.itemId === 138) {
-                if (__state(state, 137) === 0) {
-                    return bprintf(state, 'Ok...\n');
-                } else {
-                    bprintf(state, 'You hear a gurgling noise and then silence.\n');
-                    setstate(state, 137, 0);
-                }
-                return;
+                return getItem(state, 137)
+                    .then((item137) => {
+                        if (item137.state === 0) {
+                            return bprintf(state, 'Ok...\n');
+                        } else {
+                            bprintf(state, 'You hear a gurgling noise and then silence.\n');
+                            return setItem(state, item137.itemId, { state: 0 });
+                        }
+                    });
             } else if ((item.itemId === 146) || (item.itemId === 147)) {
-                setstate(state, 146, 1 - __state(state, 146));
-                return bprintf(state, 'Ok...\n');
+                return getItem(state, 146)
+                    .then((item146) => setItem(state, item146.itemId, { state: 1 - item146.state }))
+                    .then(() => bprintf(state, 'Ok...\n'));
             } else if (item.itemId === 30) {
-                const item1 = getItem(state, 28);
-                const item2 = getItem(state, 29);
-                setstate(state, item1.itemId, 1 - __state(state, item1.itemId));
-                if (__state(state, item1.itemId)) {
-                    sendsys(state, null, null, -10000, item1.locationId, '[c]The portcullis falls\n[/c]');
-                    sendsys(state, null, null, -10000, item2.locationId, '[c]The portcullis falls\n[/c]');
-                } else {
-                    sendsys(state, null, null, -10000, item1.locationId, '[c]The portcullis rises\n[/c]');
-                    sendsys(state, null, null, -10000, item2.locationId, '[c]The portcullis rises\n[/c]');
-                }
-                return;
+                return Promise.all([
+                    getItem(state, 28),
+                    getItem(state, 29),
+                ])
+                    .then(([
+                        item1,
+                        item2,
+                    ]) => setItem(state, item1.itemId, { state: 1 - item1.state })
+                        .then(() => {
+                            if (item1.state) {
+                                sendsys(state, null, null, -10000, item1.locationId, '[c]The portcullis falls\n[/c]');
+                                sendsys(state, null, null, -10000, item2.locationId, '[c]The portcullis falls\n[/c]');
+                            } else {
+                                sendsys(state, null, null, -10000, item1.locationId, '[c]The portcullis rises\n[/c]');
+                                sendsys(state, null, null, -10000, item2.locationId, '[c]The portcullis rises\n[/c]');
+                            }
+
+                        }));
             } else if (item.itemId === 149) {
-                const item1 = getItem(state, 150);
-                const item2 = getItem(state, 151);
-                setstate(state, item1.itemId, 1 - __state(state, item1.itemId));
-                if (__state(state, item1.itemId)) {
-                    sendsys(state, null, null, -10000, item1.locationId, '[c]The drawbridge rises\n[/c]');
-                    sendsys(state, null, null, -10000, item2.locationId, '[c]The drawbridge rises\n[/c]');
-                } else {
-                    sendsys(state, null, null, -10000, item1.locationId, '[c]The drawbridge is lowered\n[/c]');
-                    sendsys(state, null, null, -10000, item2.locationId, '[c]The drawbridge is lowered\n[/c]');
-                }
-                return;
+                return Promise.all([
+                    getItem(state, 150),
+                    getItem(state, 151),
+                ])
+                    .then(([
+                        item1,
+                        item2,
+                    ]) => setItem(state, item1.itemId, { state: 1 - item1.state })
+                        .then(() => {
+                            if (item1.state) {
+                                sendsys(state, null, null, -10000, item1.locationId, '[c]The drawbridge rises\n[/c]');
+                                sendsys(state, null, null, -10000, item2.locationId, '[c]The drawbridge rises\n[/c]');
+                            } else {
+                                sendsys(state, null, null, -10000, item1.locationId, '[c]The drawbridge is lowered\n[/c]');
+                                sendsys(state, null, null, -10000, item2.locationId, '[c]The drawbridge is lowered\n[/c]');
+                            }
+
+                        }));
             } else if (item.itemId === 24) {
-                if (__state(state, 26) === 1) {
-                    setstate(state, 26, 0);
-                    bprintf(state, 'A secret door slides quietly open in the south wall!!!\n');
-                } else {
-                    bprintf(state, 'It moves but nothing seems to happen\n');
-                }
-                return;
+                return getItem(state, 26)
+                    .then((item26) => {
+                        if (item26.state === 1) {
+                            return setItem(state, item26.itemId, { state: 0 })
+                                .then(() => bprintf(state, 'A secret door slides quietly open in the south wall!!!\n'));
+                        } else {
+                            bprintf(state, 'It moves but nothing seems to happen\n');
+                        }
+                    });
             } else if (item.itemId === 49) {
                 return broad(state, '[d]Church bells ring out around you\n[/d]');
             } else if (item.itemId === 104) {
@@ -1256,59 +1270,46 @@ PLAYER pinit[48]=
     "The Devil",-1,70,0,-2,"The Copper"
     ,-1,40,0,-2
     };
-
-
-
- wearcom()
-    {
-    long a,b;
-    extern long mynum;
-    b=ohereandget(&a);
-    if(b== -1) return(-1);
-    if(!iscarrby(a,mynum))
-       {
-       bprintf("You are not carrying this\n");
-       return;
-       }
-    if(iswornby(a,mynum))
-       {
-       bprintf("You are wearing this\n");
-       return;
-       }
-    if(((iswornby(89,mynum))||(iswornby(113,mynum))||(iswornby(114,mynum)))&&
-         ((a==89)||(a==113)||(a==114)))
-         {
-         	bprintf("You can't use TWO shields at once...\n");
-         	return;
-        }
-    if(!canwear(a))
-       {
-       bprintf("Is this a new fashion ?\n");
-       return;
-       }
-    setcarrf(a,2);
-    bprintf("OK\n");
-    }
-
- removecom()
-    {
-    long a,b;
-    extern long mynum;
-    b=ohereandget(&a);
-    if(b== -1) return;
-    if(!iswornby(a,mynum))
-       {
-       bprintf("You are not wearing this\n");
-       }
-    setcarrf(a,1);
-    }
-
- setcarrf(o,n)
-    {
-    extern long objinfo[];
-    objinfo[4*o+3]=n;
-    }
 */
+
+const wearcom = (state: State): Promise<void> => {
+    const [b, itemId] = ohereandget();
+    if (b === -1) {
+        return Promise.resolve();
+    }
+    return getItem(state, itemId)
+        .then((item) => {
+            if (!iscarrby(state, item.itemId, state.mynum)) {
+                return bprintf(state, 'You are not carrying this\n');
+            }
+            if (iswornby(state, item.itemId, state.mynum)) {
+                return bprintf(state, 'You are wearing this\n');
+            }
+            if ((iswornby(state, 89, state.mynum) || iswornby(state, 113, state.mynum) || iswornby(state, 114, state.mynum))
+                && ((item.itemId === 89) || (item.itemId === 113) || (item.itemId === 114))) {
+                return bprintf(state, 'You can\'t use TWO shields at once...\n');
+            }
+            if (canwear(state, item.itemId)) {
+                return bprintf(state, 'Is this a new fashion ?\n');
+            }
+            return wearItem(state, item.itemId, state.mynum)
+                .then(() => bprintf(state, 'OK\n'));
+        });
+};
+
+const removecom = (state: State): Promise<void> => {
+    const [b, itemId] = ohereandget();
+    if (b === -1) {
+        return Promise.resolve();
+    }
+    return getItem(state, itemId)
+        .then((item) => {
+            if (!iswornby(state, item.itemId, state.mynum)) {
+                bprintf(state, 'You are not wearing this\\n')
+            }
+            return holdItem(state, item.itemId, state.mynum);
+        });
+};
 
 const iswornby = (state: State, itemId: number, characterId: number): Promise<boolean> => getItem(state, itemId)
     .then((item) => {

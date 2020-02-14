@@ -1,5 +1,5 @@
 import State from "./state";
-import {createItem, getItem, getItems, holdItem, itemIsAvailable, putItem} from "./support";
+import {createItem, getItem, setItem, getItems, holdItem, itemIsAvailable, putItem} from "./support";
 import {bprintf, brkword, sendsys} from "./__dummies";
 
 /*
@@ -276,7 +276,7 @@ const getobj = (state: State): Promise<void> => {
             if (!cancarry(state, state.mynum)) {
                 return bprintf(state, 'You can\'t carry any more\n');
             }
-            if ((item.itemId === 32) && (__state(state, item.itemId) === 1) && (ptothlp(state, state.mynum)) === -1) {
+            if ((item.itemId === 32) && (item.state === 1) && (ptothlp(state, state.mynum)) === -1) {
                 return bprintf(state, 'Its too well embedded to shift alone.\n');
             }
             holdItem(state, item.itemId, state.mynum);
@@ -284,11 +284,11 @@ const getobj = (state: State): Promise<void> => {
             bprintf(state, 'Ok...\n');
             sendsys(state, state.globme, state.globme, -10000, state.curch, bf2);
             if (item.changeStateOnTake) {
-                setstate(state, item.itemId, 0);
+                setItem(state, item.itemId, { state: 0 });
             }
             if (state.curch === -1081) {
-                setstate(state, 20, 1);
-                bprintf(state, 'The door clicks shut....\n');
+                return setItem(state, 20, { state: 1 })
+                    .then(() => bprintf(state, 'The door clicks shut....\n'));
             }
         });
 };
@@ -365,7 +365,7 @@ const dropitem = (state: State): Promise<void> => {
 const lojal2 = (state: State, flannel: boolean): Promise<void> => getItems(state)
     .then(items => items.forEach((item) => {
         if (ishere(state, item.itemId) && (item.flannel === flannel)) {
-            if (__state(state, item.itemId) > 3) {
+            if (item.state > 3) {
                 return;
             }
             if (item.description) {

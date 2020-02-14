@@ -72,16 +72,20 @@ extern char wordbuf[];
     {
     	setwthr(4);
     }
- adjwthr(n)
-    {
-    long x;
-    extern char globme[];
-    extern long curch;
-    x=state(0);
-    setstate(0,n);
-    if(x!=n) sendsys(globme,globme,-10030,n,"");
-    }
+*/
 
+const adjwthr = (state: State, weatherId: number): Promise<void> => getItem(state, 0)
+    .then((weather) => {
+        const oldState = weather.state;
+        return setItem(state, weather.itemId, { state: weatherId })
+            .then(() => {
+                if (oldState !== weatherId) {
+                    sendsys(state, state.globme, state.globme, -10030, weatherId, null);
+                }
+            });
+    });
+
+/*
  longwthr()
     {
     long a;
@@ -123,34 +127,34 @@ extern char wordbuf[];
           break;
           }
     }
+*/
 
- showwthr()
-    {
-    extern long curch;
-    if(!outdoors()) return;
-    switch(modifwthr(state(0)))
-       {
-       case 1:
-          if((curch>-199)&&(curch<-178))
-             {
-             bprintf("It is raining, a gentle mist of rain, which sticks to everything around\n");
-             bprintf("you making it glisten and shine. High in the skies above you is a rainbow\n");
-             }
-          else
-             bprintf("\001cIt is raining\n\001");
-          break;
-       case 2:
-          bprintf("\001cThe skies are dark and stormy\n\001");
-          break;
-       case 3:
-          bprintf("\001cIt is snowing\001\n");
-          break;
-       case 4:
-          bprintf("\001cA blizzard is howling around you\001\n");
-          break;
-       }
+const showwthr = (state: State): Promise<void> => {
+    if (!outdoors(state)) {
+        return Promise.resolve();
     }
+    getItem(state, 0)
+        .then((weather) => {
+            const weatherId = modifwthr(state, weather.state);
+            if (weatherId === 1) {
+                if ((state.curch > -199) && (state.curch < -178)) {
+                    bprintf(state, 'It is raining, a gentle mist of rain, which sticks to everything around\n');
+                    bprintf(state, 'you making it glisten and shine. High in the skies above you is a rainbow\n');
+                } else {
+                    bprintf(state, '[c]It is raining\n[/c]');
+                }
+            } else if (weatherId === 2) {
+                bprintf(state, '[c]The skies are dark and stormy\n[/c]');
+            } else if (weatherId === 3) {
+                bprintf(state, '[c]It is snowing\n[/c]');
+            } else if (weatherId === 4) {
+                bprintf(state, '[c]A blizzard is howling around you\n[/c]');
+            }
+        });
+};
 
+
+/*
  outdoors()
     {
     extern long curch;
@@ -430,7 +434,7 @@ const setcom = (state: State): Promise<void> => {
             if (b < 0) {
                 return bprintf(state, 'States start at 0\n');
             }
-            setstate(state, item.itemId, b);
+            return setItem(state, item.itemId, { state: b });
         })
 };
 

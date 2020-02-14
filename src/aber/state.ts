@@ -40,6 +40,10 @@ interface ItemData {
     carryFlag: number,
 }
 
+interface PlayerData {
+
+}
+
 export default interface State {
     // objsys
     numobs: number; // NOBS
@@ -54,6 +58,7 @@ export default interface State {
     globme: string,
     i_setup: boolean,
     in_fight: number,
+    jumtb: number[],
     me_cal: number,
     my_lev: number,
     my_sex: number,
@@ -65,6 +70,7 @@ export default interface State {
     out_ms: string,
     stp: number,
     sysbuf: string,
+    ublock: PlayerData[],
     wd_it: string,
     wordbuf: string,
     wpnheld: number,
