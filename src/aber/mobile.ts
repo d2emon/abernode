@@ -3,75 +3,85 @@ import {
     sendsys,
 } from './__dummies';
 import State from "./state";
-import {availableByMask, getItem, getItems, getPlayer, getPlayers} from "./support";
+import {availableByMask, getItem, getItems, getPlayer, getPlayers, setPlayer} from "./support";
 import {IS_LIT} from "./object";
 
 /*
-#include <stdio.h>
 #include "files.h"
 
 extern FILE *openlock();
-extern char *pname(  ) ;
 
 on_timing()
 {
 	if(randperc()>80) onlook();
 }
-
-onlook(  )
-    {
-long a ;
-extern long mynum ;
-chkfight( fpbns( "shazareth" ) ) ;
-if( !iscarrby( 45, mynum ) )chkfight( fpbns( "wraith" ) ) ;
-chkfight( fpbns( "bomber" ) ) ;
-chkfight( fpbns( "owin" ) ) ;
-chkfight( fpbns( "glowin" ) ) ;
-chkfight( fpbns( "smythe" ) ) ;
-chkfight( fpbns( "dio" ) ) ;
-if( !iscarrby( 45, mynum ) ) chkfight( fpbns( "zombie" ) ) ;
-chkfight( fpbns( "rat" ) ) ;
-chkfight( fpbns( "ghoul" ) ) ;
-chkfight( fpbns( "ogre" ) ) ;
-chkfight( fpbns( "riatha" ) ) ;
-chkfight( fpbns( "yeti" ) ) ;
-chkfight( fpbns( "guardian"));
-if( iscarrby( 32, mynum ) ) dorune(  ) ;
-if(phelping(mynum)!=-1) helpchkr();
-    }
 */
 
-const chkfight = (state: State, playerId: number): Promise<void> => {
-    if (playerId < 0) {
-        /* No such being */
-        return Promise.resolve();
+const onlook = (state: State): Promise<void> => {
+    chkfight(state, fpbnd(state, 'shazareth'));
+    if (!iscarrby(state, 45, state.mynum)) {
+        chkfight(state, fpbnd(state, 'wraith'));
     }
-    /* Maybe move it */
-    consid_move(state, playerId);
-    if (!pname(state, playerId)) {
-        return Promise.resolve();
+    chkfight(state, fpbnd(state, 'bomber'));
+    chkfight(state, fpbnd(state, 'owin'));
+    chkfight(state, fpbnd(state, 'glowin'));
+    chkfight(state, fpbnd(state, 'smythe'));
+    chkfight(state, fpbnd(state, 'dio'));
+    if (!iscarrby(state, 45, state.mynum)) {
+        chkfight(state, fpbnd(state, 'zombie'));
     }
-    return getPlayer(state, playerId)
+    chkfight(state, fpbnd(state, 'rat'));
+    chkfight(state, fpbnd(state, 'ghoul'));
+    chkfight(state, fpbnd(state, 'ogre'));
+    chkfight(state, fpbnd(state, 'riatha'));
+    chkfight(state, fpbnd(state, 'yeti'));
+    chkfight(state, fpbnd(state, 'guardian'));
+    if (!iscarrby(state, 32, state.mynum)) {
+        dorune(state);
+    }
+    return getPlayer(state, state.mynum)
         .then((player) => {
-            if (player.locationId !== state.curch) {
-                return Promise.resolve();
+            if (player.helping !== -1) {
+                helpchkr(state);
             }
-            if (pvis(state, state.mynum)) {
-                /* Im invis */
-                return Promise.resolve();
-            }
-            if (randperc(state) > 40) {
-                return Promise.resolve();
-            }
-            return availableByMask(state, { [IS_LIT]: true })
-                .then((found) => {
-                    if ((player.playerId === fpbns('yeti')) && found) {
-                        return;
-                    }
-                    mhitplayer(state, player.playerId, state.mynum);
-                })
         });
 };
+
+const chkfight = (state: State, playerId: number): Promise<void> => Promise.all([
+    getPlayer(state, playerId),
+    getPlayer(state, state.mynum),
+])
+    .then(([
+        player,
+        me,
+    ]) => {
+        if (player.playerId < 0) {
+            /* No such being */
+            return;
+        }
+        /* Maybe move it */
+        consid_move(state, player.playerId);
+        if (!player.exists) {
+            return;
+        }
+        if (player.locationId !== state.curch) {
+            return;
+        }
+        if (me.visibility) {
+            /* Im invis */
+            return;
+        }
+        if (randperc(state) > 40) {
+            return;
+        }
+        return availableByMask(state, { [IS_LIT]: true })
+            .then((found) => {
+                if ((player.playerId === fpbns('yeti')) && found) {
+                    return;
+                }
+                mhitplayer(state, player.playerId, me.playerId);
+            })
+    });
 
 /*
  consid_move(x)
@@ -202,8 +212,7 @@ const dorune = (state: State): Promise<void> => {
         return Promise.resolve();
     }
     let hitRune = false;
-    return getPlayers(state)
-        .then(players => players.filter(player => player.playerId < 32))
+    return getPlayers(state, 32)
         .then(players => players.forEach((player) => {
             if (hitRune) {
                 return;
@@ -211,10 +220,10 @@ const dorune = (state: State): Promise<void> => {
             if (player.playerId === state.mynum) {
                 return;
             }
-            if (!pname(state, player.playerId)) {
+            if (!player.exists) {
                 return;
             }
-            if (plev(state, player.playerId) > 9) {
+            if (player.isWizard) {
                 return;
             }
             if (player.locationId === state.curch) {
@@ -222,7 +231,7 @@ const dorune = (state: State): Promise<void> => {
                 if (randperc(state) < 9 * state.my_lev) {
                     return;
                 }
-                if (fpbns(state, pname(state, player.playerId)) === -1) {
+                if (fpbns(state, player.name) === -1) {
                     return;
                 }
                 bprintf(state, 'The runesword twists in your hands lashing out savagely\n');
@@ -236,7 +245,7 @@ const pepdrop = (state: State): Promise<void> => {
     sendsys(state, null, null, -10000, state.curch, 'You start sneezing ATISCCHHOOOOOO!!!!\n');
     return getPlayer(state, 32)
         .then((dragon) => {
-            if (!pname(state, dragon.playerId).length || (dragon.locationId !== state.curch)) {
+            if (!dragon.exists || (dragon.locationId !== state.curch)) {
                 return Promise.resolve();
             }
             /* Ok dragon and pepper time */
@@ -244,11 +253,12 @@ const pepdrop = (state: State): Promise<void> => {
                 .then((pepper) => {
                     if (iscarrby(state, pepper.itemId, state.mynum) && (pepper.heldBy !== undefined)) {
                         /* Fried dragon */
-                        setpname(state, dragon.playerId, '');
-                        /* No dragon */
-                        state.my_sco += 100;
-                        calibme(state);
-                        return;
+                        return setPlayer(state, dragon.playerId, { exists: false })
+                            .then(() => {
+                                /* No dragon */
+                                state.my_sco += 100;
+                                calibme(state);
+                            });
                     }
                     /* Whoops !*/
                     bprintf(state, 'The dragon sneezes forth a massive ball of flame.....\n');
@@ -275,17 +285,18 @@ const dragget = (state: State): Promise<boolean> => {
         });
 };
 
-const helpchkr = (state: State): Promise<void> => getPlayer(state, phelping(state, state.mynum))
+const helpchkr = (state: State): Promise<void> => getPlayer(state, state.mynum)
+    .then(player => getPlayer(state, player.helping))
     .then((player) => {
         const nhelp = () => {
-            bprintf(state, `You can no longer help [c]${pname(state, player.playerId)}[/c]\n`);
-            setphelping(state, state.mynum, -1);
+            bprintf(state, `You can no longer help [c]${player.name}[/c]\n`);
+            return setPlayer(state, state.mynum, { helping: -1 });
         };
 
         if (!state.i_setup) {
             return;
         }
-        if (!pname(state, player.playerId)) {
+        if (!player.exists) {
             return nhelp();
         }
         if (player.locationId !== state.curch) {

@@ -14,7 +14,6 @@ extern long mynum;
 extern long my_lev;
 extern char globme[];
 extern char wordbuf[];
-extern char *pname();
 extern FILE *openroom();
 extern FILE *openuaf();
 extern FILE *openlock();
@@ -50,22 +49,22 @@ const sumcom = (state: State): Promise<void> => {
             })
     };
 
-    const willwork = (characterId): Promise<void> => {
-        bprintf(state, 'You cast the summoning......\n');
-        if (characterId < 16) {
-            sendsys(state, pname(state, characterId), state.globme, -10020, state.curch, '');
-            return Promise.resolve();
-        }
-        if ((characterId === 17) || (characterId === 23)) {
-            return Promise.resolve();
-        }
-        return getPlayer(state, characterId)
-            .then((player) => {
-                dumpstuff(state, characterId, player.locationId);
-                const seg = `[s name=\"${pname(state, characterId)}\"]${pname(state, characterId)} has arrived\n[/s]`;
-                sendsys(state, null, null, -10000, state.curch, seg);
-                return setPlayer(state, player.playerId, { locationId: state.curch });
-            });
+    const willwork = (characterId): Promise<void> => getPlayer(state, characterId)
+        .then((player) => {
+            bprintf(state, 'You cast the summoning......\n');
+            if (player.playerId < 16) {
+                sendsys(state, player.name, state.globme, -10020, state.curch, '');
+                return;
+            }
+            if ((player.playerId === 17) || (player.playerId === 23)) {
+                return;
+            }
+
+            dumpstuff(state, player.playerId, player.locationId);
+            const seg = `[s name=\"${player.name}\"]${player.name} has arrived\n[/s]`;
+            sendsys(state, null, null, -10000, state.curch, seg);
+            return setPlayer(state, player.playerId, { locationId: state.curch });
+        });
     };
 
     if (brkword(state) === -1) {
@@ -203,60 +202,59 @@ const sumcom = (state: State): Promise<void> => {
     sendsys(globme,globme,-10113,curch,bf);
     rd_qd=1;
     }
-
- viscom()
-    {
-    long f;
-    extern long my_lev;
-    extern long mynum;
-    extern char globme[];
-    long ar[4];
-    if(my_lev<10)
-       {
-       bprintf("You can't just do that sort of thing at will you know.\n");
-       return;
-       }
-    if(!pvis(mynum))
-       {
-       bprintf("You already are visible\n");
-       return;
-       }
-    setpvis(mynum,0);
-    ar[0]=mynum;
-    ar[1]=pvis(mynum);
-    sendsys("","",-9900,0,ar);
-    bprintf("Ok\n");
-    sillycom("\001s%s\001%s suddenely appears in a puff of smoke\n\001");
-    }
-
- inviscom()
-    {
-    extern long mynum,my_lev;
-    extern char globme[];
-    extern char wordbuf[];
-    long f,x;
-    long ar[4];
-    if(my_lev<10)
-       {
-       bprintf("You can't just turn invisible like that!\n");
-       return;
-       }
-    x=10;
-    if(my_lev>9999) x=10000;
-    if((my_lev==10033)&&(brkword()!=-1)) x=numarg(wordbuf);
-    if(pvis(mynum)==x)
-       {
-       bprintf("You are already invisible\n");
-       return;
-       }
-    setpvis(mynum,x);
-    ar[0]=mynum;
-    ar[1]=pvis(mynum);
-    sendsys("","",-9900,0,ar);
-    bprintf("Ok\n");
-    sillycom("\001c%s vanishes!\n\001");
-    }
 */
+
+const viscom = (state: State): Promise<void> => getPlayer(state, state.mynum)
+    .then((player) => {
+        if (state.my_lev < 10) {
+            return bprintf(state, 'You can\'t just do that sort of thing at will you know.\n');
+        }
+        if (!player.visibility) {
+            return bprintf(state, 'You already are visible\n');
+        }
+        return setPlayer(state, player.playerId, { visibility: 0 })
+            .then(() => {
+                const ar = [
+                    player.playerId,
+                    player.visibility,
+                ];
+                sendsysy(state, null, null, -9900, 0, ar);
+                bprintf(state, 'Ok\n');
+                sillycom(state, `[s name="%%"]%% suddenely appears in a puff of smoke\n[/s]`)
+            });
+
+
+    });
+
+const inviscom = (state: State): Promise<void> => getPlayer(state, state.mynum)
+    .then((player) => {
+        if (state.my_lev < 10) {
+            return bprintf(state, 'You can\'t just turn invisible like that!\n');
+        }
+        let visibility = 10;
+        if (state.my_lev > 9999) {
+            visibility = 10000;
+        }
+        if ((state.my_lev === 10033) && (brkword(state) !== -1)) {
+            visibility = Number(state.wordbuf);
+        }
+
+        if (player.visibility) {
+            return bprintf(state, 'You are already invisible\n');
+        }
+        return setPlayer(state, player.playerId, { visibility })
+            .then(() => {
+                const ar = [
+                    player.playerId,
+                    player.visibility,
+                ];
+                sendsysy(state, null, null, -9900, 0, ar);
+                bprintf(state, 'Ok\n');
+                sillycom(state, `[c]%% vanishes!\n[/c]`)
+            });
+
+
+    });
 
 const ressurcom = (state: State): Promise<void> => {
     if (state.my_lev < 10) {

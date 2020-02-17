@@ -40,21 +40,34 @@ interface ItemData {
     carryFlag: number,
 }
 
+/**
+ * Pflags
+ *
+ * 0 sex
+ * 1 May not be exorcised ok
+ * 2 May change pflags ok
+ * 3 May use rmedit ok
+ * 4 May use debugmode ok
+ * 5 May use patch
+ * 6 May be snooped upon
+ */
+
+export interface PlayerFlags {
+    sex: boolean,
+}
+
 interface PlayerData {
-    value0: number,
-    value1: number,
-    value2: number,
-    value3: number,
+    name: string,
     locationId: number,
-    value5: number,
+    eventId: number,
     value6: number,
-    value7: number,
-    value8: number,
-    value9: number,
-    value10: number,
-    value11: number,
+    strength: number,
+    visibility: number,
+    flags: PlayerFlags,
+    level: number,
+    weaponId: number,
     value12: number,
-    value13: number,
+    helping: number,
     value14: number,
     value15: number,
 }
@@ -74,6 +87,7 @@ export default interface State {
     i_setup: boolean,
     in_fight: number,
     jumtb: number[],
+    maxu: number,
     me_cal: number,
     my_lev: number,
     my_sex: number,

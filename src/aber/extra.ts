@@ -5,7 +5,7 @@ import {
     sendsys,
 } from './__dummies';
 import State from "./state";
-import {createItem, getItem, getItems, getPlayer, holdItem, Item, setItem} from "./support";
+import {createItem, getItem, getItems, getPlayer, holdItem, Item, setItem, setPlayer} from "./support";
 import {EXAMINES, HELP1} from "./files";
 import get = Reflect.get;
 import {CONTAINED_IN, HELD_BY, LOCATED_IN} from "./object";
@@ -15,7 +15,6 @@ import {CONTAINED_IN, HELD_BY, LOCATED_IN} from "./object";
 extern FILE * openlock();
 extern FILE * openuaf();
 extern FILE * openroom();
-extern char *pname();
 extern char globme[];
 extern char wordbuf[];
 extern long mynum;
@@ -26,8 +25,11 @@ long getnarg();
 
 const helpcom = (state: State): Promise<void> => {
     if (brkword(state) !== -1) {
-        return getPlayer(state, fpbn(state, state.wordbuf))
-            .then((player) => {
+        return Promise.all([
+            getPlayer(state, fpbn(state, state.wordbuf)),
+            getPlayer(state, state.mynum),
+        ])
+            .then(([player, me]) => {
                 if (player.playerId === -1) {
                     bprintf(state, 'Help who ?\n');
                     return;
@@ -36,21 +38,22 @@ const helpcom = (state: State): Promise<void> => {
                     bprintf(state, 'They are not here\n');
                     return;
                 }
-                if (player.playerId === state.mynum) {
+                if (player.playerId === me.playerId) {
                     bprintf(state, 'You can\'t help yourself.\n');
                     return;
                 }
-                if (phelping(state, state.mynum) !== -1) {
+                if (me.helping !== -1) {
                     const b = `[c]${state.globme}[/c] has stopped helping you\n`;
-                    sendsys(state, pname(player.playerId), pname(player.playerId), -10011, state.curch, b);
-                    bprintf(state, `Stopped helping ${pname(state, phelping(state, player.playerId))}\n`);
-                    return;
+                    sendsys(state, player.name, player.name, -10011, state.curch, b);
+                    return getPlayer(state, player.helping)
+                        .then(helper => bprintf(state, `Stopped helping ${helper.name}\n`));
                 }
-                setphelping(state, state.mynum, player.playerId);
-                const b = `[c]${state.globme}[/c] has offered to help you\n`;
-                sendsys(state, pname(player.playerId), pname(player.playerId), -10011, state.curch, b);
-                bprintf(state, 'OK...\n');
-                return;
+                return setPlayer(state, me.playerId, { helping: player.playerId })
+                    .then(() => {
+                        const b = `[c]${state.globme}[/c] has offered to help you\n`;
+                        sendsys(state, player.name, player.name, -10011, state.curch, b);
+                        bprintf(state, 'OK...\n');
+                    });
             });
     }
     closeworld(state);
@@ -122,22 +125,25 @@ const stacom = (state: State): Promise<void> => {
                 return statplyr(state);
             }
 
+            let p = Promise.resolve();
             bprintf(state, `\nItem        :${item.name}`);
             if (item.containedIn !== undefined) {
                 bprintf(state, `\nContained in:${container.name}`);
             } else if (item.heldBy !== undefined) {
-                bprintf(state, `\nHeld By     :${pname(state, item.heldBy)}`);
+                p = getPlayer(state, item.heldBy)
+                    .then(() => bprintf(state, `\nHeld By     :${player.name}`))
             } else {
                 bprintf(state, '\nPosition    :');
                 showname(state, item.locationId);
             }
-
-            bprintf(state, `\nState       :${item.state}`);
-            bprintf(state, `\nCarr_Flag   :${item.carryFlag}`);
-            bprintf(state, `\nSpare       :${item.isDestroyed ? -1 : 0}`);
-            bprintf(state, `\nMax State   :${item.maxState}`);
-            bprintf(state, `\nBase Value  :${item.baseValue}`);
-            bprintf(state, '\n');
+            return p.then(() => {
+                bprintf(state, `\nState       :${item.state}`);
+                bprintf(state, `\nCarr_Flag   :${item.carryFlag}`);
+                bprintf(state, `\nSpare       :${item.isDestroyed ? -1 : 0}`);
+                bprintf(state, `\nMax State   :${item.maxState}`);
+                bprintf(state, `\nBase Value  :${item.baseValue}`);
+                bprintf(state, '\n');
+            })
         });
 };
 
@@ -240,10 +246,10 @@ const statplyr = (state: State): Promise<void> => getPlayer(state, fpbn(state, s
         if (player.playerId === -1) {
             return bprintf(state, 'Whats that ?\n');
         }
-        bprintf(state, `Name      : ${pname(state, player.playerId)}\n`);
-        bprintf(state, `Level     : ${plev(state, player.playerId)}\n`);
-        bprintf(state, `Strength  : ${pstr(state, player.playerId)}\n`);
-        bprintf(state, `Sex       : ${psex(state, player.playerId) ? 'MALE' : 'FEMALE'}\n`);
+        bprintf(state, `Name      : ${player.name}\n`);
+        bprintf(state, `Level     : ${player.level}\n`);
+        bprintf(state, `Strength  : ${player.strength}\n`);
+        bprintf(state, `Sex       : ${player.sex ? 'MALE' : 'FEMALE'}\n`);
         bprintf(state, `Location  : `);
         showname(state, player.locationId);
     });
@@ -407,7 +413,7 @@ const wherecom = (state: State): Promise<void> => {
         .then((player) => {
             if (player.playerId !== -1) {
                 found = true;
-                bprintf(state, `${pname(state, player.playerId)} - `);
+                bprintf(state, `${player.name} - `);
                 desrm(state, player.locationId,0);
             }
             if (!found) {
@@ -426,8 +432,8 @@ const desrm = (state: State, locationId: number, carryFlag: number): Promise<voi
             .then((item) => bprintf(state, `In the ${item.name}\n`));
     }
     if (carryFlag > 0) {
-        bprintf(state, `Carried by [c]${pname(state, locationId)}[/c]\n`);
-        return Promise.resolve()
+        return getPlayer(state, locationId)
+            .then((player) => bprintf(state, `Carried by [c]${player.name}[/c]\n`));
     }
     return openroom(locationId, 'r')
         .then((unit) => {

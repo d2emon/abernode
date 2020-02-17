@@ -1,6 +1,6 @@
 import State from "./state";
-import {createItem, getItem, getItems, holdItem, itemIsAvailable, setItem} from "./support";
-import {bprintf, brkword} from "./__dummies";
+import {createItem, getItem, getItems, getPlayer, holdItem, itemIsAvailable, setItem, setPlayer} from "./support";
+import {bprintf, brkword, sendsys} from "./__dummies";
 import {logger, RESET_DATA} from "./files";
 
 /*
@@ -15,7 +15,6 @@ import {logger, RESET_DATA} from "./files";
 #define  OBMUL 8
 #include <stdio.h>
 
-extern char * pname();
 extern FILE *openlock();
 
 */
@@ -226,24 +225,11 @@ int verbnum[]={1,1,2,3,4,5,6,7,2,3,4,5,6,7,8,9,9,10,11,12,12,12,13,14
 char *exittxt[]={"north","east","south","west","up","down","n","e","s","w","u","d",0};
 long exitnum[]={1,2,3,4,5,6,1,2,3,4,5,6};
 
- doaction(n)
-    {
-    char xx[128];
-    extern long my_sco;
-    extern long curmode;
-    extern long curch;
-    extern long debug_mode;
-    extern char globme[];
-    extern long isforce;
-    extern long in_fight;
-    extern long brmode;
-    long  brhold;
-    extern long mynum;
-    extern long my_lev;
-    openworld();
-    if((n>1)&&(n<8)){dodirn(n);return;}
-    switch(n)
-       {
+*/
+
+const doaction = (state: State, actionId: number): Promise<void> => {
+    const actions = {
+        /*
        case 1:
           dogocom();
           break;
@@ -254,32 +240,37 @@ long exitnum[]={1,2,3,4,5,6,1,2,3,4,5,6};
              }
           gropecom();
           break;
-       case 8:
-          if(isforce)
-             {
-             bprintf("You can't be forced to do that\n");
-             break;
-             }
-          rte(globme);
-          openworld();
-          if(in_fight)
-             {
-             bprintf("Not in the middle of a fight!\n");
-             break;
-             }
-          sprintf(xx,"%s has left the game\n",globme);
-          bprintf("Ok");
-          sendsys(globme,globme,-10000,curch,xx);
-          sprintf(xx,"[ Quitting Game : %s ]\n",globme);
-          sendsys(globme,globme,-10113,0,xx);
-          dumpitems();
-          setpstr(mynum,-1);
-          pname(mynum)[0]=0;
-          closeworld();
-          curmode=0;curch=0;
-          saveme();
-          crapup("Goodbye");
-          break;
+          */
+        8: () => new Promise((resolve) => {
+            if (state.isforce) {
+                bprintf(state, 'You can\'t be forced to do that\n');
+                return resolve();
+            }
+            rte(state, state.globme);
+            openworld(state);
+            if (state.in_fight) {
+                bprintf(state, 'Not in the middle of a fight!\n');
+                return resolve();
+            }
+            const xx1 = `${state.globme} has left the game\n`;
+            bprintf(state, 'Ok');
+            sendsys(state, state.globme, state.globme, -10000, state.curch, xx1);
+            const xx2 = `[ Quitting Game : ${state.globme} ]\n`;
+            sendsys(state, state.globme, state.globme, -10113, state.curch, xx2);
+            dumpitems(state);
+            return setPlayer(state, state.mynum, {
+                exists: false,
+                isDead: true,
+            })
+                .then(() => {
+                    closeworld(state);
+                    state.curmode = 0;
+                    state.curch = 0;
+                    saveme(state);
+                    return crapup(state, 'Goodbye');
+                })
+        }),
+        /*
        case 9:
           getobj();
           break;
@@ -692,11 +683,43 @@ long exitnum[]={1,2,3,4,5,6,1,2,3,4,5,6};
        case 189:
           emptycom();
           break;
-       default:
-          if(my_lev>9999)bprintf("Sorry not written yet[COMREF %d]\n",n);
-          else bprintf("I don't know that verb.\n");
-          break;
-       }
+         */
+    };
+    const defaultAction = () => new Promise((resolve) => {
+        if (state.my_lev > 9999) {
+            bprintf(state, `Sorry not written yet[COMREF ${actionId}]\n`);
+        } else {
+            bprintf(state, 'I don\'t know that verb.\n');
+        }
+        return resolve();
+    });
+    if ((actionId > 1) && (actionId < 8)) {
+        return dodirn(state, actionId);
+    }
+    const action = actions[actionId] || defaultAction;
+    return action();
+};
+
+/*
+
+ doaction(n)
+    {
+    char xx[128];
+    extern long my_sco;
+    extern long curmode;
+    extern long curch;
+    extern long debug_mode;
+    extern char globme[];
+    extern long isforce;
+    extern long in_fight;
+    extern long brmode;
+    long  brhold;
+    extern long mynum;
+    extern long my_lev;
+    openworld();
+    if((n>1)&&(n<8)){dodirn(n);return;}
+    switch(n)
+       {
     }
 
 char in_ms[81]="has arrived.";
@@ -734,63 +757,79 @@ const dodirn = (state: State, n: number): Promise<void> => {
         return Promise.resolve();
     }
 
-    if ((iscarrby(state, 32, state.mynum)) && (ploc(state, 25) === state.curch) && (pname(state, 25).length)) {
-        bprintf(state, '[c]The Golem[/c] bars the doorway!');
-        return Promise.resolve();
-    }
-    n -= 2;
-    if (chkcrip(state)) {
-        return Promise.resolve();
-    }
-    return Promise.resolve(state.ex_dat[n])
-        .then((newch) => {
-            if ((newch > 999) && (newch < 2000)) {
-                const drnum = newch - 1000;
-                return Promise.all([
-                    getItem(state, drnum /* other door side */),
-                    getItem(state, drnum ^ 1 /* other door side */),
-                ])
-                    .then(([drnum, droff]) => {
-                        if (drnum.state !== 0) {
-                            if ((drnum.name === "door") || isdark(state) || !drnum.description.length) {
-                                throw new Error('You can\'t go that way\n');
-                                /* Invis doors */
-                            } else {
-                                throw new Error('The door is not open\n');
-                            }
+    return getPlayer(state, 25)
+        .then((player25) => {
+            if ((iscarrby(state, 32, state.mynum)) && (player25.locationId === state.curch) && player25.exists) {
+                bprintf(state, '[c]The Golem[/c] bars the doorway!');
+                return;
+            }
+            n -= 2;
+            if (chkcrip(state)) {
+                return;
+            }
+            return Promise.resolve(state.ex_dat[n])
+                .then((newch) => {
+                    if ((newch > 999) && (newch < 2000)) {
+                        const drnum = newch - 1000;
+                        return Promise.all([
+                            getItem(state, drnum /* other door side */),
+                            getItem(state, drnum ^ 1 /* other door side */),
+                        ])
+                            .then(([drnum, droff]) => {
+                                if (drnum.state !== 0) {
+                                    if ((drnum.name === "door") || isdark(state) || !drnum.description.length) {
+                                        throw new Error('You can\'t go that way\n');
+                                        /* Invis doors */
+                                    } else {
+                                        throw new Error('The door is not open\n');
+                                    }
+                                }
+                                return droff.locationId;
+                            });
+                    }
+                    return newch;
+                })
+                .then((newch) => {
+                    if (newch === -139) {
+                        if (!iswornby(state, 113, state.mynum) && !iswornby(state, 114, state.mynum) && !iswornby(state, 89, state.mynum)) {
+                            return bprintf(state, 'The intense heat drives you back\n');
+                        } else {
+                            bprintf(state, 'The shield protects you from the worst of the lava stream\'s heat\n');
                         }
-                        return droff.locationId;
-                    });
-            }
-            return newch;
-        })
-        .then((newch) => {
-            if (newch === -139) {
-                if (!iswornby(state, 113, state.mynum) && !iswornby(state, 114, state.mynum) && !iswornby(state, 89, state.mynum)) {
-                    return bprintf(state, 'The intense heat drives you back\n');
-                } else {
-                    bprintf(state, 'The shield protects you from the worst of the lava stream\'s heat\n');
-                }
-            }
-            if (n === 2) {
-                const i = fpbns(state, 'figure');
-                if ((i !== state.mynum) && (i !== -1) && (ploc(state, i) === state.curch) && !iswornby(state, 101, state.mynum) && !iswornby(state, 102, state.mynum) && !iswornby(state, 103, state.mynum)) {
-                    bprintf(state, '[p]The Figure[/p] holds you back\n');
-                    bprintf(state, '[p]The Figure[/p] says \'Only true sorcerors may pass\'\n');
-                    return;
-                }
-            }
-            if (newch >= 0) {
-                throw new Error('You can\'t go that way\n');
-            }
-            const block = `[s name=\"${pname(state, state.mynum)}\"]${state.globme} has gone ${state.exittxt[n]} ${state.out_ms}.\n[/s]`;
-            sendsys(state, state.globme, state.globme, -10000, state.curch, block);
-            state.curch = newch;
-            const block1 = `[s name=\"${state.globme}\"]${state.globme} ${state.in_ms}.\n[/s]`;
-            sendsys(state, state.globme, state.globme, -10000, newch, block1);
-            trapch(state, state.curch);
-        })
-        .catch(err => bprintf(state, err));
+                    }
+                    let p = Promise.resolve(true);
+                    if (n === 2) {
+                        p = getPlayer(state, fpbns(state, 'figure'))
+                            .then((figure) => {
+                                if ((figure.playerId !== state.mynum) && (figure.playerId !== -1) && (figure.locationId === state.curch) && !iswornby(state, 101, state.mynum) && !iswornby(state, 102, state.mynum) && !iswornby(state, 103, state.mynum)) {
+                                    bprintf(state, '[p]The Figure[/p] holds you back\n');
+                                    bprintf(state, '[p]The Figure[/p] says \'Only true sorcerors may pass\'\n');
+                                    return false;
+                                }
+                                return true;
+                            });
+                    }
+                    return p
+                        .then((result) => {
+                            if (!result) {
+                                return;
+                            }
+                            if (newch >= 0) {
+                                throw new Error('You can\'t go that way\n');
+                            }
+                            return getPlayer(state, state.mynum)
+                                .then((player) => {
+                                    const block = `[s name=\"${player.name}\"]${state.globme} has gone ${state.exittxt[n]} ${state.out_ms}.\n[/s]`;
+                                    sendsys(state, state.globme, state.globme, -10000, state.curch, block);
+                                    state.curch = newch;
+                                    const block1 = `[s name=\"${state.globme}\"]${state.globme} ${state.in_ms}.\n[/s]`;
+                                    sendsys(state, state.globme, state.globme, -10000, newch, block1);
+                                    trapch(state, state.curch);
+                                });
+                        });
+                })
+                .catch(err => bprintf(state, err));
+        });
 };
 
 /*
@@ -799,43 +838,12 @@ long vdes=0;
 long rdes=0;
 long ades=0;
 long zapped;
+*/
 
- gamrcv(blok)
- long *blok;
-    {
-    extern long zapped;
-    extern long vdes,tdes,rdes,ades;
-    extern char globme[];
-    auto long  zb[32];
-    long *i;
-    extern long curch;
-    extern long my_lev;
-    extern long my_sco;
-    extern long my_str;
-    extern long snoopd;
-    extern long fl_com;
-    char ms[128];
-    char nam1[40],nam2[40],text[256],nameme[40];
-    long isme;
-    extern long fighting,in_fight;
-    strcpy(nameme,globme);
-    lowercase(nameme);
-    isme=split(blok,nam1,nam2,text,nameme);
-    i=(long *)text;
-    if((blok[1]== -20000)&&(fpbns(nam1)==fighting))
-       {
-       in_fight=0;
-       fighting= -1;
-       }
-    if(blok[1]<-10099)
-       {
-       new1rcv(isme,blok[0],nam1,nam2,blok[1],text);
-       return;
-       }
-    switch(blok[1])
-       {
-       case -9900:
-          setpvis(i[0],i[1]);break;
+const gamrcv = (state: State, block: { v0: number, code: number }): Promise<void> => {
+    const actions = {
+        '-9900': () => setPlayer(state, i[0], { visibility: i[1] }),
+        /*
        case -666:
           bprintf("Something Very Evil Has Just Happened...\n");
           loseme();
@@ -960,14 +968,30 @@ long zapped;
              bprintf("%s",text);
              }
           break;
-          }
+         */
+    };
+    const nameme = state.globme.toLowerCase();
+    const [isme, name1, name2, text] = split(state, block, nameme);
+    const i = text;
+    if ((block.code === -20000) && (fpbns(state, name1) === state.fighting) {
+        state.in_fight = 0;
+        state.fighting = -1;
+        return Promise.resolve();
+    } else if (block.code < -10099) {
+        return new1rcv(state, isme, block.v0, name1, name2, block.code, text);
+    } else {
+        const action = actions[block.code] || (() => Promise.resolve());
+        return action();
     }
+};
 
-long me_ivct=0;
+/*
+ong me_ivct=0;
 long last_io_interrupt=0;
+*/
 
-eorte()
-{
+const eorte = (state: State): Promise<void> => {
+    /*
     extern long mynum,me_ivct;
     extern long me_drunk;
     extern long ail_dumb;
@@ -979,52 +1003,67 @@ eorte()
     extern long interrupt;
     extern long fighting,in_fight;
     long ctm;
-    time(&ctm);
-    if(ctm-last_io_interrupt>2) interrupt=1;
-    if(interrupt) last_io_interrupt=ctm;
-    if(me_ivct) me_ivct--;
-    if(me_ivct==1) setpvis(mynum,0);
-    if(me_cal)
-       {
-       me_cal=0;
-       calibme();
-       }
-    if(tdes) dosumm(ades);
-    if(in_fight)
-    {
-       if(ploc(fighting)!=curch)
-          {
-          fighting= -1;
-          in_fight=0;
-          }
-       if(!strlen(pname(fighting)))
-          {
-          fighting= -1;
-          in_fight=0;
-          }
-       if(in_fight)
-          {
-          if(interrupt)
-             {
-             in_fight=0;
-             hitplayer(fighting,wpnheld);
-             }
-          }
-       }
-    if((iswornby(18,mynum))||(randperc()<10))
-       {
-       my_str++;
-       if(i_setup) calibme();
-       }
-    forchk();
-    if(me_drunk>0)
-       {
-       me_drunk--;
-       if(!ail_dumb) gamecom("hiccup");
-       }
-       interrupt=0;
+    */
+    const ctm = time();
+    if (ctm - state.last_io_interrupt > 2) {
+        state.interrupt = true;
     }
+    if (state.interrupt) {
+        state.last_io_interrupt = ctm;
+    }
+    if (state.me_ivct) {
+        state.me_ivct -= 1;
+    }
+    if (state.me_cal) {
+        state.me_cal = false;
+        calibme(state);
+    }
+    if (state.tdes) {
+        dosumm(state.ades);
+    }
+    let p = Promise.resolve();
+    if (state.in_fight) {
+        p = getPlayer(state, state.fighting)
+            .then((enemy) => {
+                if (enemy.playerId !== state.curch) {
+                    state.fighting = -1;
+                    state.in_fight = 0;
+                    return;
+                }
+                if (!enemy.exists) {
+                    state.fighting = -1;
+                    state.in_fight = 0;
+                    return;
+                }
+                if (state.in_fight) {
+                    if (state.interrupt) {
+                        state.in_fight = 0;
+                        hitplayer(state, state.fighting, state.wpnheld);
+                        return;
+                    }
+                }
+            });
+    }
+    return p
+        .then(() => {
+            if (iswornby(state, 18, state.mynum) || (randperc() < 10)) {
+                state.my_str += 1;
+                if (state.i_setup) {
+                    calibme(state);
+                }
+            }
+            forchk(state);
+            if (state.me_drunk > 0) {
+                state.me_drunk -= 1;
+                if (!state.ail_dumb) {
+                    gamecom(state, 'hiccup');
+                }
+            }
+            state.interrupt = false;
+        });
+};
 
+/*
 long me_drunk=0;
 
 FILE *openroom(n,mod)
@@ -1067,19 +1106,20 @@ const lightning = (state: State): Promise<void> => {
         bprintf(state, 'But who do you wish to blast into pieces....\n');
         return Promise.resolve();
     }
-    const playerId = fpbn(state, state.wordbuf);
-    if (playerId === -1) {
-        bprintf(state, 'There is no one on with that name\n');
-        return Promise.resolve();
-    }
-    sendsys(state, pname(state, playerId), state.globme, -10001, ploc(state, playerId), null);
-    return logger.write(`${state.globme} zapped ${pname(state, playerId)}`)
-        .then(() => {
-            if (playerId > 15) {
-                woundmn(state, playerId, 10000);
-                /* DIE */
+    return getPlayer(state, fpbn(state, state.wordbuf))
+        .then((player) => {
+            if (player.playerId === -1) {
+                return bprintf(state, 'There is no one on with that name\n');
             }
-            broad(state, '[d]You hear an ominous clap of thunder in the distance\n[/d]');
+            sendsys(state, player.name, state.globme, -10001, player.locationId, null);
+            return logger.write(`${state.globme} zapped ${player.name}`)
+                .then(() => {
+                    if (player.playerId > 15) {
+                        woundmn(state, player.playerId, 10000);
+                        /* DIE */
+                    }
+                    broad(state, '[d]You hear an ominous clap of thunder in the distance\n[/d]');
+                });
         });
 };
 
@@ -1141,20 +1181,27 @@ const calibme = (state: State): Promise<void> => {
         logger.write(`${state.globme} to level ${level}`)
             .then(() => {
                 disle3(state, level, state.my_sex);
+                return getPlayer(state, state.mynum);
+            })
+            .then((player) => {
                 const sp = `[p]${state.globme}[/p] is now level ${level}\n`;
-                sendsys(state, state.globme, state.globme, -10113, ploc(state, state.mynum), sp);
+                sendsys(state, state.globme, state.globme, -10113, player.locationId, sp);
                 if (level === 10) {
                     bprintf(state, `[f]${GWIZ}[/f]`);
                 }
             });
     }
-    setplev(state, state.mynum, state.my_lev);
-    if (state.my_str > (30 + 10 * state.my_lev)) {
-        state.my_str = 30 + 10 * state.my_lev;
-    }
-    setpstr(state, state.mynum, state.my_str);
-    setpsex(state, state.mynum, state.my_sex);
-    setpwpn(state, state.mynum, state.wpnheld);
+    return setPlayer(state, state.mynum, {
+        level: state.my_lev,
+        strength: state.my_str,
+        sex: state.my_sex,
+        weaponId: state.wpnheld,
+    })
+        .then(() => {
+            if (state.my_str > (30 + 10 * state.my_lev)) {
+                state.my_str = 30 + 10 * state.my_lev;
+            }
+        });
 };
 
 /*
@@ -1227,29 +1274,28 @@ const playcom = (state: State): Promise<void> => {
     sendsys(globme,globme,-10003,curch,blob);
     bprintf("You say '%s'\n",blob);
     }
+*/
 
- tellcom()
-    {
-    extern long curch;
-    extern char wordbuf[],globme[];
-    char blob[200];
-    long  a,b;
-    if(chkdumb()) return;
-    if(brkword()== -1)
-       {
-       bprintf("Tell who ?\n");
-       return;
-       }
-    b=fpbn(wordbuf);
-    if(b== -1)
-       {
-       bprintf("No one with that name is playing\n");
-       return;
-       }
-    getreinput(blob);
-    sendsys(pname(b),globme,-10004,curch,blob);
+const tellcom = (state: State): Promise<void> => {
+    if (chckdumb(state)) {
+        return Promise.resolve();
     }
+    if (brkword(state) === -1) {
+        bprintf(state, 'Tell who ?\n');
+        return Promise.resolve();
+    }
+    return getPlayer(state, fpbn(state, state.wordbuf))
+        .then((player) => {
+            if (player.playerId === -1) {
+                return bprintf(state, 'No one with that name is playing\n');
+            }
+            const blob = getreinput();
+            sendsys(state, player.name, state.globme, -10004, state.curch, blob);
+            return;
+        });
+};
 
+/*
  scorecom()
     {
     extern long my_str,my_lev,my_sco;
@@ -1276,21 +1322,21 @@ const exorcom = (state: State): Promise<void> => {
         bprintf(state, 'Exorcise who ?\n');
         return Promise.resolve();
     }
-    const playerId = fpbn(state, state.wordbuf);
-    if (playerId === -1) {
-        bprintf(state, 'They aren\'t playing\n');
-        return Promise.resolve();
-    }
-    if (ptstflg(state, playerId, 1)) {
-        bprintf(state, 'You can\'t exorcise them, they dont want to be exorcised\n');
-        return Promise.resolve();
-    }
-    return logger.write(`${state.globme} exorcised ${pname(state, playerId)}`)
-        .then(() => {
-            dumpstuff(state, playerId, ploc(state, playerId));
-            sendsys(state, pname(state, playerId), state.globme, -10010, state.curch, null);
-            setpname(state, playerId, '');
-        });
+    return getPlayer(state, fpbn(state, state.wordbuf))
+        .then((player) => {
+            if (player.playerId === -1) {
+                return bprintf(state, 'They aren\'t playing\n');
+            }
+            if (ptstflg(state, player.playerId, 1)) {
+                return bprintf(state, 'You can\'t exorcise them, they dont want to be exorcised\n');
+            }
+            return logger.write(`${state.globme} exorcised ${player.name}`)
+                .then(() => {
+                    dumpstuff(state, player.playerId, player.locationId);
+                    sendsys(state, player.name, state.globme, -10010, state.curch, null);
+                    return setPlayer(state, player.playerId, { exists: false });
+                });
+        })
 };
 
 /*
@@ -1355,24 +1401,30 @@ const exorcom = (state: State): Promise<void> => {
     }
 */
 
-const dogive = (state: State, itemId: number, playerId: number): Promise<void> => getItem(state, itemId)
-    .then((item) => {
-        if ((state.my_lev < 10) && (ploc(state, playerId) !== state.curch)) {
+const dogive = (state: State, itemId: number, playerId: number): Promise<void> => Promise.all([
+    getItem(state, itemId),
+    getPlayer(state, playerId),
+])
+    .then(([
+        item,
+        player,
+    ]) => {
+        if ((state.my_lev < 10) && (player.locationId !== state.curch)) {
             return bprintf(state, 'They are not here\n');
         }
         if (!iscarrby(state, item.itemId, state.mynum)) {
             return bprintf(state, 'You are not carrying that\n');
         }
-        if (!cancarry(state, playerId)) {
+        if (!cancarry(state, player.playerId)) {
             return bprintf(state, 'They can\'t carry that\n');
         }
         if ((state.my_lev < 10) && (item.itemId === 32)) {
             return bprintf(state, 'It doesn\'t wish to be given away.....\n');
         }
-        return holdItem(state, item.itemId, playerId)
+        return holdItem(state, item.itemId, player.playerId)
             .then(() => {
                 const z = `[p]${state.globme}[/p] gives you the ${item.name}\n`;
-                sendsys(state, pname(state, playerId), state.globme, -10011, state.curch, z);
+                sendsys(state, player.name, state.globme, -10011, state.curch, z);
             });
     });
 
@@ -1392,47 +1444,49 @@ const stealcom = (state: State): Promise<void> => {
             return Promise.resolve();
         }
     }
-    const c = fpbn(state, state.wordbuf);
-    if (c === -1) {
-        bprintf(state, 'Who is that ?\n');
-        return Promise.resolve();
-    }
-    return getItem(state, fobncb(state, x, c))
-        .then((item) => {
-            if (item.itemId === -1) {
-                return bprintf(state, 'They are not carrying that\n');
+    return getPlayer(state, fpbn(state, state.wordbuf))
+        .then((player) => {
+            if (player.playerId === -1) {
+                return bprintf(state, 'Who is that ?\n');
             }
-            if ((state.my_lev < 10) && (ploc(state, c) !== state.curch)) {
-                return bprintf(state, 'But they aren\'t here\n');
-            }
-            if (item.wearingBy !== undefined) {
-                return bprintf(state, 'They are wearing that\n');
-            }
-            if (pwpn(state, c) === item.itemId) {
-                return bprintf(state, 'They have that firmly to hand .. for KILLING people with\n');
-            }
-            if (!cancarry(state, state.mynum)) {
-                return bprintf(state, 'You can\'t carry any more\n');
-            }
-
-            const t = time(state);
-            srand(state, t);
-            const f = randperc(state);
-            let e = 10 + state.my_lev - plev(state, c);
-            e *= 5;
-            if (f < e) {
-                const tb = `[p]${state.globme}[/p] steals the ${item.name} from you !\n`;
-                if (f & 1) {
-                    sendsys(state, pname(state, c), state.globme, -10011, state.curch, tb);
-                    if (c > 15) {
-                        woundmn(state, c, 0);
+            return getItem(state, fobncb(state, x, player.playerId))
+                .then((item) => {
+                    if (item.itemId === -1) {
+                        return bprintf(state, 'They are not carrying that\n');
                     }
-                }
-                return holdItem(state, item.itemId, state.mynum);
-            } else {
-                return bprintf(state, 'Your attempt fails\n');
-            }
-        });
+                    if ((state.my_lev < 10) && (player.locationId !== state.curch)) {
+                        return bprintf(state, 'But they aren\'t here\n');
+                    }
+                    if (item.wearingBy !== undefined) {
+                        return bprintf(state, 'They are wearing that\n');
+                    }
+                    if (player.weaponId === item.itemId) {
+                        return bprintf(state, 'They have that firmly to hand .. for KILLING people with\n');
+                    }
+                    if (!cancarry(state, state.mynum)) {
+                        return bprintf(state, 'You can\'t carry any more\n');
+                    }
+
+                    const t = time(state);
+                    srand(state, t);
+                    const f = randperc(state);
+                    let e = 10 + state.my_lev - player.level;
+                    e *= 5;
+                    if (f < e) {
+                        const tb = `[p]${state.globme}[/p] steals the ${item.name} from you !\n`;
+                        if (f & 1) {
+                            sendsys(state, player.name, state.globme, -10011, state.curch, tb);
+                            if (player.playerId > 15) {
+                                woundmn(state, player.playerId, 0);
+                            }
+                        }
+                        return holdItem(state, item.itemId, state.mynum);
+                    } else {
+                        return bprintf(state, 'Your attempt fails\n');
+                    }
+                });
+
+        })
 };
 
 /*

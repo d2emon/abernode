@@ -1,6 +1,6 @@
 import State from "./state";
 import {bprintf, brkword, sendsys} from "./__dummies";
-import {Item, getItem, getPlayer, Player} from "./support";
+import {Item, getItem, getPlayer, Player, setPlayer} from "./support";
 import {logger} from "./files";
 
 interface Attack {
@@ -58,9 +58,15 @@ void weapcom()
     }
 */
 
-const hitplayer = (state: State, victim: number, weaponId: number): Promise<void> => getItem(state, weaponId)
-    .then((weapon) => {
-        if (pname(state, victim)) {
+const hitplayer = (state: State, victimId: number, weaponId: number): Promise<void> => Promise.all([
+    getPlayer(state, victimId),
+    getItem(state, weaponId),
+])
+    .then(([
+        victim,
+        weapon,
+    ]) => {
+        if (!victim.exists) {
             return;
         }
         /* Chance to hit stuff */
@@ -72,75 +78,75 @@ const hitplayer = (state: State, victim: number, weaponId: number): Promise<void
             weapon = undefined;
         }
         state.wpnheld = weapon ? weapon.itemId : undefined;
-        if (weapon && (weapon.itemId === 32) && iscarrby(state, 16, victim)) {
+        if (weapon && (weapon.itemId === 32) && iscarrby(state, 16, victim.playerId)) {
             return bprintf(state, 'The runesword flashes back away from its target, growling in anger!\n');
         }
-        if (dambyitem(state, weapon) < 0) {
-            bprintf(state, 'Thats no good as a weapon\n');
-            state.wpnheld = -1;
-            return;
-        }
-        if (state.in_fight) {
-            bprintf(state, 'You are already fighting!\n');
-            return;
-        }
-        state.fighting = victim;
-        state.in_fight = 300;
-        const res = randperc(state);
-        let cth = 40 + 3 * state.my_lev;
-        if (iswornby(state, 89, victim) || iswornby(state, 113, victim) || iswornby(state, 114, victim)) {
-            cth -= 10;
-        }
-        if (cth < 0) {
-            cth = 0;
-        }
-        if (cth > res) {
-            bprintf(state, `You hit [p]${pname(state, victim)}[/p] `);
-            if (weapon && (weapon.itemId === -1)) {
-                bprintf(state, `with the ${weapon.name}`);
-            }
-            bprintf(state, '\n');
-            const ddn = randperc(state) % dambyitem(state, weapon && weapon.itemId);
-            const x: Attack = {
-                characterId: state.mynum,
-                damage: ddn,
-                weaponId: weapon && weapon.itemId,
-            };
-            if (pstr(state, victim) - ddn < 0) {
-                bprintf(state, 'Your last blow did the trick\n');
-                if (pstr(state, victim) >= 0) {
-                    /* Bonus ? */
-                    if (victim < 16) {
-                        state.my_sco += plev(state, victim) * plev(state, victim) * 100;
+        return dambyitem(state, weapon.itemId)
+            .then((damage) => {
+                if (damage < 0) {
+                    bprintf(state, 'Thats no good as a weapon\n');
+                    state.wpnheld = -1;
+                    return;
+                }
+                if (state.in_fight) {
+                    bprintf(state, 'You are already fighting!\n');
+                    return;
+                }
+                state.fighting = victim.playerId;
+                state.in_fight = 300;
+                const res = randperc(state);
+                let cth = 40 + 3 * state.my_lev;
+                if (iswornby(state, 89, victim) || iswornby(state, 113, victim) || iswornby(state, 114, victim)) {
+                    cth -= 10;
+                }
+                if (cth < 0) {
+                    cth = 0;
+                }
+                if (cth > res) {
+                    bprintf(state, `You hit [p]${victim.name}[/p] `);
+                    if (weapon && (weapon.itemId === -1)) {
+                        bprintf(state, `with the ${weapon.name}`);
+                    }
+                    bprintf(state, '\n');
+                    const ddn = randperc(state) % damage;
+                    const x: Attack = {
+                        characterId: state.mynum,
+                        damage: ddn,
+                        weaponId: weapon && weapon.itemId,
+                    };
+                    if (victim.strength - ddn < 0) {
+                        bprintf(state, 'Your last blow did the trick\n');
+                        if (!victim.isDead) {
+                            /* Bonus ? */
+                            state.my_sco += victim.value;
+                        }
+                        setPlayer(state, victim.playerId, { isDead: true });
+                        /* MARK ALREADY DEAD */
+                        state.in_fight = 0;
+                        state.fighting = -1;
+                    }
+                    if (victim.playerId < 16) {
+                        sendsys(state, victim.name, state.globme, -10021, state.curch, x);
                     } else {
-                        state.my_sco += 10 * damof(state, victim);
+                        woundmn(state, victim.playerId, ddn);
+                    }
+                    state.my_sco += ddn * 2;
+                    calibme(state);
+                    return;
+                } else {
+                    bprintf(state, `You missed [p]${victim.name}[/p]\n`);
+                    const x: Attack = {
+                        characterId: state.mynum,
+                        damage: -1,
+                        weaponId: weapon && weapon.itemId,
+                    };
+                    if (victim.playerId < 16) {
+                        sendsys(state, victim.name, state.globme, -10021, state.curch, x);
+                    } else {
+                        woundmn(state, victim, 0);
                     }
                 }
-                setpstr(state, victim, -1); /* MARK ALREADY DEAD */
-                state.in_fight = 0;
-                state.fighting = -1;
-            }
-            if (victim < 16) {
-                sendsys(state, pname(state, victim), state.globme, -10021, state.curch, x);
-            } else {
-                woundmn(state, victim, ddn);
-            }
-            state.my_sco += ddn * 2;
-            calibme(state);
-            return;
-        } else {
-            bprintf(state, `You missed [p]${pname(state, victim)}[/p]\n`);
-            const x: Attack = {
-                characterId: state.mynum,
-                damage: -1,
-                weaponId: weapon && weapon.itemId,
-            };
-            if (victim < 16) {
-                sendsys(state, pname(state, victim), state.globme, -10021, state.curch, x);
-            } else {
-                woundmn(state, victim, 0);
-            }
-        }
+            });
     });
 
 const killcom = (state: State): Promise<void> => {
@@ -199,41 +205,44 @@ const killcom = (state: State): Promise<void> => {
         })
 };
 
-const bloodrcv = (state: State, attack: Attack, isMe: boolean): Promise<void> => getItem(state, attack.weaponId)
-    .then((weapon: Item) => {
-        const {
-            characterId,
-            damage,
-        } = attack;
+const bloodrcv = (state: State, attack: Attack, isMe: boolean): Promise<void> => Promise.all([
+    getPlayer(state, attack.characterId),
+    Promise.resolve(attack.damage),
+    getItem(state, attack.weaponId),
+])
+    .then(([
+        enemy,
+        damage,
+        weapon,
+    ]) => {
         if (!isMe) {
             /* for mo */
             return;
         }
-        if (characterId < 0) {
+        if (enemy.playerId < 0) {
             return;
         }
-        // nlod:
-        if (!pname(state, characterId).length) {
+        if (!enemy.exists) {
             return;
         }
-        state.fighting = characterId;
+        state.fighting = enemy.playerId;
         state.in_fight = 300;
         if (damage === -1) {
-            bprintf(state, `[p]${pname(state, characterId)}[/p] attacks you`);
+            bprintf(state, `[p]${enemy.name}[/p] attacks you`);
             if (weapon && weapon.itemId !== -1) {
                 bprintf(state, ` with the ${weapon.name}`);
             }
             bprintf(state, '\n');
             return;
         }
-        bprintf(state, `You are wounded by [p]${pname(state, characterId)}[/p]`);
+        bprintf(state, `You are wounded by [p]${enemy.name}[/p]`);
         if (weapon && weapon.itemId !== -1) {
             bprintf(state, ` with the ${weapon.name}`);
         }
         bprintf(state, '\n');
         if (state.my_lev < 10) {
             state.my_str -= damage;
-            if (characterId === 16) {
+            if (enemy.playerId === 16) {
                 state.my_sco -= 100 * damage;
                 bprintf(state, 'You feel weaker, as the wraiths icy touch seems to drain your very life force\n');
                 if (state.my_sco < 0) {
@@ -242,7 +251,7 @@ const bloodrcv = (state: State, attack: Attack, isMe: boolean): Promise<void> =>
             }
         }
         if (state.my_str < 0) {
-            logger.write(`${state.globme} slain by ${pname(state, characterId)}`);
+            logger.write(`${state.globme} slain by ${enemy.name}`);
             dumpitems(state);
             loseme(state);
             closeworld(state);
@@ -250,7 +259,7 @@ const bloodrcv = (state: State, attack: Attack, isMe: boolean): Promise<void> =>
             openworld(state);
             const ms1 = `[p]${state.globme}[/p] has just died.\n`;
             sendsys(state, state.globme, state.globme, -10000, state.curch, ms1);
-            const ms2 = `[ [p]${state.globme}[/p] has been slain by [p]${pname(state, characterId)}[/p] ]\n`;
+            const ms2 = `[ [p]${state.globme}[/p] has been slain by [p]${enemy.name}[/p] ]\n`;
             sendsys(state, state.globme, state.globme, -10113, state.curch, ms2);
             crapup(state, 'Oh dear... you seem to be slightly dead\\n');
         }

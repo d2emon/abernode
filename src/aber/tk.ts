@@ -1,5 +1,6 @@
 import State from "./state";
 import {logger} from "./files";
+import {getPlayer, getPlayers, setPlayer} from "./support";
 
 /*
  *
@@ -35,9 +36,6 @@ extern long my_sex;
 extern long my_lev;
 extern FILE * openroom();
 extern FILE * openworld();
-extern char * pname();
-extern char * oname();
-extern long ppos();
 extern char key_buff[];
 long cms= -1;
 long curch=0;
@@ -93,101 +91,106 @@ if(debug_mode)    bprintf("\n<%d>",block[1]);
 
 long gurum=0;
 long convflg=0;
+*/
 
-sendmsg(name)
- char *name;
-    {
-    extern long debug_mode;
-    extern char *sysbuf;
-    extern long curch,moni,mynum;
-    char prmpt[32];
-    long a;
-extern long tty;
-    char work[200];
-    long w2[35];
-    extern char key_buff[];
-    extern long convflg;
-    extern long my_lev;
-extern long my_str;
-extern long in_fight;
-extern long fighting;
-    extern long curmode;
-    l:pbfr();
-if(tty==4) btmscr();
-strcpy(prmpt,"\r");
-    if(pvis(mynum)) strcat(prmpt,"(");
-    if(debug_mode) strcat(prmpt,"#");
-    if(my_lev>9)strcat(prmpt,"----");
-    switch(convflg)
-       {
-       case 0:
-          strcat(prmpt,">");
-          break;
-       case 1:
-          strcat(prmpt,"\"");
-          break;
-       case 2:
-          strcat(prmpt,"*");
-          break;
-       default:
-          strcat(prmpt,"?");
-          }
-    if(pvis(mynum)) strcat(prmpt,")");
-    pbfr();
-    if(pvis(mynum)>9999) set_progname(0,"-csh");
-    else
-    sprintf(work,"   --}----- ABERMUD -----{--     Playing as %s",name);
-    if(pvis(mynum)==0) set_progname(0,work);
-    sig_alon();
-    key_input(prmpt,80);
-    sig_aloff();
-    strcpy(work,key_buff);
-if(tty==4) topscr();
-strcat(sysbuf,"\001l");
-strcat(sysbuf,work);
-strcat(sysbuf,"\n\001");
-openworld();
-rte(name);
-closeworld();
-    if((convflg)&&(!strcmp(work,"**")))
-       {
-       convflg=0;
-       goto l;
-       }
-    if(!strlen(work)) goto nadj;
-if((strcmp(work,"*"))&&(work[0]=='*')){(work[0]=32);goto nadj;}
-    if(convflg)
-       {
-       strcpy(w2,work);
-       if(convflg==1) sprintf(work,"say %s",w2);
-       else
-          sprintf(work,"tss %s",w2);
-       }
-    nadj:if(curmode==1) gamecom(work);
-    else
-       {
-       if(((strcmp(work,".Q"))&&(strcmp(work,".q")))&& (!!strlen(work)))
-          {
-          a=special(work,name);
-          }
-       }
-if(fighting>-1)
-{
-if(!strlen(pname(fighting)))
-{
-in_fight=0;
-fighting= -1;
-}
-if(ploc(fighting)!=curch)
-{
-in_fight=0;
-fighting= -1;
-}
-}
-if(in_fight) in_fight-=1;
-    return((!strcmp(work,".Q"))||(!strcmp(work,".q")));
-    }
+const sendmsg = (state: State, name: string): Promise<boolean> => getPlayer(state, state.mynum)
+    .then((me) => {
+        pbfr(state);
+        if (state.tty === 4) {
+            btmscr(state);
+        }
 
+        let prmpt = '\r';
+        if (me.visibility) {
+            prmpt += '(';
+        }
+        if (state.debug_mode) {
+            prmpt += '#';
+        }
+        if (state.my_lev > 9) {
+            prmpt += '----';
+        }
+        if (state.convflg === 0) {
+            prmpt += '>';
+        } else if (state.convflg === 1) {
+            prmpt += '"';
+        } else if (state.convflg === 2) {
+            prmpt += '*';
+        } else {
+            prmpt += '?';
+        }
+        if (me.visibility) {
+            prmpt += ')';
+        }
+
+        pbfr(state);
+
+        if (me.visibility > 9999) {
+            set_progname(state, '-csh');
+        } else if (me.visibility === 0) {
+            set_progname(state, `   --}----- ABERMUD -----{--     Playing as ${name}`);
+        }
+
+        sig_alon(state);
+        key_input(state, prmpt, 80);
+        sig_aloff(state);
+
+        let work = state.key_buff;
+
+        if (state.tty === 4) {
+            topscr(state);
+        }
+        state.sysbuf += `[l]${work}\n[/l]`;
+
+        openworld(state);
+        rte(state, name);
+        closeworld(state);
+
+        if (state.convflg && (work === '**')) {
+            state.convflg = 0;
+            return sendmsg(state, name);
+        }
+
+        if (work) {
+            if ((work !== '*') && (work[0] === '*')) {
+                work = work.substr(1);
+            } else if (state.convflg === 1) {
+                work = `say ${work}`;
+            } else if (state.convflg) {
+                work = `tss ${work}`;
+            }
+        }
+
+        if (state.curmode === 1) {
+            gamecom(state, work)
+        } else if ((work !== '.Q') && (work !== '.q') && work) {
+            special(state, work, name);
+        }
+
+        let p = Promise.resolve();
+        if (state.fighting > -1) {
+            p = getPlayer(state, state.fighting)
+                .then((enemy) => {
+                    if (!enemy.exists) {
+                        state.in_fight = 0;
+                        state.fighting = -1
+                    }
+                    if (enemy.locationId !== state.curch) {
+                        state.in_fight = 0;
+                        state.fighting = -1
+                    }
+                })
+        }
+        return p
+            .then(() => {
+                if (state.in_fight) {
+                    state.in_fight -= 1;
+                }
+                return ((work === '.Q') || (work === '.q'))
+            });
+    });
+
+/*
  send2(block)
  long *block;
     {
@@ -339,12 +342,10 @@ long rd_qd=0;
     sec_write(unit,inpbk,0,64);
     revise(inpbk[0]);
     }
+*/
 
-
-
- special(string,name)
- char *string,*name;
-    {
+const special = (state: State, word: string, name: string): Promise<boolean> => {
+    /*
     extern long curmode;
     char ch,bk[128];
     extern long curch,moni;
@@ -354,42 +355,47 @@ long rd_qd=0;
     char xx[128];
     char xy[128];
     char us[32];
-    strcpy(bk,string);
-    lowercase(bk);
-    ch= *bk;
-    if (ch!='.') return(0);
-    ch=bk[1];
-    switch(ch)
-       {
-       case 'g':
-          curmode=1;
-          curch= -5;
-          initme();
-          ufl=openworld();
-          setpstr(mynum,my_str);
-          setplev(mynum,my_lev);
- if(my_lev<10000) setpvis(mynum,0);
-    else setpvis(mynum,10000);
-          setpwpn(mynum,-1);
-          setpsexall(mynum,my_sex);
-          setphelping(mynum,-1);
-          cuserid(us);
-          sprintf(xy,"\001s%s\001%s  has entered the game\n\001",name,name);
-          sprintf(xx,"\001s%s\001[ %s  has entered the game ]\n\001",name,name);
-          sendsys(name,name,-10113,curch,xx);
-          rte(name);
-          if(randperc()>50)trapch(-5);
-else{curch= -183;trapch(-183);}
-sendsys(name,name,-10000,curch,xy);
-          break;
-       default:
-          printf("\nUnknown . option\n");
-          }
-    return(1);
+    */
+    const bk = word.toLowerCase();
+    if (bk[0] !== '.') {
+        return Promise.resolve(false);
     }
+    if (bk[1] === 'g') {
+        return getPlayer(state, state.mynum)
+            .then((player) => {
+                state.curmode = 1;
+                state.curch = -5;
+                initme(state);
+                openworld(state);
+                return setPlayer(state, player.playerId, {
+                    strength: state.my_str,
+                    level: state.my_lev,
+                    visibility: (state.my_lev < 10000) ? 0 : 10000,
+                    flags: { sex: state.my_sex },
+                    weaponId: -1,
+                    helping: -1,
+                })
+                    .then(() => {
+                        const xy = `[s name="${name}"]${name}  has entered the game\n[/s]`;
+                        const xx = `[s name="${name}"][ ${name}  has entered the game ]\n[/s]`;
+                        sendsys(state, name, name, -10113, state.curch, xx);
+                        rte(state, name);
+                        if (randperc(state) > 50) {
+                            trapch(state, state.curch);
+                        } else {
+                            state.curch = -183;
+                            trapch(state, state.curch);
+                        }
+                        sendsys(state, name, name, -10000, state.curch, xy);
+                    })
+            })
+            .then(() => true);
+    }
+    console.log('Unknown . option');
+    return Promise.resolve(true);
+};
 
-
-
+/*
 long dsdb=0;
 
 
@@ -443,124 +449,113 @@ if(!strcmp(lowercase(nam1+4),lowercase(luser))) return(1);
 }
     return(!strcmp(lowercase(nam1),lowercase(luser)));
     }
- trapch(chan)
- long chan;
-    {
-extern long curch;
-    extern long mynum;
-    FILE *unit;
-    extern long my_lev;
-    if(my_lev>9) goto ndie;
-    ndie:unit=openworld();
-    setploc(mynum,chan);
-    lookin(chan);
-    }
+    */
 
+const trapch = (state: State, locationId: number): Promise<void> => {
+    openworld(state);
+    return setPlayer(state, state.mynum, { locationId })
+        .then(() => lookin(state, locationId))
+};
+
+/*
 long mynum=0;
+*/
 
- putmeon(name)
- char *name;
-    {
+const putmeon = (state: State, name: string): Promise<void> => {
+    /*
     extern long mynum,curch;
     extern long maxu;
     long ct,f;
     FILE *unit;
     extern long iamon;
-    iamon=0;
-    unit=openworld();
-    ct=0;
-    f=0;
-    if(fpbn(name)!= -1)
-       {
-       crapup("You are already on the system - you may only be on once at a time");
-       }
-    while((f==0)&&(ct<maxu))
-       {
-       if (!strlen(pname(ct))) f=1;
-       else
-          ct++;
-       }
-    if(ct==maxu)
-       {
-       mynum=maxu;
-       return;
-       }
-    strcpy(pname(ct),name);
-    setploc(ct,curch);
-    setppos(ct,-1);
-    setplev(ct,1);
-    setpvis(ct,0);
-    setpstr(ct,-1);
-    setpwpn(ct,-1);
-    setpsex(ct,0);
-    mynum=ct;
-iamon=1;
+    */
+    state.iamon = false;
+    openworld(state);
+    if (fpbn(name) !== -1) {
+        return crapup(state, 'You are already on the system - you may only be on once at a time');
     }
+    return getPlayers(state, state.maxu)
+        .then((players) => {
+            let f = null;
+            players.forEach((player) => {
+                if (f !== null) {
+                    return;
+                }
+                if (!player.exists) {
+                    f = player.playerId;
+                }
+            });
+            if (f === null) {
+                state.mynum = state.maxu;
+                return;
+            }
+            return setPlayer(state, f, {
+                name,
+                locationId: state.curch,
+                level: 1,
+                strength: -1,
+                visibility: 0,
+                sex: 0,
+                eventId: -1,
+                weaponId: -1,
+            })
+                .then(() => {
+                    state.mynum = f;
+                    state.iamon = true;
+                });
+        });
+};
 
- loseme(name)
- char *name;
-    {
-extern long iamon;
-extern long mynum;
-extern long zapped;
-char bk[128];
-extern char globme[];
-FILE *unit;
-sig_aloff(); *//* No interruptions while you are busy dying *//*
-			*//* ABOUT 2 MINUTES OR SO *//*
-i_setup=0;
+const loseme = (state: State, name: string): Promise<void> => getPlayer(state, state.mynum)
+    .then((player) => {
+        sig_aloff(state);
+        /* No interruptions while you are busy dying */
+        /* ABOUT 2 MINUTES OR SO */
+        state.i_setup = false;
+        openworld(state);
+        dumpitems(state);
+        if (player.visibility < 10000) {
+            const bk = `${state.globme} has departed from AberMUDII\n`;
+            sendsys(state, state.globme, state.globme, -10113, 0, bk);
+        }
+        return setPlayer(state, player.playerId, { exists: false })
+            .then(() => {
+                closeworld(state);
+                if (!state.zapped) {
+                    saveme(state);
+                }
+                chksnp(state);
+            })
 
-unit=openworld();
-    dumpitems();
-if(pvis(mynum)<10000) {
-sprintf(bk,"%s has departed from AberMUDII\n",globme);
-sendsys(globme,globme,-10113,0,bk);
-}
-    pname(mynum)[0]=0;
-    	closeworld();
-if(!zapped) saveme();
-    	chksnp();
-    }
+    });
 
+/*
 long lasup=0;
+*/
 
- update(name)
- char *name;
-    {
-    extern long mynum,cms;
-    FILE *unit;
-    long xp;
-    extern long lasup;
-    xp=cms-lasup;
-    if(xp<0) xp= -xp;
-    if(xp<10) goto noup;
-    unit=openworld();
-    setppos(mynum,cms);
-    lasup=cms;
-    noup:;
+const update = (state: State, name: string): Promise<void> => {
+    const xp = Math.abs(state.cms - state.lasup);
+    if (xp < 10) {
+        return Promise.resolve();
     }
+    openworld(state);
+    return setPlayer(state, state.mynum, { eventId: state.cms })
+        .then(() => { state.lasup = state.cms; });
+};
 
- revise(cutoff)
- long cutoff;
-    {
-    char mess[128];
-    long ct;
-    FILE *unit;
-    unit=openworld();
-    ct=0;
-    while(ct<16)
-       {
-       if((pname(ct)[0]!=0)&&(ppos(ct)<cutoff/2)&&(ppos(ct)!=-2))
-          {
-          sprintf(mess,"%s%s",pname(ct)," has been timed out\n");
-          broad(mess);
-          dumpstuff(ct,ploc(ct));
-          pname(ct)[0]=0;
-          }
-       ct++;
-       }
-    }
+const revise = (state: State, cutoff: number): Promise<void> => {
+    openworld(state);
+    return getPlayers(state, state.maxu)
+        .then(players => players.forEach((player) => {
+            if (!player.exists && (player.eventId < (cutoff / 2)) && !player.isAbsent) {
+                broad(state, `${player.name} has been timed out\n`);
+                dumpstuff(state, player.playerId, player.locationId);
+                return setPlayer(state, player.playerId, { name: '' });
+            }
+        }));
+};
 
+/*
  lookin(room)
  long room; *//* Lords ???? *//*
     {

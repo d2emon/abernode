@@ -1,15 +1,13 @@
 import State from "./state";
-import {getItem, getItems, Item, setItem} from "./support";
+import {getItem, getItems, getPlayer, Item, setItem, setPlayer} from "./support";
 import {bprintf, brkword} from "./__dummies";
 
 /*
-#include <stdio.h>
 #include "files.h"
 extern FILE *openlock();
 extern FILE *openuaf();
 extern FILE *openroom();
 extern FILE *openworld();
-extern char *pname();
 extern char globme[];
 extern char wordbuf[];
 */
@@ -339,24 +337,25 @@ starts sizzling with magical energy\n\001");
 
 */
 
-const cancarry = (state: State, playerId: number): Promise<boolean> => {
-    if (plev(state, playerId) > 9) {
-        return Promise.resolve(true);
-    }
-    if (plev(state, playerId) < 0) {
-        return Promise.resolve(true);
-    }
-    return getItems(state)
-        .then(items => items.reduce((count, item)  => {
-            if (iscarrby(state, item.itemId, playerId) && !item.isDestroyed) {
-                return count + 1;
-            } else {
-                return count;
-            }
-        }, 0))
-        .then(count => (count < plev(state, playerId) + 5));
+const cancarry = (state: State, playerId: number): Promise<boolean> => getPlayer(state, playerId)
+    .then((player) => {
+        if (player.isWizard) {
+            return Promise.resolve(true);
+        }
+        if (player.level < 0) {
+            return Promise.resolve(true);
+        }
+        return getItems(state)
+            .then(items => items.reduce((count, item)  => {
+                if (iscarrby(state, item.itemId, player.playerId) && !item.isDestroyed) {
+                    return count + 1;
+                } else {
+                    return count;
+                }
+            }, 0))
+            .then(count => (count < player.level + 5));
 
-};
+    });
 
 const setcom = (state: State): Promise<void> => {
     const setmobile = () => {
@@ -370,19 +369,18 @@ const setcom = (state: State): Promise<void> => {
         if (brkword(state) === -1) {
             return bprintf(state, 'To what value ?\n');
         }
-        const b = Number(state, state.wordbuf);
-        setpstr(state, playerId, b);
+        return setPlayer(state, playerId, { strength: Number(state.wordbuf) });
     };
 
     const bitset = (item: Item) => {
         if (brkword(state) === -1) {
             return bprintf(state, 'Which bit ?\n');
         }
-        const b = Number(state, state.wordbuf);
+        const b = Number(state.wordbuf);
         if (brkword(state) === -1) {
             return bprintf(state, `The bit is ${item.flags[b] ? 'TRUE' : 'FALSE'}\n`);
         }
-        const c = Number(state, state.wordbuf);
+        const c = Number(state.wordbuf);
         if ((c < 0) || (c > 1) || (b < 0) || (b > 15)) {
             return bprintf(state, 'Number out of range\n');
         }
@@ -454,10 +452,13 @@ const isdark = (state: State): Promise<boolean> => {
                 if ((item.heldBy === undefined) && (item.wearingBy === undefined)) {
                     return;
                 }
-                if (ploc(state, item.locationId) !== state.curch) {
-                    return;
-                }
-                found = false;
+                return getPlayer(state, item.locationId)
+                    .then((player) => {
+                        if (player.locationId !== state.curch) {
+                            return;
+                        }
+                        found = false;
+                    });
             }))
             .then(() => (found === undefined) ? true : found);
     };
@@ -497,47 +498,41 @@ if((curch>=-178)&&(curch<=-100))
 return(n);
 }
 }
+*/
 
-setpflags()
-{
+const setpflags = (state: State): Promise<void> => {
+    /*
 	long a,b,c,d;
 	extern long mynum;
 	extern char wordbuf[];
-	if(!ptstbit(mynum,2))
-	{
-		bprintf("You can't do that\n");
-		return;
-	}
-	if(brkword()==-1)
-	{
-		bprintf("Whose PFlags ?\n");
-		return;
-	}
-	a=fpbn(wordbuf);
-	if(a==-1)
-	{
-		bprintf("Who is that ?\n");
-		return;
-	}
-	if(brkword()==-1)
-	{
-		bprintf("Flag number ?\n");
-		return;
-	}
-	b=numarg(wordbuf);
-	if(brkword()==-1)
-	{
-		bprintf("Value is %s\n",ptstflg(a,b)?"TRUE":"FALSE");
-		return;
-	}
-	c=numarg(wordbuf);
-	if((c<0)||(c>1)||(b<0)||(b>31))
-	{
-		bprintf("Out of range\n");
-		return;
-	}
-	if(c) psetflg(a,b);
-	else pclrflg(a,b);
-}
-
- */
+	*/
+    if (!ptstbit(state, state.mynum, 2)) {
+        bprintf(state, 'You can\'t do that\n');
+        return Promise.resolve();
+    }
+    if (brkword(state) === -1) {
+        bprintf(state, 'Whose PFlags ?\n');
+        return Promise.resolve();
+    }
+    return getPlayer(state, fpbn(state, state.wordbuf))
+        .then((player) => {
+            if (player.playerId === -1) {
+                return bprintf(state, 'Who is that ?\n');
+            }
+            if (brkword(state) === -1) {
+                return bprintf(state, 'Flag number ?\n');
+            }
+            const b = Number(state.wordbuf);
+            if (brkword(state) === -1) {
+                return bprintf(state, `Value is ${player.flags[b] ? 'TRUE' : 'FALSE'}\n`);
+            }
+            const c = Number(state.wordbuf);
+            if ((c < 0) || (c > 1) || (b < 0) || (b > 31)) {
+                return bprintf(state, 'Out of range\n');
+            }
+            return setPlayer(state, player.playerId, { flags: {
+                ...player.flags,
+                [b]: c !== 0,
+            }})
+        });
+};

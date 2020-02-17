@@ -14,7 +14,7 @@ import {
     setItem,
     availableByMask,
     getItems,
-    getPlayer
+    getPlayer, setPlayer, getPlayers, getHelper
 } from "./support";
 import {
     IS_DESTROYED,
@@ -44,7 +44,6 @@ typedef struct player_res PLAYER;
 
 extern FILE * openuaf();
 extern FILE * openlock();
-extern char * pname();
 extern FILE * openroom();
 extern char globme[];
 extern char wordbuf[];
@@ -528,11 +527,15 @@ const pushcom = (state: State): Promise<void> => {
             } else if (item.itemId === 49) {
                 return broad(state, '[d]Church bells ring out around you\n[/d]');
             } else if (item.itemId === 104) {
-                if (ptothlp(state, state.mynum) === -1) {
-                    return bprintf(state, 'You can\'t shift it alone, maybe you need help\n');
-                }
-                /* ELSE RUN INTO DEFAULT */
-                return def2(item);
+                return getPlayer(state, state.mynum)
+                    .then(getHelper(state))
+                    .then((helper) => {
+                        if (!helper) {
+                            return bprintf(state, 'You can\'t shift it alone, maybe you need help\n');
+                        }
+                        /* ELSE RUN INTO DEFAULT */
+                        return def2(item);
+                    })
             } else {
                 return def2(item);
             }
@@ -540,51 +543,45 @@ const pushcom = (state: State): Promise<void> => {
         });
 };
 
-/*
- cripplecom()
-    {
-    long a,b;
-    extern char globme[];
-    extern long mynum,curch;
-    b=victim(&a);
-    if(b== -1) return;
-    sendsys(pname(a),globme,-10101,curch,"");
+const cripplecom = (state: State): Promise<void> => {
+    const [b, playerId] = victim(state);
+    if (b === -1) {
+        return Promise.resolve();
     }
+    return getPlayer(state, playerId)
+        .then(player => sendsys(state, player.name, state.globme, -10101, state.curch, null));
+};
 
- curecom()
-    {
-    long a,b;
-    extern char globme[];
-    extern long mynum,curch;
-    b=vichfb(&a);
-    if(b== -1) return;
-    sendsys(pname(a),globme,-10100,curch,"");
+const curecom = (state: State): Promise<void> => {
+    const [b, playerId] = vichfb(state);
+    if (b === -1) {
+        return Promise.resolve();
     }
+    return getPlayer(state, playerId)
+        .then(player => sendsys(state, player.name, state.globme, -10100, state.curch, null));
+};
 
- dumbcom()
-    {
-    long a,b;
-    extern long mynum,curch;
-    extern char globme[];
-    b=victim(&a);
-    if(b== -1) return;
-    sendsys(pname(a),globme,-10102,curch,"");
+const dumbcom = (state: State): Promise<void> => {
+    const [b, playerId] = victim(state);
+    if (b === -1) {
+        return Promise.resolve();
     }
+    return getPlayer(state, playerId)
+        .then(player => sendsys(state, player.name, state.globme, -10102, state.curch, null));
+};
 
- forcecom()
-    {
-    long a,b;
-    extern long mynum,curch;
-    extern char globme[];
-    char z[128];
-    b=victim(&a);
-    if(b== -1) return;
-    getreinput(z);
-    sendsys(pname(a),globme,-10103,curch,z);
+const forcecom = (state: State): Promise<void> => {
+    const [b, playerId] = victim(state);
+    if (b === -1) {
+        return Promise.resolve();
     }
+    const z = getreinput();
+    return getPlayer(state, playerId)
+        .then(player => sendsys(state, player.name, state.globme, -10103, state.curch, z));
+};
 
- missilecom()
-    {
+const missilecom = (state: State): Promise<void> => {
+    /*
     long a,b;
     extern long mynum,curch;
     extern char globme[];
@@ -592,133 +589,137 @@ const pushcom = (state: State): Promise<void> => {
     extern long fighting,in_fight;
     extern long my_sco;
     long ar[8];
-    b=vichfb(&a);
-    if(b== -1) return;
-    sprintf(ar,"%d",my_lev*2);
-    sendsys(pname(a),globme,-10106,curch,ar);
-    if(pstr(a)-2*my_lev<0)
-	{
-	bprintf("Your last spell did the trick\n");
-	if(pstr(a)>=0)
-	{
-	*//* Bonus ? *//*
-		if(a<16) my_sco+=(plev(a)*plev(a)*100);
-		else my_sco+=10*damof(a);
-	}
-	setpstr(a,-1); *//* MARK ALREADY DEAD *//*
-	in_fight=0;
-	fighting= -1;
-    }
-    if(a>15) woundmn(a,2*my_lev);
-}
+    */
+    const [b, playerId] = vichfb()
+    return getPlayer(state, playerId)
+        .then((player) => {
+            if (b === -1) {
+                return;
+            }
+            const ar = state.my_lev * 2;
+            sendsys(state, player.name, state.globme, -10106, state.curch, ar);
+            if (player.strength - 2 * state.my_lev < 0) {
+                bprintf(state, 'Your last spell did the trick\n');
+                if (!player.isDead) {
+                    /* Bonus ? */
+                    state.my_sco += player.value;
+                    setPlayer(state, player.playerId, { isDead: true });
+                    /* MARK ALREADY DEAD */
+                    state.in_fight = 0;
+                    state.fighting = -1;
+                }
+                if (player.playerId > 15) {
+                    woundmn(state, player.playerId, 2 * state.my_lev);
+                }
+            }
+        })
+};
 
- changecom()
-    {
-    long a,b;
-    extern long mynum,curch;
-    extern char globme[];
-    extern char wordbuf[];
-    if(brkword()== -1)
-       {
-       bprintf("change what (Sex ?) ?\n");
-       return;
-       }
-    if(!!strcmp(wordbuf,"sex"))
-       {
-       bprintf("I don't know how to change that\n");
-       return;
-       }
-    b=victim(&a);
-    if(b== -1) return;
-    sendsys(pname(a),globme,-10107,curch,"");
-    if(a<16) return;
-    setpsex(a,1-psex(a));
+const changecom = (state: State): Promise<void> => {
+    if (brkword(state) === -1) {
+        bprintf(state, 'change what (Sex ?) ?\n');
+        return Promise.resolve();
+    }
+    if (state.wordbuf !== 'sex') {
+        bprintf(state, 'I don\'t know how to change that\n');
+        return Promise.resolve();
     }
 
- fireballcom()
-    {
-    long a,b;
-    extern long mynum,curch;
-    extern long fighting,in_fight;
-    extern char globme[];
-    extern long my_lev;
-    extern long my_sco;
-    long ar[2];
-    b=vichfb(&a);
-    if(b== -1) return;
-    if(mynum==a)
-       {
-       bprintf("Seems rather dangerous to me....\n");
-       return;
-       }
-    sprintf(ar,"%d",2*my_lev);
-    if(pstr(a)-(a==fpbns("yeti")?6:2)*my_lev<0)
-	{
-	bprintf("Your last spell did the trick\n");
-	if(pstr(a)>=0)
-	{
-	*//* Bonus ? *//*
-		if(a<16) my_sco+=(plev(a)*plev(a)*100);
-		else my_sco+=10*damof(a);
-	}
-	setpstr(a,-1); *//* MARK ALREADY DEAD *//*
-	in_fight=0;
-	fighting= -1;
+    const [b, playerId] = victim(state);
+    if (b === -1) {
+        return Promise.resolve();
     }
-    sendsys(pname(a),globme,-10109,curch,ar);
-    if(a==fpbns("yeti")) {woundmn(a,6*my_lev);return;}
-    if(a>15) woundmn(a,2*my_lev);
-    }
+    return getPlayer(state, playerId)
+        .then((player) => {
+            sendsys(state, player.name, state.globme, -10107, state.curch, null);
+            if (player.playerId < 16) {
+                return;
+            }
+            return setPlayer(state, player.playerId, { sex: 1 - player.sex });
+        })
+};
 
- shockcom()
-    {
-    long a,b;
-    extern long mynum,curch;
-    extern char globme[];
-    extern long my_lev;
-    extern long fighting,in_fight;
-    extern long my_sco;
-    long ar[2];
-    b=vichfb(&a);
-    if(b== -1) return;
-    if(a==mynum)
-       {
-       bprintf("You are supposed to be killing other people not yourself\n");
-       return;
-       }
-       if(pstr(a)-2*my_lev<0)
-	{
-	bprintf("Your last spell did the trick\n");
-	if(pstr(a)>=0)
-	{
-	*//* Bonus ? *//*
-		if(a<16) my_sco+=(plev(a)*plev(a)*100);
-		else my_sco+=10*damof(a);
-	}
-	setpstr(a,-1); *//* MARK ALREADY DEAD *//*
-	in_fight=0;
-	fighting= -1;
+const fireballcom = (state: State): Promise<void> => {
+    const [b, playerId] = vichfb(state);
+    if (b === -1) {
+        return Promise.resolve();
     }
-    sprintf(ar,"%d",my_lev*2);
-    sendsys(pname(a),globme,-10110,curch,ar);
-    if(a>15) woundmn(a,2*my_lev);
-    }
+    return getPlayer(state, playerId)
+        .then((player) => {
+            if (player.playerId === state.mynum) {
+                return bprintf(state, 'Seems rather dangerous to me....\n');
+            }
+            const ar = 2 * state.my_lev;
 
- starecom()
-    {
-    extern long mynum;
-    long a,b;
-    b=vichere(&a);
-    if(b== -1) return;
-    if(a==mynum)
-       {
-       bprintf("That is pretty neat if you can do it!\n");
-       return;
-       }
-    sillytp(a,"stares deep into your eyes\n");
-    bprintf("You stare at \001p%s\001\n",pname(a));
-    }
+            return getPlayer(state, fpbns(state, 'yeti'))
+                .then((yeti) => {
+                    if (player.strength - ((player.playerId === yeti.playerId) ? 6 : 2) * state.my_lev < 0) {
+                        bprintf(state, 'Your last spell did the trick\n');
+                        if (!player.isDead) {
+                            /* Bonus ? */
+                            state.my_sco += player.value;
+                            setPlayer(state, player.playerId, { isDead: true });
+                            /* MARK ALREADY DEAD */
+                            state.in_fight = 0;
+                            state.fighting = -1;
+                        }
+                        sendsys(state, player.name, state.globme, -10109, state.curch, ar);
+                        if (player.playerId > 15) {
+                            woundmn(state, player.playerId, 2 * state.my_lev);
+                        }
+                    }
 
+                });
+        })
+};
+
+const shockcom = (state: State): Promise<void> => {
+    const [b, playerId] = vichfb(state);
+    if (b === -1) {
+        return Promise.resolve();
+    }
+    return getPlayer(state, playerId)
+        .then((player) => {
+            if (player.playerId === state.mynum) {
+                return bprintf(state, 'You are supposed to be killing other people not yourself\n');
+            }
+
+            if (player.strength - (2 * state.my_lev < 0) {
+                bprintf(state, 'Your last spell did the trick\n');
+                if (!player.isDead) {
+                    /* Bonus ? */
+                    state.my_sco += player.value;
+                    setPlayer(state, player.playerId, { isDead: true });
+                    /* MARK ALREADY DEAD */
+                    state.in_fight = 0;
+                    state.fighting = -1;
+                }
+                const ar = 2 * state.my_lev;
+                sendsys(state, player.name, state.globme, -10110, state.curch, ar);
+                if (player.playerId > 15) {
+                    woundmn(state, player.playerId, 2 * state.my_lev);
+                }
+            }
+        })
+};
+
+const starecom = (state: State): Promise<void> => {
+    const [b, playerId] = vichere(state);
+    if (b === -1) {
+        return Promise.resolve();
+    }
+    return getPlayer(state, playerId)
+        .then((player) => {
+            if (player.playerId === state.mynum) {
+                return bprintf(state, 'That is pretty neat if you can do it!\n');
+            }
+            sillytp(state, player.playerId, 'stares deep into your eyes\n');
+            bprintf(state, `You stare at [p]${player.name}[/p]\n`)
+
+        });
+};
+
+/*
  gropecom()
     {
     extern long mynum;
@@ -907,40 +908,37 @@ if(iscarrby(163,mynum)) i++;
     {
     return(vicf2(x,0));
     }
- vichfb(x)
- long *x;
-    {
-    long a;
-    extern long curch;
-    a=vicfb(x);
-    if(a== -1) return(-1);
-    if(ploc(*x)!=curch)
-       {
-       bprintf("They are not here\n");
-       return(-1);
-       }
-    return(a);
-    }
+    */
 
+const vichfb = (state: State, playerId: number): Promise<number> => getPlayer(state, vicfb(state, playerId))
+    .then((player) => {
+        if (player.playerId === -1) {
+            return -1;
+        }
+        if (player.locationId !== state.curch) {
+            bprintf(state, 'They are not here\n');
+            return -1;
+        }
+        return player.playerId;
+    });
+
+/*
  victim(x)
     	long *x;
     {
     return(vicf2(x,1));
     }
+*/
 
- sillytp(per,msg)
- char *msg;
-    {
-    extern long curch;
-    extern char globme[];
-    char bk[256];
-    if(strncmp(msg,"star",4)==0)
-      sprintf(bk, "%s%s%s%s%s%s%s","\001s",globme,"\001",globme," ",msg,"\n\001");
-    else
-       sprintf(bk,"%s%s%s%s%s","\001p",globme,"\001 ",msg,"\n");
-    sendsys(pname(per),globme,-10111,curch,bk);
-    }
+const sillytp = (state: State, playerId: number, message: string): Promise<void> => getPlayer(state, playerId)
+    .then((player) => {
+        const bk = (message.substr(0, 4) === 'star')
+            ? `[s name=\"${state.globme}\"]${state.globme} ${message}\n[/s]`
+            : `[p]${state.globme}[/p] ${message}\n`;
+        sendsys(state, player.name, state.globme, -10111, state.curch, bk);
+    });
 
+/*
 long ail_dumb=0;
 long  ail_crip=0;
 long  ail_blind=0;
@@ -1096,38 +1094,29 @@ const destroy = (state: State, itemId: Item): Promise<void> => setItem(state, it
     flags: { [IS_DESTROYED]: true }
 });
 
-/*
- tscale()
-    {
-    long a,b;
-    a=0;
-    b=0;
-    while(b<16)
-       {
-       if(!!strlen(pname(b))) a++;
-       b++;
+const tscale = (state: State): Promise<number> => getPlayers(state, state.maxu)
+    .then(players => players.filter(player => player.exists))
+    .then((players) => {
+       if (players.length === 1) {
+           return 2;
+       } else if (players.length === 2) {
+           return 3;
+       } else if (players.length === 3) {
+           return 3;
+       } else if (players.length === 4) {
+           return 4;
+       } else if (players.length === 5) {
+           return 4;
+       } else if (players.length === 6) {
+           return 5;
+       } else if (players.length === 7) {
+           return 6;
+       } else {
+           return 7;
        }
-    switch(a)
-       {
-       case 1:
-          return(2);
-       case 2:
-          return(3);
-       case 3:
-          return(3);
-       case 4:
-          return(4);
-       case 5:
-          return(4);
-       case 6:
-          return(5);
-       case 7:
-          return(6);
-       default:
-          return(7);
-          }
-    }
+    });
 
+/*
  chkdumb()
     {
     extern long ail_dumb;
@@ -1185,84 +1174,73 @@ const wounded = (state: State, damage: number): Promise<void> => {
         });
 };
 
+const woundmn = (state: State, playerId: number, damage: number): Promise<void> => getPlayer(state, playerId)
+    .then((player) => {
+        const strength = player.strength - damage;
+        return setPlayer(state, player.playerId, { strength })
+            .then(() => {
+                if (strength >= 0) {
+                    return mhitplayer(state, player.playerId, state.mynum);
+                }
+                dumpstuff(state, player.playerId, player.locationId);
+                const ms = `[ ${player.name} has just died ]\n`;
+                setPlayer(state, player.playerId, { exists: false })
+                    .then(() => sendsys(state, state.globme, state.globme, -10113, player.locationId, ms));
+            });
+    });
+
+const mhitplayer = (state: State, enemyId: number, playerId: number): Promise<void> => getPlayer(state, enemyId)
+    .then((enemy) => {
+        /*
+        extern long my_lev,mynum;
+        long a,b,x[4];
+        extern char globme[];
+        */
+        if (enemy.locationId !== state.curch) {
+            return;
+        }
+        if ((enemy.playerId < 0) || (enemy.playerId > 47)) {
+            return;
+        }
+        const a = randperc(state);
+        let b  = 3 * (15 - state.my_lev) + 20;
+        if (iswornby(state, 89, state.mynum) || iswornby(state, 113, state.mynum) || iswornby(state, 114, state.mynum)) {
+            b -= 10;
+        }
+        if (a < b) {
+            const x = {
+                characterId: enemy.playerId,
+                damage: randperc(state) % damof(state, enemy.playerId),
+            };
+            sendsys(state, state.globme, enemy.name, -10021, enemy.locationId, x);
+        } else {
+            const x = {
+                characterId: enemy.playerId,
+                damage: -1,
+            };
+            sendsys(state, state.globme, enemy.name, -10021, enemy.locationId, x);
+        }
+    });
+
+const resetplayers = (state: State): Promise<void> => getPlayers(state)
+    .then(players => players.filter(player => (player.playerId >= 16)))
+    .then(players => players.forEach((player) => {
+        if (player.playerId < 35) {
+            return setPlayer(state, player.playerId, {
+                name: state.pinit[player.playerId - 16].name,
+                locationId: state.pinit[player.playerId - 16].locationId,
+                level: state.pinit[player.playerId - 16].level,
+                strength: state.pinit[player.playerId - 16].strength,
+                visibility: 0,
+                sex: state.pinit[player.playerId - 16].sex,
+                weponId: -1,
+            });
+        } else {
+            return setPlayer(state, player.playerId, { name: '' });
+        }
+    }));
+
 /*
- woundmn(mon,am)
-    {
-    extern long mynum;
-    extern char globme[];
-    long a;
-    long b;
-    char ms[128];
-    a=pstr(mon)-am;
-    setpstr(mon,a);
-
-    if(a>=0){mhitplayer(mon,mynum);}
-
-    else
-       {
-       dumpstuff(mon,ploc(mon));
-       sprintf(ms,"%s has just died\n",pname(mon));
-       sendsys(" "," ",-10000,ploc(mon),ms);
-       sprintf(ms,"[ %s has just died ]\n",pname(mon));
-       pname(mon)[0]=0;
-       sendsys(globme,globme,-10113,ploc(mon),ms);
-       }
-    }
-
-
- mhitplayer(mon,mn)
-    {
-    extern long curch,my_lev,mynum;
-    long a,b,x[4];
-    extern char globme[];
-    if(ploc(mon)!=curch) return;
-    if((mon<0)||(mon>47)) return;
-    a=randperc();
-    b=3*(15-my_lev)+20;
-if((iswornby(89,mynum))||(iswornby(113,mynum))||(iswornby(114,mynum)))
-       b-=10;
-    if(a<b)
-       {
-       x[0]=mon;
-       x[1]=randperc()%damof(mon);
-       x[2]= -1;
-       sendsys(globme,pname(mon),-10021,ploc(mon),(char *)x);
-       }
-
-    else
-       {
-
-       x[0]=mon;
-       x[2]= -1;
-       x[1]= -1;
-       sendsys(globme,pname(mon),-10021,ploc(mon),x) ;
-       }
-    }
-
- resetplayers()
-    {
-    extern PLAYER pinit[];
-    long a,b,c;
-    a=16;
-    c=0;
-    while(a<35)
-       {
-       strcpy(pname(a),pinit[c].p_name);
-       setploc(a,pinit[c].p_loc);
-       setpstr(a,pinit[c].p_str);
-       setpsex(a,pinit[c].p_sex);
-       setpwpn(a,-1);
-       setpvis(a,0);
-       setplev(a,pinit[c].p_lev);
-       a++;c++;
-       }
-    while(a<48)
-       {
-       strcpy(pname(a),"");
-       a++;
-       }
-    }
-
 PLAYER pinit[48]=
     { "The Wraith",-1077,60,0,-2,"Shazareth",-1080,99,0,-30,"Bomber",-308,50,0,-10,
     "Owin",-311,50,0,-11,"Glowin",-318,50,0,-12,
@@ -1404,26 +1382,27 @@ const canwear = (state: State, itemId: number): Promise<boolean> => getItem(stat
        }
     return(0);
     }
- deafcom()
-    {
-    long a,b;
-    extern long mynum,curch;
-    extern char globme[64];
-    b=victim(&a);
-    if(b== -1) return;
-    sendsys(pname(a),globme,-10120,curch,"");
-    }
+    */
 
-blindcom()
-    {
-    long a,b;
-    extern long mynum,curch;
-    extern char globme[64];
-    b=victim(&a);
-    if(b== -1) return;
-    sendsys(pname(a),globme,-10105,curch,"");
+const deafcom = (state: State): Promise<void> => {
+    const [b, playerId] = victim();
+    if (b === -1) {
+        return Promise.resolve();
     }
+    return getPlayer(state, playerId)
+        .then((player) => sendsys(state, player.name, state.globme, -10120, state.curch, null));
+};
 
+const blindcom = (state: State): Promise<void> => {
+    const [b, playerId] = victim();
+    if (b === -1) {
+        return Promise.resolve();
+    }
+    return getPlayer(state, playerId)
+        .then((player) => sendsys(state, player.name, state.globme, -10105, state.curch, null));
+};
+
+/*
 teletrap(newch)
 long newch;
 {
@@ -1441,7 +1420,8 @@ long newch;
 const on_flee_event = (state: State): Promise<void> => getItems(state)
     .then(items => items.forEach((item) => {
         if ((iscarrby(state, item.itemId, state.mynum)) && (!iswornby(state, item.itemId, state.mynum))) {
-            return putItem(state, item.itemId, ploc(state.mynum));
+            return getPlayer(state, state.mynum)
+                .then(() => putItem(state, item.itemId, item.locationId));
         }
     }))
     .then(() => undefined);

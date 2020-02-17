@@ -1,5 +1,5 @@
 import State, {
-    ItemFlags,
+    ItemFlags, PlayerFlags,
 } from './state';
 import ItemInterface, {
     HELD_BY,
@@ -23,6 +23,7 @@ const ishere = (state: State, itemId: number, playerId: number): boolean => fals
 const iscarrby = (state: State, itemId: number, playerId: number): boolean => false;
 const __state = (itemId: number): number => 0;
 const tscale = (state: State): number => 1;
+const damof = (state: State, playerId: number): number => 0;
 
 /**
  * Some more basic functions
@@ -184,19 +185,58 @@ export const availableByMask = (state: State, mask: { [flagId: number]: boolean 
 export interface Player {
     playerId: number,
 
+    name: string,
     locationId: number,
+    eventId: number,
+    strength: number,
+    visibility: number,
+    flags: PlayerFlags,
+    level: number,
+    weaponId: number,
+    helping: number,
+
+    sex: number,
+
+    isWizard: boolean,
+    isGod: boolean,
+
+    exists: boolean,
+    isDead: boolean,
+    value: number,
+    isAbsent: boolean,
 }
 const playerFromState = (state: State, playerId: number): Player => ({
     playerId,
 
+    name: state.ublock[playerId].name,
     locationId: state.ublock[playerId].locationId,
+    eventId: state.ublock[playerId].eventId,
+    strength: state.ublock[playerId].strength,
+    visibility: state.ublock[playerId].visibility,
+    flags: state.ublock[playerId].flags,
+    level: state.ublock[playerId].level,
+    weaponId: state.ublock[playerId].weaponId,
+    helping: state.ublock[playerId].helping,
+
+    sex: state.ublock[playerId].flags.sex ? 1 : 0,
+
+    isWizard: state.ublock[playerId].level >= 10,
+    isGod: state.ublock[playerId].level >= 10000,
+
+    exists: !!state.ublock[playerId].name.length,
+    isDead: state.ublock[playerId].strength < 0,
+    value: (playerId < 16)
+        ? state.ublock[playerId].level * state.ublock[playerId].level * 100
+        : 10 * damof(state, playerId),
+    isAbsent: state.ublock[playerId].eventId === -2,
 });
 export const getPlayer = (state: State, playerId: number): Promise<Player> => Promise.resolve(
     playerFromState(state, playerId)
 );
-export const getPlayers = (state: State): Promise<Player[]> => Promise.all(
+export const getPlayers = (state: State, maxId: number = 0): Promise<Player[]> => Promise.all(
     state.ublock.map((player, playerId) => getPlayer(state, playerId))
-);
+)
+    .then(players => players.filter(player => ((maxId === 0) || (player.playerId < maxId))));
 
 export const setPlayer = (state: State, playerId: number, newPlayer: { [key: string]: any }): Promise<void> => new Promise(() => {
     state.ublock[playerId] = {
@@ -205,145 +245,15 @@ export const setPlayer = (state: State, playerId: number, newPlayer: { [key: str
     };
 });
 
+export const getHelper = (state: State) => (player: Player): Promise<Player | undefined> => getPlayers(
+    state,
+    state.maxu,
+)
+    .then(players => players.find(
+        helper => ((player.locationId !== helper.locationId) && (player.playerId === helper.helping))
+    ));
+
 /*
- ploc(chr)
-    {
-    extern long ublock[];
-    return((ublock[16*chr+4]));
-    }
-
-char * pname(chr)
-    {
-    extern long ublock[];
-    return((char *)(ublock+16*chr));
-    }
-
- plev(chr)
-    {
-    extern long ublock[];
-    return(ublock[16*chr+10]);
-    }
-
- setplev(chr,v)
-    {
-    extern long ublock[];
-    ublock[16*chr+10]=v;
-    }
-
- pchan(chr)
-    {
-    extern long ublock[];
-    return(ublock[16*chr+4]);
-    }
-
- pstr(chr)
-    {
-    extern long ublock[];
-    return(ublock[16*chr+7]);
-    }
-
- setpstr(chr,v)
-    {
-    extern long ublock[];
-    ublock[16*chr+7]=v;
-    }
-
- pvis(chr)
-    {
-    extern long ublock[];
-    return(ublock[16*chr+8]);
-    }
-
- setpvis(chr,v)
-    {
-    extern long ublock[];
-    ublock[16*chr+8]=v;
-    }
-
- psex(chr)
-    {
-    extern long ublock[];
-    return(ublock[16*chr+9]%2);
-    }
-
- setpsex(chr,v)
-    {
-    extern long ublock[];
-    ublock[16*chr+9]&=~1;
-    ublock[16*chr+9]|=v;
-    }
-setpsexall(chr,v)
-long v;
-{
-	extern long ublock[];
-	ublock[16*chr+9]=v;
-}
-
-psexall(chr)
-long chr;
-{
-	extern long ublock[];
-	return(ublock[16*chr+9]);
-}
-
- ppos(chr)
-    {
-    extern long ublock[];
-    return(ublock[16*chr+5]);
-    }
-
- setppos(chr,v)
-    {
-    extern long ublock[];
-    ublock[16*chr+5]=v;
-    }
-
- setploc(chr,n)
-    {
-    extern long ublock[];
-    ublock[16*chr+4]=n;
-    }
-
- pwpn(chr)
-    {
-    extern long ublock[];
-    return(ublock[16*chr+11]);
-    }
-
- setpwpn(chr,n)
-    {
-    extern long ublock[];
-    ublock[16*chr+11]=n;
-    }
-
- phelping(x,y)
-{
-extern long ublock[];
-return(ublock[16*x+13]);
-}
-
-setphelping(x,y)
-{
-extern long ublock[];
-ublock[16*x+13]=y;
-}
-
-
-ptothlp(pl)
-{
-int tot;
-extern long maxu;
-int ct=0;
-while(ct<maxu)
-{
-if(ploc(ct)!=ploc(pl)){ct++;continue;}
-if(phelping(ct)!=pl){ct++;continue;}
-return(ct);
-}
-return(-1);
-}
-
-
 psetflg(ch,x)
 long ch;
 long x;
@@ -377,22 +287,4 @@ long x;
 	if((x==2)&&(strcmp(globme,"Debugger")==0)) return(1<<x);
 	return(ublock[16*ch+9]&(1<<x));
 }
-*/
-
-/*Pflags
-
-0 sex
-
-1 May not be exorcised ok
-
-2 May change pflags ok
-
-3 May use rmedit ok
-
-4 May use debugmode ok
-
-5 May use patch
-
-6 May be snooped upon
-
 */

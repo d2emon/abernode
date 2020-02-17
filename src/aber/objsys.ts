@@ -1,5 +1,15 @@
 import State from "./state";
-import {createItem, getItem, setItem, getItems, holdItem, itemIsAvailable, putItem} from "./support";
+import {
+    createItem,
+    getItem,
+    setItem,
+    getItems,
+    holdItem,
+    itemIsAvailable,
+    putItem,
+    getPlayers,
+    getPlayer, getHelper
+} from "./support";
 import {bprintf, brkword, sendsys} from "./__dummies";
 
 /*
@@ -22,7 +32,6 @@ import {bprintf, brkword, sendsys} from "./__dummies";
 
 extern FILE *openlock();
 extern FILE *openworld();
-extern char * pname();
 
  inventory()
     {
@@ -276,20 +285,31 @@ const getobj = (state: State): Promise<void> => {
             if (!cancarry(state, state.mynum)) {
                 return bprintf(state, 'You can\'t carry any more\n');
             }
-            if ((item.itemId === 32) && (item.state === 1) && (ptothlp(state, state.mynum)) === -1) {
-                return bprintf(state, 'Its too well embedded to shift alone.\n');
+            let p = Promise.resolve();
+            if (item.itemId === 32) {
+                p = getPlayer(state, state.mynum)
+                    .then(getHelper(state))
+                    .then((helper) => {
+                        if ((item.state === 1) && !helper) {
+                            throw new Error('Its too well embedded to shift alone.\n');
+                        }
+                    })
             }
-            holdItem(state, item.itemId, state.mynum);
-            const bf2 = `[D]${state.globme}[/D][c] takes the ${item.name}\n[/c]`;
-            bprintf(state, 'Ok...\n');
-            sendsys(state, state.globme, state.globme, -10000, state.curch, bf2);
-            if (item.changeStateOnTake) {
-                setItem(state, item.itemId, { state: 0 });
-            }
-            if (state.curch === -1081) {
-                return setItem(state, 20, { state: 1 })
-                    .then(() => bprintf(state, 'The door clicks shut....\n'));
-            }
+            return p
+                .then(() => {
+                    holdItem(state, item.itemId, state.mynum);
+                    const bf2 = `[D]${state.globme}[/D][c] takes the ${item.name}\n[/c]`;
+                    bprintf(state, 'Ok...\n');
+                    sendsys(state, state.globme, state.globme, -10000, state.curch, bf2);
+                    if (item.changeStateOnTake) {
+                        setItem(state, item.itemId, { state: 0 });
+                    }
+                    if (state.curch === -1081) {
+                        return setItem(state, 20, { state: 1 })
+                            .then(() => bprintf(state, 'The door clicks shut....\n'));
+                    }
+                })
+                .catch(e => bprintf(state, e));
         });
 };
 
@@ -397,43 +417,51 @@ const dumpstuff = (state: State, playerId: number, locationId: number): Promise<
 
 /*
 long ublock[16*49];
+*/
 
-
- whocom()
-    {
-    long a;
-    extern long my_lev;
-    long bas;
-    a=0;
-    bas=16;
-    if(my_lev>9)
-       {
-      bprintf("Players\n");
-       bas=48;
-       }
-    while(a<bas)
-       {
-       if(a==16)bprintf("----------\nMobiles\n");
-       if(!strlen(pname(a))) goto npas;
-       dispuser(a);
-       npas:a++;
-       }
-   bprintf("\n");
+const whocom = (state: State): Promise<void> => {
+    let base = state.maxu;
+    if (state.my_lev > 9) {
+        bprintf('Players\n');
+        base = 0;
     }
+    return getPlayers(state, base)
+        .then(players => players.forEach((player) => {
+            if (player.playerId === state.maxu) {
+                bprintf('----------\nMobiles\n');
+                if (!player.exists) {
+                    return;
+                }
+                dispuser(state, player.playerId);
+            }
+        }))
+        .then(() => bprintf(state, '\n'));
+};
 
- dispuser(ubase)
-    {
-extern long my_lev;
-    if(pstr(ubase)<0) return; *//* On  Non game mode *//*
-    if(pvis(ubase)>my_lev) return;
-if(pvis(ubase)) bprintf("(");
-   bprintf("%s ",pname(ubase));
-    disl4(plev(ubase),psex(ubase));
-if(pvis(ubase)) bprintf(")");
-if(ppos(ubase)==-2) bprintf(" [Absent From Reality]");
-bprintf("\n");
-    }
+const dispuser = (state: State, playerId: number): Promise<void> => getPlayer(state, playerId)
+    .then((player) => {
+        if (player.isDead) {
+            /* On  Non game mode */
+            return;
+        }
+        if (player.visibility > state.my_lev) {
+            return;
+        }
+        if (player.visibility) {
+            bprintf(state, '(');
+        }
+        bprintf(state, `${player.name} `);
+        disl4(state, player.level, player.sex);
+        if (player.visibility) {
+            bprintf(state, ')');
+        }
+        if (player.isAbsent) {
+            bprintf(state, ' [Absent From Reality]');
+        }
+        bprintf(state, '\n');
+    });
 
+/*
  disle3(n,s)
     {
     disl4(n,s);
@@ -549,55 +577,54 @@ if(s==-1) return(s);
 if(!seeplayer(s)) return(-1);
 return(s);
 }
+*/
 
- fpbns(name)
- char *name;
-    {
-    char *n1[40],n2[40];
-    long a;
-    a=0;
-    while(a<48)
-       {
-       strcpy(n1,name);strcpy(n2,pname(a));
-       lowercase(n1);lowercase(n2);
-if((!!strlen(n2))&&(!strcmp(n1,n2))) return(a);
-       if(strncmp(n2,"the ",4)==0)
-       if((!!strlen(n2))&&(!strcmp(n1,n2+4)))return(a);
-       a++;
-       }
-    return(-1);
-    }
- lispeople()
-    {
-    extern long debug_mode;
-    extern long curch;
-    extern long mynum;
-    extern char wd_him[],wd_her[];
-    long a,b;
-    b=0;
-    a=0;
-    while(a<48)
-       {
-       if(a==mynum)
-          {
-          a++;
-          continue;
-          }
-       if((!!strlen(pname(a)))&&(ploc(a)==curch)&&(seeplayer(a)))
-          {
-          b=1;
-         bprintf("%s ",pname(a));
-         if(debug_mode) bprintf("{%d}",a);
-          disl4(plev(a),psex(a));
-          if(psex(a)) strcpy(wd_her,pname(a));
-          else strcpy(wd_him,pname(a));
-         bprintf(" is here carrying\n");
-          lobjsat(a);
-          }
-       a++;
-       }
-    }
+const fpbns = (state: State, name: string): Promise<number> => getPlayers(state)
+    .then((players) => {
+        let res = null;
+        const n1 = name.toLowerCase();
+        players.forEach((player) => {
+            if (res !== null) {
+                return;
+            }
+            const n2 = player.name.toLowerCase();
+            if (player.exists && (n1 === n2)) {
+                res = player.playerId;
+                return;
+            }
+            if (n2.substr(0, 4) === 'the ') {
+                if (player.exists && (n1 === n2.substr(4))) {
+                    res = player.playerId;
+                    return;
+                }
+            }
+        });
+        return (res === null) ? -1 : res;
+    });
 
+const lispeople = (state: State): Promise<void> => getPlayers(state)
+    .then(players => players.forEach((player) => {
+        if (player.playerId === state.mynum) {
+            return;
+        }
+        if (player.exists && (player.locationId === state.curch) && seeplayer(state, player.playerId)) {
+            bprintf(state, `${player.name} `);
+            if (state.debug_mode) {
+                bprintf(state, `{${player.playerId}}`);
+            }
+            disl4(state, player.level, player.sex);
+            if (player.sex) {
+                state.wd_her = player.name;
+            } else {
+                state.wd_him = player.name;
+            }
+            bprintf(state, ' is here carrying\n');
+            lobjsat(state, player.playerId);
+            return;
+        }
+    }));
+
+/*
 usercom()
 {
 extern long my_lev;

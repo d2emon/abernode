@@ -1,6 +1,7 @@
 import State from './state';
 import {logger} from './files';
 import {getPlayer} from "./support";
+import {brkword} from "./__dummies";
 
 /*
 #include "files.h"
@@ -139,16 +140,22 @@ const tocontinue = (state: State, text: string, offset: number, output: string, 
     return Promise.resolve(offset + 1);
 };
 
-const seeplayer = (state: State, playerId: number): Promise<boolean> => getPlayer(state, playerId)
-    .then((player) => {
+const seeplayer = (state: State, playerId: number): Promise<boolean> => Promise.all([
+    getPlayer(state, state.mynum),
+    getPlayer(state, playerId),
+])
+    .then(([
+        me,
+        player,
+    ]) => {
         if (player.playerId === -1) {
             return true;
         }
-        if (player.playerId === state.mynum) {
+        if (player.playerId === me.playerId) {
             /* me */
             return true;
         }
-        if (plev(state, state.mynum) < pvis(state, player.playerId)) {
+        if (me.level < player.visibility) {
             return false;
         }
         if (state.ail_blind) {
@@ -233,38 +240,52 @@ void logcom()
     }
 
 long pr_qcr;
+*/
 
-void pbfr()
-    {
+const pbfr = (state: State): Promise<void> => {
+    /*
     FILE *fln;
     long mu;
-    block_alarm();
-    closeworld();
-    if(strlen(sysbuf)) pr_due=1;
-    if((strlen(sysbuf))&&(pr_qcr)) putchar('\n');
-    pr_qcr=0;
-    if(log_fl!=NULL)
-       {
-       iskb=0;
-       dcprnt(sysbuf,log_fl);
-       }
-    if(snoopd!=-1)
-       {
-       fln=opensnoop(pname(snoopd),"a");
-       if(fln>0)
-          {
-iskb=0;
-          dcprnt(sysbuf,fln);
-          fcloselock(fln);
-          }
-       }
-    iskb=1;
-    dcprnt(sysbuf,stdout);
-    sysbuf[0]=0; *//* clear buffer *//*
-    if(snoopt!=-1) viewsnoop();
-    unblock_alarm();
+    */
+    block_alrm(state);
+    closeworld(state);
+    if (state.sysbuf) {
+        state.pr_due = true;
     }
+    if (state.sysbuf && state.pr_qcr) {
+        console.log('\n');
+    }
+    state.pr_qcr = false;
+    if (state.log_fl !== null) {
+        state.iskb = false;
+        dcprnt(state, state.sysbuf, state.log_fl);
+    }
+    return getPlayer(state, state.snoopd)
+        .then((snooper) => {
+            if (snooper.playerId === -1) {
+                return;
+            }
+            return opensnoop(snooper.name, 'a')
+                .then((fln) => {
+                    state.iskb = false;
+                    dcprnt(state, state.sysbuf, fln);
+                    return fcloselock(fln);
+                })
+                .catch(() => null);
+        })
+        .then(() => {
+            state.iskb = true;
+            dcprnt(state, state.sysbuf);
+            state.sysbuf = '';
+            /* clear buffer */
+            if (state.snoopt !== -1) {
+                viewsnoop(state);
+            }
+            unblock_alarm(state);
+        });
+};
 
+/*
 long iskb=1;
 */
 
@@ -308,47 +329,42 @@ char *user;
 long snoopt= -1;
 
 char sntn[32];
+*/
 
-void snoopcom()
-    {
-    FILE *fx;
-    long x;
-    if(my_lev<10)
-       {
-       bprintf("Ho hum, the weather is nice isn't it\n");
-       return;
-       }
-    if(snoopt!=-1)
-       {
-       bprintf("Stopped snooping on %s\n",sntn);
-       snoopt= -1;
-       sendsys(sntn,globme,-400,0,"");
-       }
-    if(brkword()== -1)
-       {
-       return;
-       }
-    x=fpbn(wordbuf);
-    if(x==-1)
-       {
-       bprintf("Who is that ?\n");
-       return;
-       }
-    if(((my_lev<10000)&&(plev(x)>=10))||(ptstbit(x,6)))
-       {
-       bprintf("Your magical vision is obscured\n");
-       snoopt= -1;
-       return;
-       }
-    strcpy(sntn,pname(x));
-    snoopt=x;
-    bprintf("Started to snoop on %s\n",pname(x));
-    sendsys(sntn,globme,-401,0,"");
-    fx=opensnoop(globme,"w");
-    fprintf(fx," ");
-    fcloselock(fx);
+const snoopcom = (state: State): Promise<void> => {
+    if (state.my_lev < 10) {
+        bprintf(state, 'Ho hum, the weather is nice isn\'t it\n');
+        return Promise.resolve();
     }
+    if (state.snoopt !== -1) {
+        bprintf(state, `Stopped snooping on ${state.sntn}\n`);
+        state.snoopt = -1;
+        sendsys(state, state.sntn, state.globme, -400, 0, null);
+        return Promise.resolve();
+    }
+    if (brkword() === -1) {
+        return Promise.resolve();
+    }
+    return getPlayer(state, fpbn(state, state.wordbuf))
+        .then((snooped) => {
+            if (snooped.playerId === -1) {
+                return bprintf(state, 'Who is that ?\n');
+            }
+            if (((state.my_lev < 10000) && snooped.isWizard) || ptstbit(state, snooped.playerId , 6)) {
+                bprintf(state, 'Your magical vision is obscured\n');
+                state.snoopt = -1;
+                return;
+            }
+            state.sntn = snooped.name;
+            state.snoopt = snooped.playerId;
+            bprintf(state, `Started to snoop on ${snooped.name}\n`);
+            sendsys(state, state.sntn, state.globme, -401, 0, null);
+            return opensnoop(state.globme, 'w')
+                .then((fx) => fprint(fx, '').then(() => fcloselock(fx)));
+        });
+};
 
+/*
 void viewsnoop()
     {
     long x;
@@ -373,18 +389,19 @@ void chksnp()
 if(snoopt==-1) return;
 sendsys(sntn,globme,-400,0,"");
 }
+*/
 
-void setname(x)  *//* Assign Him her etc according to who it is *//*
-long x;
-{
-	if((x>15)&&(x!=fpbns("riatha"))&&(x!=fpbns("shazareth")))
-	{
-		strcpy(wd_it,pname(x));
-		return;
-	}
-	if(psex(x)) strcpy(wd_her,pname(x));
-	else strcpy(wd_him,pname(x));
-	strcpy(wd_them,pname(x));
-}
-
- */
+const setname = (state: State, playerId: number): Promise<void> => getPlayer(state, playerId)
+    .then((player) => {
+        /* Assign Him her etc according to who it is */
+        if ((player.playerId > 15) && (player.playerId !== fpbns(state, 'riatha')) && (player.playerId !== fpbns(state, 'shazareth'))) {
+            state.wd_it = player.name;
+            return;
+        }
+        if (player.sex) {
+            state.wd_her = player.name;
+        } else {
+            state.wd_him = player.name;
+        }
+        state.wd_them = player.name;
+    });
