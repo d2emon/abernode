@@ -4,7 +4,18 @@ import {
     sendsys,
 } from './__dummies';
 import State from "./state";
-import {Item, getItem, putItem, holdItem, wearItem, putItemIn, setItem, availableByMask, getItems} from "./support";
+import {
+    Item,
+    getItem,
+    putItem,
+    holdItem,
+    wearItem,
+    putItemIn,
+    setItem,
+    availableByMask,
+    getItems,
+    getPlayer
+} from "./support";
 import {
     IS_DESTROYED,
     CAN_BE_LIT,
@@ -837,23 +848,22 @@ const pushcom = (state: State): Promise<void> => {
     *x=a;
     return(b);
     }
+*/
 
- vichere(x)
-long *x;
-    {
-    extern long curch;
-    long a;
-    a=vicbase(x);
-    if(a== -1) return(a);
-    if(ploc(*x)!=curch)
-       {
-       bprintf("They are not here\n");
-       return(-1);
-       }
-    return(a);
-    }
+const vichere = (state: State, playerId: number): Promise<numb> => getPlayer(state, vicbase(state, playerId))
+    .then((player) => {
+        if (player.playerId === -1) {
+            return
+        }
+        if (player.locationId !== state.curch) {
+            bprintf(state, 'They are not here\n');
+            return -1;
+        }
+        return player.locationId;
+    };
 
 
+/*
  vicf2(x,f1)
 long *x;
     {

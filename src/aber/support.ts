@@ -36,8 +36,15 @@ const tscale = (state: State): number => 1;
  * are elsewhere
  */
 
-export interface Item extends ItemInterface {
+// Item
+
+export interface Item {
     itemId: number,
+
+    name: string,
+    maxState: number,
+    baseValue: number,
+    flannel: boolean,
 
     locationId: number,
     state: number,
@@ -76,7 +83,6 @@ const itemFromState = (state: State, itemId: number): Item => ({
     itemId,
 
     name: state.objects[itemId].name,
-    descriptions: state.objects[itemId].descriptions, // Remove
     maxState: state.objects[itemId].maxState,
     baseValue: state.objects[itemId].baseValue,
     flannel: state.objects[itemId].flannel,
@@ -172,6 +178,32 @@ export const availableByMask = (state: State, mask: { [flagId: number]: boolean 
     .then(items => items.some((item) => itemIsAvailable(state, item)
         && Object.keys(mask).every((key) => item.flags[key] === mask[key])
     ));
+
+// Player
+
+export interface Player {
+    playerId: number,
+
+    locationId: number,
+}
+const playerFromState = (state: State, playerId: number): Player => ({
+    playerId,
+
+    locationId: state.ublock[playerId].locationId,
+});
+export const getPlayer = (state: State, playerId: number): Promise<Player> => Promise.resolve(
+    playerFromState(state, playerId)
+);
+export const getPlayers = (state: State): Promise<Player[]> => Promise.all(
+    state.ublock.map((player, playerId) => getPlayer(state, playerId))
+);
+
+export const setPlayer = (state: State, playerId: number, newPlayer: { [key: string]: any }): Promise<void> => new Promise(() => {
+    state.ublock[playerId] = {
+        ...state.ublock[playerId],
+        ...newPlayer,
+    };
+});
 
 /*
  ploc(chr)

@@ -1,10 +1,9 @@
 import State from './state';
 import {logger} from './files';
+import {getPlayer} from "./support";
 
 /*
 #include "files.h"
-#include <stdio.h>
-#include "System.h"
 
 long pr_due=0;
 */
@@ -140,20 +139,30 @@ const tocontinue = (state: State, text: string, offset: number, output: string, 
     return Promise.resolve(offset + 1);
 };
 
+const seeplayer = (state: State, playerId: number): Promise<boolean> => getPlayer(state, playerId)
+    .then((player) => {
+        if (player.playerId === -1) {
+            return true;
+        }
+        if (player.playerId === state.mynum) {
+            /* me */
+            return true;
+        }
+        if (plev(state, state.mynum) < pvis(state, player.playerId)) {
+            return false;
+        }
+        if (state.ail_blind) {
+            /* Cant see */
+            return false;
+        }
+        if ((state.curch === player.locationId) && (isdark(state, state.curch))) {
+            return false;
+        }
+        setname(state, player.playerId);
+        return true;
+    });
+
 /*
-int seeplayer(x)
-    {
-    extern long mynum;
-    extern long ail_blind;
-    extern long curch;
-    if(x==-1) return(1);
-    if(mynum==x) {return(1);} *//* me *//*
-    if(plev(mynum)<pvis(x)) return(0);
-    if(ail_blind) return(0); *//* Cant see *//*
-    if((curch==ploc(x))&&(isdark(curch)))return(0);
-    setname(x);
-    return(1);
-    }
 int ppndeaf(str,ct,file)
  char *str;
  FILE *file;

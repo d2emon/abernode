@@ -1,6 +1,6 @@
 import State from "./state";
-import {bprintf, sendsys} from "./__dummies";
-import {Item, getItem} from "./support";
+import {bprintf, brkword, sendsys} from "./__dummies";
+import {Item, getItem, getPlayer, Player} from "./support";
 import {logger} from "./files";
 
 interface Attack {
@@ -60,14 +60,6 @@ void weapcom()
 
 const hitplayer = (state: State, victim: number, weaponId: number): Promise<void> => getItem(state, weaponId)
     .then((weapon) => {
-        /*
-        long a,b,c,d;
-        extern long my_lev,my_str;
-        extern long wpnheld;
-        long z;
-        long x[4];
-        long cth,ddn,res;
-        */
         if (pname(state, victim)) {
             return;
         }
@@ -151,65 +143,61 @@ const hitplayer = (state: State, victim: number, weaponId: number): Promise<void
         }
     });
 
-/*
- killcom()
-    {
-    long vic,a;
-    long x;
-    if(brkword()== -1)
-       {
-       bprintf("Kill who\n");
-       return;
-       }
-    if(!strcmp(wordbuf,"door"))
-	{
-		bprintf("Who do you think you are , Moog ?\n");
-		return;
-	}
-	if(fobna(wordbuf)!= -1)
-       {
-	       breakitem(fobna(wordbuf));
-	       return;
-       }
-    if((a=fpbn(wordbuf))== -1)
-       {
-	       bprintf("You can't do that\n");
-	       return;
-       }
-    if(a==mynum)
-       {
-	       bprintf("Come on, it will look better tomorrow...\n");
-	       return;
-       }
-    if(ploc(a)!=curch)
-       {
-	       bprintf("They aren't here\n");
-	       return;
-       }
-    xwisc:if(brkword()== -1)
-       {
-	       hitplayer(a,wpnheld);
-	       return;
-       }
-    if(!strcmp(wordbuf,"with"))
-       {
-	       if(brkword()== -1)
-	          {
-		          bprintf("with what ?\n");
-		          return;
-	          }
-	       }
-	    else
-	       goto xwisc;
-	    x=fobnc(wordbuf);
-	    if(x== -1)
-	       {
-		       bprintf("with what ?\n");
-		       return;
-	       }
-    hitplayer(a,x);
+const killcom = (state: State): Promise<void> => {
+    const hitWith = (player: Player): Promise<void> => {
+        if (brkword(state) === -1) {
+            return hitplayer(state, player.playerId, state.wpnheld);
+        }
+        if (state.wordbuf === 'with') {
+            if (brkword(state) === -1) {
+                bprintf(state, 'with what ?\n');
+                return Promise.resolve();
+            }
+        } else {
+            return hitWith(player);
+        }
+
+        return getItem(state, fobnc(state, state.wordbuf))
+            .then((item) => {
+                if (item.itemId === -1) {
+                    bprintf(state, 'with what ?\n');
+                    return Promise.resolve();
+                }
+                return hitplayer(state, player.playerId, item.itemId);
+            });
+    };
+
+    if (brkword(state) === -1) {
+        bprintf(state, 'Kill who\n');
+        return Promise.resolve();
     }
-*/
+    if (state.wordbuf === 'door') {
+        bprintf(state, 'Who do you think you are , Moog?\n');
+        return Promise.resolve();
+    }
+    return getItem(state, fobna(state, state.wordbuf))
+        .then((item) => {
+            if (item.itemId !== -1) {
+                return breakitem(state, item.itemId);
+            }
+            return getPlayer(state, fpbn(state, state.wordbuf))
+                .then((player) => {
+                    if (player.playerId === -1) {
+                        bprintf(state, 'You can\'t do that\n');
+                        return Promise.resolve();
+                    }
+                    if (player.playerId === state.mynum) {
+                        bprintf(state, 'Come on, it will look better tomorrow...\n');
+                        return Promise.resolve();
+                    }
+                    if (player.locationId !== state.curch) {
+                        bprintf(state, 'They aren\'t here\n');
+                        return Promise.resolve();
+                    }
+                    return hitWith(player);
+                });
+        })
+};
 
 const bloodrcv = (state: State, attack: Attack, isMe: boolean): Promise<void> => getItem(state, attack.weaponId)
     .then((weapon: Item) => {

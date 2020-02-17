@@ -4,7 +4,7 @@ import {
     sendsys,
 } from './__dummies';
 import State from "./state";
-import {createItem, getItem, holdItem, Item, putItem} from "./support";
+import {createItem, getItem, getPlayer, setPlayer, holdItem, Item, putItem} from "./support";
 
 /*
 #include "files.h"
@@ -30,30 +30,42 @@ randperc()
 */
 
 const sumcom = (state: State): Promise<void> => {
-    const sumob = (item: Item): void => {
+    const sumob = (item: Item): Promise<void> => {
         if (state.my_lev < 10) {
-            return bprintf(state, 'You can only summon people\n');
+            bprintf(state, 'You can only summon people\n');
+            return Promise.resolve();
         }
-        const locationId = item.heldBy ? ploc(state, item.heldBy) : item.locationId;
-        const ms = `[p name=\"${state.globme}\"] has summoned the ${item.name}[/p]\n`;
-        sendsys(state, state.globme, state.globme, -10000, locationId, ms);
-        bprintf(state, `The ${item.name} flies into your hand, was `);
-        desrm(state, item.locationId, item.carryFlag);
-        holdItem(state, item.itemId, state.mynum);
+        return Promise.resolve()
+            .then(() => (
+                item.heldBy
+                    ? getPlayer(state, item.heldBy).then(player => player.locationId)
+                    : item.locationId
+            ))
+            .then((locationId) => {
+                const ms = `[p name=\"${state.globme}\"] has summoned the ${item.name}[/p]\n`;
+                sendsys(state, state.globme, state.globme, -10000, locationId, ms);
+                bprintf(state, `The ${item.name} flies into your hand, was `);
+                desrm(state, item.locationId, item.carryFlag);
+                return holdItem(state, item.itemId, state.mynum);
+            })
     };
 
-    const willwork = (characterId): void => {
+    const willwork = (characterId): Promise<void> => {
         bprintf(state, 'You cast the summoning......\n');
         if (characterId < 16) {
-            return sendsys(state, pname(state, characterId), state.globme, -10020, state.curch, '');
+            sendsys(state, pname(state, characterId), state.globme, -10020, state.curch, '');
+            return Promise.resolve();
         }
         if ((characterId === 17) || (characterId === 23)) {
-            return;
+            return Promise.resolve();
         }
-        dumpstuff(state, characterId, ploc(state, characterId));
-        const seg = `[s name=\"${pname(state, characterId)}\"]${pname(state, characterId)} has arrived\n[/s]`;
-        sendsys(state, null, null, -10000, state.curch, seg);
-        setploc(state, state.curch);
+        return getPlayer(state, characterId)
+            .then((player) => {
+                dumpstuff(state, characterId, player.locationId);
+                const seg = `[s name=\"${pname(state, characterId)}\"]${pname(state, characterId)} has arrived\n[/s]`;
+                sendsys(state, null, null, -10000, state.curch, seg);
+                return setPlayer(state, player.playerId, { locationId: state.curch });
+            });
     };
 
     if (brkword(state) === -1) {

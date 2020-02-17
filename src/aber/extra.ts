@@ -5,8 +5,8 @@ import {
     sendsys,
 } from './__dummies';
 import State from "./state";
-import {createItem, getItem, getItems, holdItem, Item, setItem} from "./support";
-import { EXAMINES } from "./files";
+import {createItem, getItem, getItems, getPlayer, holdItem, Item, setItem} from "./support";
+import {EXAMINES, HELP1} from "./files";
 import get = Reflect.get;
 import {CONTAINED_IN, HELD_BY, LOCATED_IN} from "./object";
 
@@ -22,67 +22,57 @@ extern long mynum;
 extern long curch;
 extern long my_lev;
 long getnarg();
+*/
 
-
-
-helpcom()
-    {
-extern char wordbuf[];
-extern long curch,mynum;
-extern char globme[];
-extern long my_lev;
-long a;
-char b[128];
-if(brkword()!= -1)
-{
-	a=fpbn(wordbuf);
-	if(a== -1)
-	{
-		bprintf("Help who ?\n");
-		return;
-	}
-	if((ploc(a)!=curch))
-	{
-		bprintf("They are not here\n");
-		return;
-	}
-	if(a==mynum)
-	{
-		bprintf("You can't help yourself.\n");
-		return;
-	}
-	if(phelping(mynum)!=-1)
-	{
-		sprintf(b,"\001c%s\001 has stopped helping you\n",globme);
-		sendsys(pname(a),pname(a),-10011,curch,b);
-		bprintf("Stopped helping %s\n",pname(phelping(mynum)));
-	}
-	setphelping(mynum,a);
-	sprintf(b,"\001c%s\001 has offered to help you\n",globme);
-	sendsys(pname(a),pname(a),-10011,curch,b);
-	bprintf("OK...\n");
-	return;
+const helpcom = (state: State): Promise<void> => {
+    if (brkword(state) !== -1) {
+        return getPlayer(state, fpbn(state, state.wordbuf))
+            .then((player) => {
+                if (player.playerId === -1) {
+                    bprintf(state, 'Help who ?\n');
+                    return;
+                }
+                if (player.locationId !== state.curch) {
+                    bprintf(state, 'They are not here\n');
+                    return;
+                }
+                if (player.playerId === state.mynum) {
+                    bprintf(state, 'You can\'t help yourself.\n');
+                    return;
+                }
+                if (phelping(state, state.mynum) !== -1) {
+                    const b = `[c]${state.globme}[/c] has stopped helping you\n`;
+                    sendsys(state, pname(player.playerId), pname(player.playerId), -10011, state.curch, b);
+                    bprintf(state, `Stopped helping ${pname(state, phelping(state, player.playerId))}\n`);
+                    return;
+                }
+                setphelping(state, state.mynum, player.playerId);
+                const b = `[c]${state.globme}[/c] has offered to help you\n`;
+                sendsys(state, pname(player.playerId), pname(player.playerId), -10011, state.curch, b);
+                bprintf(state, 'OK...\n');
+                return;
+            });
     }
-    closeworld();
-    bprintf("\001f%s\001",HELP1);
-    if(my_lev>9)
-       {
-       bprintf("Hit <Return> For More....\n");
-       pbfr();
-       while(getchar()!='\n');
-       bprintf("\001f%s\001",HELP2);
-       }
-    bprintf("\n");
-    if(my_lev>9999)
-       {
-       bprintf("Hit <Return> For More....\n");
-       pbfr();
-       while(getchar()!='\n');
-       bprintf("\001f%s\001",HELP3);
-       }
-    bprintf("\n");
+    closeworld(state);
+    bprintf(state, `[f]${HELP1}[/f]\n`);
+    if (state.my_lev > 9) {
+        bprintf(state, 'Hit <Return> For More....\n');
+        pbfr(state);
+        while (getchar(state) !== '\n') {}
+        bprintf(state, `[f]${HELP2}[/f]\n`);
     }
+    bprintf(state, '\n');
+    if (state.my_lev > 9999) {
+        bprintf(state, 'Hit <Return> For More....\n');
+        pbfr(state);
+        while (getchar(state) !== '\n') {}
+        bprintf(state, `[f]${HELP3}[/f]\n`);
+    }
+    bprintf(state, '\n');
+    return Promise.resolve();
+};
 
+/*
  levcom()
     {
     closeworld();
@@ -245,23 +235,25 @@ const examcom = (state: State): Promise<void> => {
         });
 };
 
+const statplyr = (state: State): Promise<void> => getPlayer(state, fpbn(state, state.wordbuf))
+    .then((player) => {
+        if (player.playerId === -1) {
+            return bprintf(state, 'Whats that ?\n');
+        }
+        bprintf(state, `Name      : ${pname(state, player.playerId)}\n`);
+        bprintf(state, `Level     : ${plev(state, player.playerId)}\n`);
+        bprintf(state, `Strength  : ${pstr(state, player.playerId)}\n`);
+        bprintf(state, `Sex       : ${psex(state, player.playerId) ? 'MALE' : 'FEMALE'}\n`);
+        bprintf(state, `Location  : `);
+        showname(state, player.locationId);
+    });
+
 /*
  statplyr()
  {
  extern char wordbuf[];
  long a,b;
  b=fpbn(wordbuf);
- if(b== -1)
- {
- bprintf("Whats that ?\n");
- return;
- }
- bprintf("Name      : %s\n",pname(b));
- bprintf("Level     : %d\n",plev(b));
- bprintf("Strength  : %d\n",pstr(b));
- bprintf("Sex       : %s\n",(psex(b)==0)?"MALE":"FEMALE");
- bprintf("Location  : ");
- showname(ploc(b));
  }
  wizlist()
  {
@@ -411,12 +403,12 @@ const wherecom = (state: State): Promise<void> => {
                 }
             }
         }))
-        .then(() => {
-            const playerId: number = fpbn(state.wordbuf);
-            if (playerId !== -1) {
+        .then(() => getPlayer(state, fpbn(state.wordbuf)))
+        .then((player) => {
+            if (player.playerId !== -1) {
                 found = true;
-                bprintf(state, `${pname(state, playerId)} - `);
-                desrm(state, ploc(state, playerId),0);
+                bprintf(state, `${pname(state, player.playerId)} - `);
+                desrm(state, player.locationId,0);
             }
             if (!found) {
                 return bprintf(state, 'I dont know what that is\n');
