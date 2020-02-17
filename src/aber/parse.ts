@@ -1,7 +1,7 @@
 import State from "./state";
 import {createItem, getItem, getItems, getPlayer, holdItem, itemIsAvailable, setItem, setPlayer} from "./support";
 import {bprintf, brkword, sendsys} from "./__dummies";
-import {logger, RESET_DATA} from "./files";
+import {logger, RESET_DATA, ROOMS} from "./files";
 
 /*
 #include "files.h"
@@ -653,9 +653,14 @@ const doaction = (state: State, actionId: number): Promise<void> => {
        case 179:
           edit_world();
           break;
-       case 180:
-          if(ptstflg(mynum,4)) debug_mode=1-debug_mode;
-          break;
+          */
+         180: () => getPlayer(state, state.mynum)
+             .then((player) => {
+                 if (player.canUseDebugMode) {
+                     state.debug_mode = !state.debug_mode;
+                 }
+             }),
+        /*
        case 181:
           setpflags();
           break;
@@ -1327,7 +1332,7 @@ const exorcom = (state: State): Promise<void> => {
             if (player.playerId === -1) {
                 return bprintf(state, 'They aren\'t playing\n');
             }
-            if (ptstflg(state, player.playerId, 1)) {
+            if (!player.canBeExorcised) {
                 return bprintf(state, 'You can\'t exorcise them, they dont want to be exorcised\n');
             }
             return logger.write(`${state.globme} exorcised ${player.name}`)
@@ -1520,41 +1525,37 @@ const stealcom = (state: State): Promise<void> => {
     else bprintf("Not permitted on this ID\n");
     keysetup();
     }
+*/
 
- rmeditcom()
-    {
-    extern long my_lev;
-    extern long cms;
-    extern long mynum;
-    char ms[128];
-    extern char globme[];
-    if(!ptstflg(mynum,3))
-       {
-       bprintf("Dum de dum.....\n");
-       return;
-       }
+const rmedit = (state: State): Promise<void> => getPlayer(state, state.mynum)
+    .then((editor) => {
+        if (!editor.isEditor) {
+            return bprintf(state, 'Dum de dum.....\n');
+        }
+        const ms = `[s name="${state.globme}"]${state.globme} fades out of reality\n[/s]`;
+        sendsys(state, state.globme, state.globme, -10113, 0, ms);
+        /* Info */
+        state.cms = -2; /* CODE NUMBER */
+        update(state, state.globme);
+        pbfr(state);
+        closeworld(state);
+        if (chdir(state, ROOMS) === -1) {
+            bprintf(state, 'Warning: Can\'t CHDIR\n');
+        }
+        const ms2 = '/cs_d/aberstudent/yr2/hy8/.sunbin/emacs';
+        system(state, ms2);
+        state.cms = -1;
+        openworld(state);
+        if (fpbns(state, state.globme) === -1) {
+            loseme(state);
+            return crapup(state, 'You have been kicked off');
+        }
+        const ms3 = `[s name="${state.globme}"]${state.globme} re-enters the normal universe\n[/s]`;
+        sendsys(state, state.globme, state.globme, -10113, 0, ms3);
+        rte(state);
+    });
 
-    sprintf(ms,"\001s%s\001%s fades out of reality\n\001",globme,globme);
-    sendsys(globme,globme,-10113,0,ms); *//* Info *//*
-    cms= -2;*//* CODE NUMBER *//*
-    update(globme);
-    pbfr();
-    closeworld();
-    if(chdir(ROOMS)==-1) bprintf("Warning: Can't CHDIR\n");
-    sprintf(ms,"/cs_d/aberstudent/yr2/hy8/.sunbin/emacs");
-    system(ms);
-    cms= -1;
-    openworld();
-    if(fpbns(globme)== -1)
-       {
-       loseme();
-       crapup("You have been kicked off");
-       }
-    sprintf(ms,"\001s%s\001%s re-enters the normal universe\n\001",globme,globme);
-    sendsys(globme,globme,-10113,0,ms);
-    rte();
-    }
-
+/*
  u_system()
     {
     extern long my_lev;

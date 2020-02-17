@@ -500,39 +500,35 @@ return(n);
 }
 */
 
-const setpflags = (state: State): Promise<void> => {
-    /*
-	long a,b,c,d;
-	extern long mynum;
-	extern char wordbuf[];
-	*/
-    if (!ptstbit(state, state.mynum, 2)) {
-        bprintf(state, 'You can\'t do that\n');
-        return Promise.resolve();
-    }
-    if (brkword(state) === -1) {
-        bprintf(state, 'Whose PFlags ?\n');
-        return Promise.resolve();
-    }
-    return getPlayer(state, fpbn(state, state.wordbuf))
-        .then((player) => {
-            if (player.playerId === -1) {
-                return bprintf(state, 'Who is that ?\n');
-            }
-            if (brkword(state) === -1) {
-                return bprintf(state, 'Flag number ?\n');
-            }
-            const b = Number(state.wordbuf);
-            if (brkword(state) === -1) {
-                return bprintf(state, `Value is ${player.flags[b] ? 'TRUE' : 'FALSE'}\n`);
-            }
-            const c = Number(state.wordbuf);
-            if ((c < 0) || (c > 1) || (b < 0) || (b > 31)) {
-                return bprintf(state, 'Out of range\n');
-            }
-            return setPlayer(state, player.playerId, { flags: {
-                ...player.flags,
-                [b]: c !== 0,
-            }})
-        });
-};
+const setpflags = (state: State): Promise<void> => getPlayer(state, state.mynum)
+    .then((editor) => {
+        if (!editor.isDebugger) {
+            bprintf(state, 'You can\'t do that\n');
+            return Promise.resolve();
+        }
+        if (brkword(state) === -1) {
+            bprintf(state, 'Whose PFlags ?\n');
+            return Promise.resolve();
+        }
+        return getPlayer(state, fpbn(state, state.wordbuf))
+            .then((player) => {
+                if (player.playerId === -1) {
+                    return bprintf(state, 'Who is that ?\n');
+                }
+                if (brkword(state) === -1) {
+                    return bprintf(state, 'Flag number ?\n');
+                }
+                const b = Number(state.wordbuf);
+                if (brkword(state) === -1) {
+                    return bprintf(state, `Value is ${player.flags[b] ? 'TRUE' : 'FALSE'}\n`);
+                }
+                const c = Number(state.wordbuf);
+                if ((c < 0) || (c > 1) || (b < 0) || (b > 31)) {
+                    return bprintf(state, 'Out of range\n');
+                }
+                return setPlayer(state, player.playerId, { flags: {
+                        ...player.flags,
+                        [b]: c !== 0,
+                    }})
+            });
+    });

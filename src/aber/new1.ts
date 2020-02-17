@@ -851,7 +851,7 @@ const starecom = (state: State): Promise<void> => {
     }
 */
 
-const vichere = (state: State, playerId: number): Promise<numb> => getPlayer(state, vicbase(state, playerId))
+const vichere = (state: State, playerId: number): Promise<number> => getPlayer(state, vicbase(state, playerId))
     .then((player) => {
         if (player.playerId === -1) {
             return

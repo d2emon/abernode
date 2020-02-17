@@ -54,6 +54,14 @@ interface ItemData {
 
 export interface PlayerFlags {
     sex: boolean,
+    canNotBeExorcised: boolean,
+    canSetFlags: boolean,
+    isEditor: boolean,
+    canUseDebugMode: boolean,
+    canEditWorld: boolean,
+    canNotBeSnooped: boolean,
+    flag7: boolean,
+    flag8: boolean,
 }
 
 interface PlayerData {

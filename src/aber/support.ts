@@ -196,6 +196,13 @@ export interface Player {
     helping: number,
 
     sex: number,
+    canBeExorcised: boolean,
+    isDebugger: boolean,
+    canSetFlags: boolean,
+    isEditor: boolean,
+    canUseDebugMode: boolean,
+    canEditWorld: boolean,
+    canBeSnooped: boolean,
 
     isWizard: boolean,
     isGod: boolean,
@@ -219,6 +226,13 @@ const playerFromState = (state: State, playerId: number): Player => ({
     helping: state.ublock[playerId].helping,
 
     sex: state.ublock[playerId].flags.sex ? 1 : 0,
+    canBeExorcised: !state.ublock[playerId].flags.canNotBeExorcised,
+    isDebugger: state.ublock[playerId].name === 'Debugger',
+    canSetFlags: state.ublock[playerId].flags.canSetFlags,
+    isEditor: state.ublock[playerId].flags.isEditor,
+    canUseDebugMode: state.ublock[playerId].flags.canUseDebugMode,
+    canEditWorld: state.ublock[playerId].flags.canEditWorld,
+    canBeSnooped: !state.ublock[playerId].flags.canNotBeSnooped,
 
     isWizard: state.ublock[playerId].level >= 10,
     isGod: state.ublock[playerId].level >= 10000,
@@ -252,23 +266,3 @@ export const getHelper = (state: State) => (player: Player): Promise<Player | un
     .then(players => players.find(
         helper => ((player.locationId !== helper.locationId) && (player.playerId === helper.helping))
     ));
-
-/*
-ptstbit(ch,x)
-long ch;
-long x;
-{
-	return(ptstflg(ch,x));
-}
-
-
-ptstflg(ch,x)
-long ch;
-long x;
-{
-	extern long ublock[];
-	extern char globme[];
-	if((x==2)&&(strcmp(globme,"Debugger")==0)) return(1<<x);
-	return(ublock[16*ch+9]&(1<<x));
-}
-*/

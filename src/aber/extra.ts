@@ -455,13 +455,45 @@ const desrm = (state: State, locationId: number, carryFlag: number): Promise<voi
         });
 };
 
-const edit_world = (state: State): Promise<void> => {
-    const ePlayer = () => {
-        const b = getnarg(state, 0, 47);
+const edit_world = (state: State): Promise<void> => getPlayer(state, state.mynum)
+    .then((editor) => {
+        const ePlayer = () => {
+            const b = getnarg(state, 0, 47);
+            if (b === -1) {
+                return Promise.resolve();
+            }
+            const c = getnarg(state, 0, 15);
+            if (c === -1) {
+                return Promise.resolve();
+            }
+            const d = getnarg(state, 0, 0);
+            if (d === -1) {
+                return Promise.resolve();
+            }
+            return setPlayer(state, b, { [c]: d })
+                .then(() => bprintf(state, 'Tis done\n'));
+        };
+
+        if (!editor.canEditWorld) {
+            bprintf(state, 'Must be Game Administrator\n');
+            return;
+        }
+        if (brkword(state) === -1) {
+            bprintf(state, 'Must Specify Player or Object\n');
+            return Promise.resolve();
+        }
+        if (state.wordbuf === 'player') {
+            return ePlayer();
+        }
+        if (state.wordbuf !== 'player') {
+            bprintf(state, 'Must Specify Player or Object\n');
+            return Promise.resolve();
+        }
+        const b = getnarg(state, 0, state.numobs - 1);
         if (b === -1) {
             return Promise.resolve();
         }
-        const c = getnarg(state, 0, 15);
+        const c = getnarg(state, 0, 3);
         if (c === -1) {
             return Promise.resolve();
         }
@@ -469,41 +501,10 @@ const edit_world = (state: State): Promise<void> => {
         if (d === -1) {
             return Promise.resolve();
         }
-        setPlayer(state, b, { [c]: d });
-        bprintf(state, 'Tis done\n');
-        return Promise.resolve();
-    };
+        return setItem(state, b, { [c]: d })
+            .then(() => bprintf(state, 'Tis done\n'));
 
-    if (!ptstbit(state, state.mynum, 5)) {
-        bprintf(state, 'Must be Game Administrator\n');
-        return Promise.resolve();
-    }
-    if (brkword(state) === -1) {
-        bprintf(state, 'Must Specify Player or Object\n');
-        return Promise.resolve();
-    }
-    if (state.wordbuf === 'player') {
-        return ePlayer();
-    }
-    if (state.wordbuf !== 'player') {
-        bprintf(state, 'Must Specify Player or Object\n');
-        return Promise.resolve();
-    }
-    const b = getnarg(state, 0, state.numobs - 1);
-    if (b === -1) {
-        return Promise.resolve();
-    }
-    const c = getnarg(state, 0, 3);
-    if (c === -1) {
-        return Promise.resolve();
-    }
-    const d = getnarg(state, 0, 0);
-    if (d === -1) {
-        return Promise.resolve();
-    }
-    return setItem(state, b, { [c]: d })
-        .then(() => bprintf(state, 'Tis done\n'));
-};
+    });
 
 /*
 long getnarg(bt,to)

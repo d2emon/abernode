@@ -350,7 +350,7 @@ const snoopcom = (state: State): Promise<void> => {
             if (snooped.playerId === -1) {
                 return bprintf(state, 'Who is that ?\n');
             }
-            if (((state.my_lev < 10000) && snooped.isWizard) || ptstbit(state, snooped.playerId , 6)) {
+            if (((state.my_lev < 10000) && snooped.isWizard) || !snooped.canBeSnooped) {
                 bprintf(state, 'Your magical vision is obscured\n');
                 state.snoopt = -1;
                 return;
