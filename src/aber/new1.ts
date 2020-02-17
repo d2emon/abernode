@@ -277,9 +277,9 @@ const putcom = (state: State): Promise<void> => {
                 }
                 bprintf(state, 'The candle fixes firmly into the candlestick\n');
                 state.my_sco += 50;
-                destroy(state, item.itemId);
                 setItem(state, container.itemId, {
                     flags: {
+                        [IS_DESTROYED]: true,
                         [CAN_BE_LIT]: true,
                         [CAN_BE_EXTINGUISHED]: true,
                         [IS_LIT]: item.isLit,
@@ -294,13 +294,14 @@ const putcom = (state: State): Promise<void> => {
                     return putItem(state, item.itemId, -162)
                         .then(() => bprintf(state, 'ok\n'));
                 }
-                destroy(state, item.itemId);
-                bprintf(state, 'It dissappears with a fizzle into the slime\n');
-                if (item.itemId === 108) {
-                    bprintf(state, 'The soap dissolves the slime away!\n');
-                    return setItem(state, container.itemId, { state: 0 })
-                }
-                return;
+                return setItem(state, item.itemId, { flags: { [IS_DESTROYED]: true }})
+                    .then(() => {
+                        bprintf(state, 'It dissappears with a fizzle into the slime\n');
+                        if (item.itemId === 108) {
+                            bprintf(state, 'The soap dissolves the slime away!\n');
+                            return setItem(state, container.itemId, { state: 0 })
+                        }
+                    });
             } else if (container.itemId === 193) {
                 bprintf(state, 'You can\'t do that, the chute leads up from here!\n');
                 return;

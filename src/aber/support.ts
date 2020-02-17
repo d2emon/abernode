@@ -21,7 +21,6 @@ import ItemInterface, {
 
 const ishere = (state: State, itemId: number, playerId: number): boolean => false;
 const iscarrby = (state: State, itemId: number, playerId: number): boolean => false;
-const __state = (itemId: number): number => 0;
 const tscale = (state: State): number => 1;
 const damof = (state: State, playerId: number): number => 0;
 
@@ -115,7 +114,7 @@ const itemFromState = (state: State, itemId: number): Item => ({
     isContainer: state.objinfo[itemId].flags[IS_CONTAINER],
     isWeapon: state.objinfo[itemId].flags[IS_WEAPON],
 
-    description: state.objects[itemId].descriptions[__state(itemId)],
+    description: state.objects[itemId].descriptions[state.objinfo[itemId].state],
     value: (tscale(state) * state.objects[itemId].baseValue) / 5,
     connectedItemId: state.objinfo[itemId].flags[HAS_CONNECTED]
         ? ((itemId % 2) ? itemId - 1 : itemId + 1)

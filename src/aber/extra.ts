@@ -8,7 +8,7 @@ import State from "./state";
 import {createItem, getItem, getItems, getPlayer, holdItem, Item, setItem, setPlayer} from "./support";
 import {EXAMINES, HELP1} from "./files";
 import get = Reflect.get;
-import {CONTAINED_IN, HELD_BY, LOCATED_IN} from "./object";
+import {CONTAINED_IN, HELD_BY, IS_DESTROYED, LOCATED_IN} from "./object";
 
 /*
 #include "files.h"
@@ -167,9 +167,8 @@ const examcom = (state: State): Promise<void> => {
             } else if (item.itemId === 145) {
                 state.curch = -114;
                 bprintf(state, 'As you read the scroll you are teleported!\n');
-                destroy(state, item.itemId);
-                trapch(state, state.curch);
-                return;
+                return setItem(state, item.itemId, { flags: { [IS_DESTROYED]: true } })
+                    .then(() => trapch(state, state.curch));
             } else if (item.itemId === 101) {
                 if (!item.payload.used) {
                     bprintf(state, 'You take a key from one pocket\n');
@@ -199,9 +198,8 @@ const examcom = (state: State): Promise<void> => {
                                 .then((connected) => {
                                     if (iscarrby(state, connected.itemId, state.mynum) && connected.isLit) {
                                         bprintf(state, 'Everything shimmers and then solidifies into a different view!\n');
-                                        destroy(state, item.itemId);
-                                        teletrap(state, -1074);
-                                        return;
+                                        return setItem(state, item.itemId, { flags: { [IS_DESTROYED]: true } })
+                                            .then(() => teletrap(state, -1074));
                                     }
                                 })
                         }

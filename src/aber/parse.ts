@@ -2,6 +2,7 @@ import State from "./state";
 import {createItem, getItem, getItems, getPlayer, holdItem, itemIsAvailable, setItem, setPlayer} from "./support";
 import {bprintf, brkword, sendsys} from "./__dummies";
 import {logger, RESET_DATA, ROOMS} from "./files";
+import {IS_DESTROYED} from "./object";
 
 /*
 #include "files.h"
@@ -1164,10 +1165,12 @@ const eatcom = (state: State): Promise<void> => {
                 }
                 return;
             } else if (item.isFood) {
-                destroy(state, item.itemId);
-                bprintf(state, 'Ok....\n');
-                state.my_str += 12;
-                calibme(state);
+                return setItem(state, item.itemId, { flags: { [IS_DESTROYED]: true }})
+                    .then(() => {
+                        bprintf(state, 'Ok....\n');
+                        state.my_str += 12;
+                        calibme(state);
+                    });
             } else {
                 return bprintf(state, 'Thats sure not the latest in health food....\n');
             }
