@@ -14,6 +14,28 @@ import Item, {
 
 export const NOBS = 194;
 
+/**
+ * Object structure
+ *
+ * Name,
+ * Long Text 1
+ * Long Text 2
+ * Long Text 3
+ * Long Text 4
+ * statusmax
+ * Value
+ * flags (0=Normal 1+flannel)
+ */
+
+/**
+ * Objinfo
+ *
+ * Loc
+ * Status
+ * Stamina
+ * Flag 1=carr 0=here
+ */
+
 export interface ItemFlags {
     [IS_DESTROYED]: boolean,
     [HAS_CONNECTED]: boolean,

@@ -1,4 +1,5 @@
-import State from "./state";
+import Action from './action';
+import State from './state';
 import {
     createItem,
     getItem,
@@ -8,173 +9,170 @@ import {
     itemIsAvailable,
     putItem,
     getPlayers,
-    getPlayer, getHelper
+    getPlayer,
+    getHelper, Player, Item,
 } from "./support";
 import {bprintf, brkword, sendsys} from "./__dummies";
+import {CONTAINED_IN, HELD_BY} from "./object";
 
-/*
+const iscarrby = (state: State, item: Item, player: Player): boolean => false;
+const iswornby = (state: State, item: Item, player: Player): boolean => false;
 
- Object structure
-
- Name,
- Long Text 1
- Long Text 2
- Long Text 3
- Long Text 4
- statusmax
- Value
- flags (0=Normal 1+flannel)
-
- */
-
-/*
-#define OBMUL 8
-
-extern FILE *openlock();
-extern FILE *openworld();
-
- inventory()
-    {
-    extern long mynum;
-   bprintf("You are carrying\n");
-    lobjsat(mynum);
+export const isCarriedBy = (item: Item, owner: Player, destroyed: boolean = false): boolean => {
+    if (destroyed && item.isDestroyed) {
+        return false;
     }
-*/
- /*
- Objinfo
-
- Loc
- Status
- Stamina
- Flag 1=carr 0=here
- */
-/*
-lobjsat(loc)
-{
-aobjsat(loc,1);
-}
-*/
-
-const aobjsat = (state: State, locationId: number, mode: number): Promise<void> => {
-    /* Carried Loc ! */
-    let d = 0;
-    let e = 0;
-    let f = 0;
-    return getItems(state)
-        .then(items => items.forEach((item) => {
-            if ((iscarrby(state, item.itemId, locationId) && (mode === 1)) || (iscontin(state, item.itemId, locationId) && (mode === 3))) {
-                let x = '';
-                e = 1;
-                f += 1 + item.name.length;
-                if (state.debug_mode) {
-                    f += 5;
-                    x = `${item.itemId}`;
-                }
-                if (item.isDestroyed) {
-                    f += 2;
-                }
-                if (iswornby(state, item.itemId, locationId)) {
-                    f += '<worn> '.length;
-                }
-                if (f > 79) {
-                    f = 0;
-                    bprintf(state, '\n');
-                }
-
-                if (item.isDestroyed) {
-                    bprintf(state, '(');
-                }
-                bprintf(state, item.name);
-                if (state.debug_mode) {
-                    bprintf(state, x);
-                }
-                if (iswornby(state, item.itemId, locationId)) {
-                    bprintf(state, ' <worn>');
-                }
-                if (item.isDestroyed) {
-                    bprintf(state, ')');
-                }
-                bprintf(state, ' ');
-                f += 1;
-            }
-            d += 4;
-        }))
-        .then(() => {
-            if (!e) {
-                bprintf(state, 'Nothing');
-            }
-            bprintf(state, '\n');
-        });
+    if (item.wearingBy === undefined && item.heldBy === undefined) {
+        return false
+    }
+    return item.locationId === owner.playerId;
 };
 
-const iscontin = (state: State, itemId1: number, itemId2: number): Promise<boolean> => getItem(state, itemId1)
-    .then((item1) => {
-        if (item1.containedIn === undefined) {
-            return false;
-        }
-        if (item1.locationId !== itemId2) {
-            return false;
-        }
-        if ((state.my_lev < 10) && iddest(state, itemId1)) {
-            return false;
-        }
-        return true;
-    });
-
-const fobnsys = (state: State, name: string, control: number, ctInf: number): Promise<number> => {
-    const l1 = name.toLowerCase();
-    const a = 0;
-    if (l1 === 'red') {
-        brkword(state);
-        return Promise.resolve(4);
-    } else if (l1 === 'blue') {
-        brkword(state);
-        return Promise.resolve(5);
-    } else if (l1 === 'green') {
-        brkword(state);
-        return Promise.resolve(6);
+export const isContainedIn = (item: Item, container: Item, destroyed: boolean = false): boolean => {
+    if (destroyed && item.isDestroyed) {
+        return false;
     }
+    if (item.containedIn === undefined) {
+        return false;
+    }
+    return item.locationId === container.itemId;
+};
 
-    let found = undefined;
-    return getItems(state)
-        .then(items => items.forEach((item) => {
-            if (found !== undefined) return;
-            const l2 = item.name.toLowerCase();
-            if (l1 === l2) {
-                state.wd_it = name;
-                if (control === 0) {
-                    found = item.itemId;
-                } else if (control === 1) {
-                    /* Patch for shields */
-                    if ((item.itemId === 112) && iscarrby(state, 113, state.mynum)) {
-                        found = 113;
-                    } else if ((item.itemId === 112) && iscarrby(state, 114, state.mynum)) {
-                        found = 114;
-                    } else if (itemIsAvailable(state, item)) {
-                        found = item.itemId
-                    }
-                } else if (control === 2) {
-                    if (iscarrby(state, item.itemId, state.mynum)) {
-                        found = item.itemId;
-                    }
-                } else if (control === 3) {
-                    if (iscarrby(state, item.itemId, ctInf)) {
-                        found = item.itemId;
-                    }
-                } else if (control === 4) {
-                    if (ishere(state, item.itemId)) {
-                        found = item.itemId;
-                    }
-                } else if (control === 5) {
-                    if (iscontin(state, item.itemId, ctInf)) {
-                        found = item.itemId;
-                    }
-                } else {
-                    found = item.itemId;
-                }
+export const itemsAt = (state: State, locationId: number, mode: number): Promise<string> => {
+    const getLocation = (): Promise<Item | Player | undefined> => {
+        if (mode === HELD_BY) {
+            return getPlayer(state, locationId);
+        } else if (mode === CONTAINED_IN) {
+            return getItem(state, locationId);
+        } else {
+            return undefined;
+        }
+    };
+
+    const getItemsAt = (state: State, location: Item | Player, mode: number): Promise<Item[]> => getItems(state)
+        .then(items => items.filter((item) => {
+            /* Carried Loc ! */
+            if (mode === HELD_BY) {
+                return !!isCarriedBy(item, location as Player, (state.my_lev < 10));
+            } else if (mode === CONTAINED_IN) {
+                return !!isContainedIn(item, location as Item, (state.my_lev < 10));
+            } else {
+                return false;
             }
-        }))
-        .then(() => (found === undefined) ? -1 : found);
+        }));
+
+    const getItemMessage = (owner?: Item | Player) => (item: Item) => {
+        let message = [
+            item.name,
+            state.debug_mode ? item.itemId : '',
+            iswornby(state, item, owner as Player) ? ' <worn>' : '',
+        ].join('');
+        return  item.isDestroyed
+            ? ` (${message})`
+            : ` ${message}`;
+    };
+    const decorate = (messages: string[]) => {
+        if (!messages.length) {
+            return 'Nothing\n';
+        }
+
+        const result = [];
+        let row = '';
+        messages.forEach((message) => {
+            if ((row.length + message.length + 1) > 79) {
+                result.push(row);
+                row = '';
+            }
+            row += message;
+        });
+        result.push('');
+        return result.join('\n');
+    };
+
+    return getLocation()
+        .then(location => getItemsAt(state, location, mode)
+            .then(items => items.map(getItemMessage(location))))
+        .then(decorate);
+};
+
+const itemsCarriedBy = (state: State, player: Player): Promise<void> => new Promise(() => itemsAt(state, player.playerId, HELD_BY)
+    .then((result) => bprintf(state, result));
+
+const MODE_NAME = 0;
+const MODE_SHIELDS = 1;
+const MODE_MY = 2;
+const MODE_CARRIED = 3;
+const MODE_HERE = 4;
+const MODE_CONTAINED = 5;
+
+const findItem = (state: State, name: string, mode: number, payload: number): Promise<Item> => {
+    const byColor = (color: string): Promise<Item> => {
+        if (color === 'red') {
+            brkword(state);
+            return getItem(state, 4);
+        } else if (color === 'blue') {
+            brkword(state);
+            return getItem(state, 5);
+        } else if (color === 'green') {
+            brkword(state);
+            return getItem(state, 6);
+        }
+        return undefined;
+    };
+
+    const patchForShields = (item: Item) => getPlayer(state, state.mynum)
+        .then((player) => {
+            if (item.itemId === 112) {
+                return Promise.all([
+                    getItem(state, 113),
+                    getItem(state, 114),
+                ])
+                    .then(shields => shields.find(i => isCarriedBy(i, player, (state.my_lev < 10))))
+            }
+            return undefined;
+        })
+        .then((i) => {
+            if (i) {
+                return i;
+            }
+            return itemIsAvailable(state, item);
+        });
+
+    const findMy = (item: Item) => getPlayer(state, state.mynum)
+        .then(player => isCarriedBy(item, player, (state.my_lev < 10)));
+
+    const findCarried = (item: Item) => getPlayer(state, ctInf)
+        .then(player => isCarriedBy(item, player, (state.my_lev < 10)));
+
+    const findHere = (item: Item) => ishere(state, item.itemId);
+
+    const findContained = (item: Item) => getItem(state, ctInf)
+        .then(container => isContainedIn(item, container, (state.my_lev < 10)));
+
+    const searchItem = (item: Item) => {
+        if (item.name.toLowerCase() === name) {
+            state.wd_it = name;
+            if (mode === MODE_NAME) {
+                return true;
+            } else if (mode === MODE_SHIELDS) {
+                /* Patch for shields */
+                return patchForShields(item);
+            } else if (mode === MODE_MY) {
+                return findMy(item);
+            } else if (mode === MODE_CARRIED) {
+                return findCarried(item);
+            } else if (mode === MODE_HERE) {
+                return findHere(item);
+            } else if (mode === MODE_CONTAINED) {
+                return findContained(item);
+            } else {
+                return true;
+            }
+        }
+    };
+
+    return byColor(name)
+        .then((item) => item || getItems(state).then(items => items.find(searchItem)));
 };
 
 /*
@@ -184,38 +182,38 @@ const fobnsys = (state: State, name: string, control: number, ctInf: number): Pr
 long x;
 x=fobna(word);
 if(x!=-1) return(x);
-    return(fobnsys(word,0,0));
+    return(findItem(word.toLowerCase(),0,0));
     }
 
  fobna(word)
  char *word;
     {
-    return(fobnsys(word,1,0));
+    return(findItem(word.toLowerCase(),1,0));
     }
 
  fobnin(word,ct)
  char *word;
  long ct;
  {
- 	return(fobnsys(word,5,ct));
+ 	return(findItem(word.toLowerCase(),5,ct));
  }
 
  fobnc(word)
  char *word;
     {
-    return(fobnsys(word,2,0));
+    return(findItem(word.toLowerCase(),2,0));
     }
 
  fobncb(word,by)
  char *word;
     {
-    return(fobnsys(word,3,by));
+    return(findItem(word.toLowerCase(),3,by));
     }
 
  fobnh(word)
  char *word;
     {
-    return(fobnsys(word,4,0));
+    return(findItem(word.toLowerCase(),4,0));
     }
 */
 
@@ -327,20 +325,6 @@ const ishere = (state: State, itemId: number): Promise<boolean> => getItem(state
         return true;
     });
 
-const iscarrby = (state: State, itemId: number, characterId: number): Promise<boolean> => getItem(state, itemId)
-    .then((item) => {
-        if ((state.my_lev < 10) && iddest(state, item.itemId)) {
-            return false;
-        }
-        if (item.locatedIn === undefined && item.heldBy === undefined) {
-            return false
-        }
-        if (item.locationId !== characterId) {
-            return false;
-        }
-        return true;
-    });
-
 const dropitem = (state: State): Promise<void> => {
     if (brkword(state) === -1) {
         bprintf(state, 'Drop what ?\n');
@@ -408,12 +392,14 @@ const lojal2 = (state: State, flannel: boolean): Promise<void> => getItems(state
     }
 */
 
-const dumpstuff = (state: State, playerId: number, locationId: number): Promise<void> => getItems(state)
-    .then(items => items.forEach((item) => {
-        if (iscarrby(state, item.itemId, playerId)) {
-            return putItem(state, item.itemId, locationId);
-        }
-    }));
+const dumpstuff = (state: State, playerId: number, locationId: number): Promise<void> => getPlayer(state, playerId)
+    .then(player => getItems(state)
+        .then(items => items.forEach((item) => {
+            if (isCarriedBy(item, player, (state.my_lev < 10))) {
+                return putItem(state, item.itemId, locationId);
+            }
+        }))
+    );
 
 /*
 long ublock[16*49];
@@ -422,13 +408,13 @@ long ublock[16*49];
 const whocom = (state: State): Promise<void> => {
     let base = state.maxu;
     if (state.my_lev > 9) {
-        bprintf('Players\n');
+        bprintf(state, 'Players\n');
         base = 0;
     }
     return getPlayers(state, base)
         .then(players => players.forEach((player) => {
             if (player.playerId === state.maxu) {
-                bprintf('----------\nMobiles\n');
+                bprintf(state, '----------\nMobiles\n');
                 if (!player.exists) {
                     return;
                 }
@@ -619,8 +605,7 @@ const lispeople = (state: State): Promise<void> => getPlayers(state)
                 state.wd_him = player.name;
             }
             bprintf(state, ' is here carrying\n');
-            lobjsat(state, player.playerId);
-            return;
+            return itemsCarriedBy(state, player);
         }
     }));
 
@@ -645,3 +630,21 @@ const oplong = (state: State, itemId: number): Promise<void> => getItem(state, i
             return bprintf(state, `${item.description}\n`);
         }
     });
+
+// Actions
+
+export class Inventory extends Action {
+    action(state: State): Promise<any> {
+        return getPlayer(state, state.mynum)
+            .then((player) => itemsCarriedBy(state, player))
+            .then((result) => ({
+                state,
+                result,
+            }));
+    }
+
+    decorate(result: any): Promise<void> {
+        bprintf(result.state, 'You are carrying\n');
+        return result;
+    }
+}

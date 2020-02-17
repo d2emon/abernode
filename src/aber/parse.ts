@@ -2,7 +2,7 @@ import State from "./state";
 import {createItem, getItem, getItems, getPlayer, holdItem, itemIsAvailable, setItem, setPlayer} from "./support";
 import {bprintf, brkword, sendsys} from "./__dummies";
 import {logger, RESET_DATA, ROOMS} from "./files";
-import {IS_DESTROYED} from "./object";
+import {CONTAINED_IN, IS_DESTROYED} from "./object";
 
 /*
 #include "files.h"
@@ -1782,7 +1782,8 @@ const look_cmd = (state: State): Promise<void> => {
                 return bprintf(state, 'It\'s closed!\n');
             }
             bprintf(state, `The ${item.name} contains:\n`);
-            aobjsat(state, item.itemId, 3);
+            return itemsAt(state, item.itemId, CONTAINED_IN)
+                .then((result) => bprintf(state, result));
         });
 };
 
@@ -1859,17 +1860,18 @@ const emptycom = (state: State): Promise<void> => {
                 return Promise.resolve();
             }
             return getItems(state)
+                .then(items => items.filter((item) => {
+                    return isContainedIn(item, container, (state.my_lev < 10));
+                }))
                 .then(items => items.forEach((item) => {
-                    if (iscontin(state, item.itemId, container.itemId)) {
-                        return holdItem(state, item.itemId, state.mynum)
-                            .then(() => {
-                                bprintf(state, `You empty the ${item.name} from the ${container.name}\n`);
-                                const x = `drop ${item.name}`;
-                                gamecom(state, x);
-                                pbfr(state);
-                                openworld(state);
-                            });
-                    }
+                    return holdItem(state, item.itemId, state.mynum)
+                        .then(() => {
+                            bprintf(state, `You empty the ${item.name} from the ${container.name}\n`);
+                            const x = `drop ${item.name}`;
+                            gamecom(state, x);
+                            pbfr(state);
+                            openworld(state);
+                          });
                 }));
         });
 };

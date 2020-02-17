@@ -194,9 +194,12 @@ const examcom = (state: State): Promise<void> => {
                 getItem(state, 7)
                     .then((item7) => {
                         if (item7.state !== 0) {
-                            getItem(state, 3 + item7.state)
-                                .then((connected) => {
-                                    if (iscarrby(state, connected.itemId, state.mynum) && connected.isLit) {
+                            Promise.all([
+                                getItem(state, 3 + item7.state),
+                                getPlayer(state, state.mynum),
+                            ])
+                                .then(([connected, player]) => {
+                                    if (isCarriedBy(connected, player, (state.my_lev < 10)) && connected.isLit) {
                                         bprintf(state, 'Everything shimmers and then solidifies into a different view!\n');
                                         return setItem(state, item.itemId, { flags: { [IS_DESTROYED]: true } })
                                             .then(() => teletrap(state, -1074));
@@ -343,9 +346,12 @@ const jumpcom = (state: State): Promise<void> => {
         bprintf(state, 'Wheeeeee....\n');
         return Promise.resolve();
     }
-    return getItem(state, 1)
-        .then((umbrella) => {
-            if ((state.my_lev < 10) && (!iscarrby(state, umbrella.itemId, state.mynum) || (umbrella.state === 0))) {
+    return Promise.all([
+        getItem(state, 1),
+        getPlayer(state, state.mynum),
+    ])
+        .then(([umbrella, player]) => {
+            if ((state.my_lev < 10) && (!isCarriedBy(umbrella, player, (state.my_lev < 10)) || (umbrella.state === 0))) {
                 state.curch = b;
                 bprintf(state, 'Wheeeeeeeeeeeeeeeee  <<<<SPLAT>>>>\n');
                 bprintf(state, 'You seem to be splattered all over the place\n');
@@ -377,9 +383,19 @@ const wherecom = (state: State): Promise<void> => {
 
     const rnd: number = randperc(state);
     let cha = 10 * state.my_lev;
-    if (iscarrby(state, 111, state.mynum) || iscarrby(state, 121, state.mynum) || iscarrby(state, 163, state.mynum)) {
-        cha = 100;
-    }
+    getPlayer(state, state.mynum)
+        .then((player) => {
+            return Promise.all([
+                getItem(state, 111),
+                getItem(state, 121),
+                getItem(state, 163),
+            ])
+                .then((items) => {
+                    if (items.some(item => isCarriedBy(item, player, (state.my_lev < 10)))) {
+                        cha = 100;
+                    }
+                })
+        });
     closeworld(state);
     if (rnd > cha) {
         bprintf(state, 'Your spell fails...\n');
