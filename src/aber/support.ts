@@ -254,22 +254,6 @@ export const getHelper = (state: State) => (player: Player): Promise<Player | un
     ));
 
 /*
-psetflg(ch,x)
-long ch;
-long x;
-{
-	extern long ublock[];
-	ublock[16*ch+9]|=(1<<x);
-}
-
-pclrflg(ch,x)
-long ch;
-long x;
-{
-	extern long ublock[];
-	ublock[16*ch+9]&=~(1<<x);
-}
-
 ptstbit(ch,x)
 long ch;
 long x;
