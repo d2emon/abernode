@@ -227,28 +227,27 @@ export const dropItems = (state: State, player: Player, locationId?: number): Pr
 export const dropMyItems = (state: State) => getPlayer(state, state.mynum)
     .then(player => dropItems(state, player, state.curch));
 
-const dispuser = (state: State, playerId: number): Promise<void> => getPlayer(state, playerId)
-    .then((player) => {
-        if (player.isDead) {
-            /* On  Non game mode */
-            return;
-        }
-        if (player.visibility > state.my_lev) {
-            return;
-        }
-        if (player.visibility) {
-            bprintf(state, '(');
-        }
-        bprintf(state, `${player.name} `);
-        disl4(state, player.level, player.sex);
-        if (player.visibility) {
-            bprintf(state, ')');
-        }
-        if (player.isAbsent) {
-            bprintf(state, ' [Absent From Reality]');
-        }
-        bprintf(state, '\n');
-    });
+const dispuser = (state: State, player: Player): void => {
+    if (player.isDead) {
+        /* On  Non game mode */
+        return;
+    }
+    if (player.visibility > state.my_lev) {
+        return;
+    }
+    if (player.visibility) {
+        bprintf(state, '(');
+    }
+    bprintf(state, `${player.name} `);
+    disl4(state, player.level, player.sex);
+    if (player.visibility) {
+        bprintf(state, ')');
+    }
+    if (player.isAbsent) {
+        bprintf(state, ' [Absent From Reality]');
+    }
+    bprintf(state, '\n');
+};
 
 /*
  disle3(n,s)
@@ -640,7 +639,7 @@ class Who extends Action {
                 if (!player.exists) {
                     return;
                 }
-                dispuser(state, player.playerId)
+                return dispuser(state, player);
             }))
             .then(() => ({
                 state,
