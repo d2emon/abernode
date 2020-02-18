@@ -1,4 +1,5 @@
 import State from "./state";
+import {bprintf} from "./__dummies";
 
 export interface ActionInterface {
     action(state: State): Promise<any>,
@@ -24,7 +25,8 @@ class Action implements ActionInterface {
         return this.check(state)
             .then(() => state)
             .then(this.action)
-            .then(this.decorate);
+            .then(this.decorate)
+            .catch(e => bprintf(state, `${e}\n`));
     }
 }
 

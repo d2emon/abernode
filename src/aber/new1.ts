@@ -22,7 +22,7 @@ import {
     IS_LIT, IS_KEY,
 } from "./object";
 import {logger} from "./files";
-import {isCarriedBy, byMask, findAvailableItem} from "./objsys";
+import {isCarriedBy, byMask, findAvailableItem, itemDescription} from "./objsys";
 
 /*
 struct player_res
@@ -411,16 +411,17 @@ const extinguishcom = (state: State): Promise<void> => {
 };
 
 const pushcom = (state: State): Promise<void> => {
-    const def2 = (item: Item): void => {
+    const def2 = (item: Item): Promise<void> => {
         if (item.isLever) {
             return setItem(state, item.itemId, { state: 0 })
-                .then(() => oplong(state, item.itemId));
+                .then(() => bprintf(state, `${itemDescription(item, state.debug_mode)}\n`));
         }
         if (item.isSwitch) {
             return setItem(state, item.itemId, { state: 1 - item.state })
-                .then(() => oplong(state, item.itemId));
+                .then(() => bprintf(state, `${itemDescription(item, state.debug_mode)}\n`));
         }
         bprintf(state, 'Nothing happens\n');
+        return Promise.resolve();
     };
 
     if (brkword(state) === -1) {

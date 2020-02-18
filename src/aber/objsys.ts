@@ -15,6 +15,13 @@ import {bprintf, brkword, sendsys} from "./__dummies";
 import {CONTAINED_IN, HELD_BY} from "./object";
 
 const iswornby = (state: State, item: Item, player: Player): boolean => false;
+const calibme = (state: State): boolean => false;
+const dragget = (state: State): boolean => false;
+const showwthr = (state: State): boolean => false;
+const cancarry = (state: State, playerId: number): boolean => false;
+
+const SHIELD_BASE_ID = 112;
+const SHIELD_IDS = [113, 114];
 
 export const isCarriedBy = (item: Item, owner: Player, destroyed: boolean = false): boolean => {
     if (destroyed && item.isDestroyed) {
@@ -160,13 +167,10 @@ export const findAvailableItem = (state: State, name: string): Promise<Item> => 
         player,
         item,
     ]) => {
-        if (item.itemId !== 112) {
+        if (item.itemId !== SHIELD_BASE_ID) {
             return isAvailable(item, player, state.curch, (state.my_lev < 10)) && item;
         }
-        return Promise.all([
-            getItem(state, 113),
-            getItem(state, 114),
-        ])
+        return Promise.all(SHIELD_IDS.map(shieldId => getItem(state, shieldId)))
             .then(shields => shields.find(
                 shield => isCarriedBy(shield, player, (state.my_lev < 10))
             ));
@@ -186,169 +190,36 @@ export const findItem = (state: State, name: string): Promise<Item> => findAvail
 
 //
 
-const getobj = (state: State): Promise<void> => {
-    let des_inf: number = -1;
-
-    if (brkword(state) === -1) {
-        bprintf(state, 'Get what ?\n');
-        return Promise.resolve();
-    }
-    return findHereItem(state, state.wordbuf)
-        .then((item) => {
-            /* Hold */
-            const i = state.stp;
-            const bf = state.wordbuf;
-            if ((brkword(state) !== -1) && ((state.wordbuf === 'from') || (state.wordbuf === 'out'))) {
-                if (brkword(state) === -1) {
-                    return bprintf(state, 'From what ?\n')
-                }
-                return findAvailableItem(state, state.wordbuf)
-                    .then((item) => {
-                        if (!item || (item.itemId === -1)) {
-                            return bprintf(state, 'You can\'t take things from that - it\'s not here\n');
-                        }
-                        state.stp = i;
-                        return findContainedItem(state, bf, item);
-                    });
-            }
-            state.stp = i;
-            return item;
-        })
-        .then((item) => {
-            if (item.itemId === -1) {
-                return bprintf(state, 'That is not here.\n');
-            }
-
-            if ((item.itemId === 112) && (des_inf === -1)) {
-                return Promise.all([
-                    getItem(state, 113),
-                    getItem(state, 114),
-                ])
-                    .then(([shield1, shield2]) => {
-                        if (shield1.isDestroyed) {
-                            return shield1;
-                        } else if (shield2.isDestroyed) {
-                            return shield2;
-                        } else {
-                            return undefined;
-                        }
-                    })
-                    .then((shield) => {
-                        if (shield !== undefined) {
-                            createItem(state, shield.itemId)
-                                .then((created) => {
-                                    item = created;
-                                });
-                        } else {
-                            return bprintf(state, 'The shields are all to firmly secured to the walls\n');
-                        }
-                    })
-            }
-
-            if (item.flannel) {
-                return bprintf(state, 'You can\'t take that!\n');
-            }
-            if (dragget(state)) {
-                return;
-            }
-            if (!cancarry(state, state.mynum)) {
-                return bprintf(state, 'You can\'t carry any more\n');
-            }
-            let p = Promise.resolve();
-            if (item.itemId === 32) {
-                p = getPlayer(state, state.mynum)
-                    .then(getHelper(state))
-                    .then((helper) => {
-                        if ((item.state === 1) && !helper) {
-                            throw new Error('Its too well embedded to shift alone.\n');
-                        }
-                    })
-            }
-            return p
-                .then(() => {
-                    holdItem(state, item.itemId, state.mynum);
-                    const bf2 = `[D]${state.globme}[/D][c] takes the ${item.name}\n[/c]`;
-                    bprintf(state, 'Ok...\n');
-                    sendsys(state, state.globme, state.globme, -10000, state.curch, bf2);
-                    if (item.changeStateOnTake) {
-                        setItem(state, item.itemId, { state: 0 });
-                    }
-                    if (state.curch === -1081) {
-                        return setItem(state, 20, { state: 1 })
-                            .then(() => bprintf(state, 'The door clicks shut....\n'));
-                    }
-                })
-                .catch(e => bprintf(state, e));
-        });
+export const itemDescription = (item: Item, debugMode: boolean): string => {
+    const itemId = debugMode ? `{${item.itemId}} ` : '';
+    return `${itemId}${item.description}`;
 };
 
-const dropitem = (state: State): Promise<void> => {
-    if (brkword(state) === -1) {
-        bprintf(state, 'Drop what ?\n');
-        return Promise.resolve();
-    }
-    return getPlayer(state, state.mynum)
-        .then(player => findCarriedItem(state, state.wordbuf, player))
-        .then((item) => {
-            if (item.itemId === -1) {
-                return bprintf(state, 'You are not carrying that.\n');
-            }
+const listItems = (state: State, items: Item[]): string[] => items.map((item) => {
+    /*OLONGT NOTE TO BE ADDED */
+    state.wd_it = item.name;
+    return `${item.isDestroyed ? '--' : ''}${itemDescription(item, state.debug_mode)}`;
+});
 
-            if ((state.my_lev < 10) && (item.itemId === 32)) {
-                return bprintf(state, 'You can\'t let go of it!\n');
-            }
-            return putItem(state, item.itemId, state.curch)
-                .then(() => {
-                    bprintf(state, 'OK..\n');
-                    const bf = `[D]${state.globme}[/D][c] drops the ${state.wordbuf}.\n\n[/c]`;
-                    sendsys(state, state.globme, state.globme, -10000, state.curch, bf);
-                    if ((state.curch !== -183) && (state.curch !== -183)) {
-                        return;
-                    }
-                    const bf2 = `The ${state.wordbuf} disappears into the bottomless pit.\n`;
-                    bprintf(state, 'It disappears down into the bottomless pit.....\n');
-                    sendsys(state, state.globme, state.globme, -10000, state.curch, bf2);
-                    state.my_sco += item.value;
-                    calibme(state);
-                    return putItem(state, item.itemId, -6);
-                });
-        });
-};
-
-/*
- lisobs()
-    {
-    lojal2(1);
-    showwthr();
-    lojal2(0);
-    }
-*/
-
-const lojal2 = (state: State, flannel: boolean): Promise<void> => getItems(state)
-    .then(items => items.forEach((item) => {
-        if (isLocatedIn(item, state.curch, (state.my_lev < 10)) && (item.flannel === flannel)) {
-            if (item.state > 3) {
-                return;
-            }
-            if (item.description) {
-                /*OLONGT NOTE TO BE ADDED */
-                if (item.isDestroyed) {
-                    bprintf(state, '--');
-                }
-                oplong(state, item.itemId);
-                state.wd_it = item.name;
-            }
+export const lisobs = (state: State): Promise<void> => getItems(state)
+    .then(items => items.filter((item) => {
+        if (!isLocatedIn(item, state.curch, (state.my_lev < 10))) {
+            return false;
         }
-    }));
+        if (item.state > 3) {
+            return false;
+        }
+        return !!item.description;
+    }))
+    .then((items) => {
+        listItems(state, items.filter(item => item.flannel))
+            .forEach(message => bprintf(state, `${message}\n`));
+        showwthr(state);
+        listItems(state, items.filter(item => !item.flannel))
+            .forEach(message => bprintf(state, `${message}\n`));
+    });
 
-/*
- dumpitems()
-    {
-    extern long mynum;
-    extern long curch;
-    dumpstuff(mynum,curch);
-    }
-*/
+const dumpitems = (state: State) => dumpstuff(state, state.mynum, state.curch);
 
 const dumpstuff = (state: State, playerId: number, locationId: number): Promise<void> => getPlayer(state, playerId)
     .then(player => getItems(state)
@@ -359,9 +230,7 @@ const dumpstuff = (state: State, playerId: number, locationId: number): Promise<
         }))
     );
 
-/*
-long ublock[16*49];
-*/
+// long ublock[16*49];
 
 const whocom = (state: State): Promise<void> => {
     let base = state.maxu;
@@ -579,16 +448,6 @@ my_lev=a;
 }
  */
 
-const oplong = (state: State, itemId: number): Promise<void> => getItem(state, itemId)
-    .then((item) => {
-        if (state.debug_mode) {
-            return bprintf(state, `{${item.itemId}} ${item.description}\n`);
-        }
-        if (item.description) {
-            return bprintf(state, `${item.description}\n`);
-        }
-    });
-
 // Actions
 
 export class Inventory extends Action {
@@ -604,5 +463,189 @@ export class Inventory extends Action {
     decorate(result: any): Promise<void> {
         bprintf(result.state, 'You are carrying\n');
         return result;
+    }
+}
+
+export class GetItem extends Action {
+    fromContainer(state: State, name:string): Promise<Item[]> {
+        if (brkword(state) === -1) {
+            return Promise.reject(new Error('From what ?'));
+        }
+        return findAvailableItem(state, state.wordbuf)
+            .then((container) => {
+                if (!container) {
+                    return Promise.reject(new Error('You can\'t take things from that - it\'s not here'));
+                }
+                return Promise.all([
+                    findContainedItem(state, name, container),
+                    Promise.resolve(container),
+                ])
+            });
+    }
+
+    getShield(state: State): Promise<Item> {
+        return Promise.all(SHIELD_IDS.map(shieldId => getItem(state, shieldId)))
+            .then(shields => shields.find(shield => shield.isDestroyed))
+            .then((shield) => {
+                if (!shield) {
+                    return Promise.reject(new Error('The shields are all to firmly secured to the walls'));
+                }
+                return createItem(state, shield.itemId);
+            })
+    }
+
+    getRuneSword(state: State, item: Item): Promise<Item> {
+        return getPlayer(state, state.mynum)
+            .then(getHelper(state))
+            .then((helper) => {
+                if ((item.state === 1) && !helper) {
+                    throw new Error('Its too well embedded to shift alone.\n');
+                }
+            })
+            .then(() => item);
+
+    }
+
+    action(state: State): Promise<any> {
+        if (brkword(state) === -1) {
+            return Promise.reject(new Error('Get what ?'));
+        }
+        const stp = state.stp;
+        const name = state.wordbuf;
+        return findHereItem(state, name)
+            .then((item: Item) => {
+                /* Hold */
+                if (brkword(state) === -1) {
+                    return [item, undefined];
+                }
+                if ((state.wordbuf !== 'from') && (state.wordbuf !== 'out')) {
+                    return [item, undefined];
+                }
+                return this.fromContainer(state, name);
+            })
+            .then(([item, container]) => {
+                state.stp = stp;
+                if (!item) {
+                    return Promise.reject(new Error('That is not here.'));
+                }
+                return (!container && (item.itemId === SHIELD_BASE_ID)) ? this.getShield(state) : item;
+            })
+            .then((item) => {
+                if (item.flannel) {
+                    return Promise.reject(new Error('You can\'t take that!'));
+                }
+                if (dragget(state)) {
+                    return Promise.reject();
+                }
+                if (!cancarry(state, state.mynum)) {
+                    return Promise.reject(new Error('You can\'t carry any more'));
+                }
+                if (item.itemId === 32) {
+                    return this.getRuneSword(state, item);
+                }
+                return item;
+            })
+            .then((item) => {
+                const results = [
+                    holdItem(state, item.itemId, state.mynum),
+                    new Promise((resolve) => {
+                        sendsys(
+                            state,
+                            state.globme,
+                            state.globme,
+                            -10000,
+                            state.curch,
+                            `[D]${state.globme}[/D][c] takes the ${item.name}\n[/c]`,
+                        );
+                        return resolve();
+                    })
+                ];
+                const messages = [];
+                if (item.changeStateOnTake) {
+                    results.push(setItem(state, item.itemId, { state: 0 }));
+                }
+                if (state.curch === -1081) {
+                    messages.push('The door clicks shut....\n');
+                    results.push(setItem(state, 20, { state: 1 }));
+                }
+                return Promise.all(results).then(() => ({
+                    state,
+                    messages,
+                }));
+            })
+            .then(() => ({ state }))
+    }
+
+    decorate(result: any): Promise<void> {
+        const {
+            state,
+            messages,
+        } = result;
+        bprintf(state, 'Ok...\n');
+        messages.forEach(message => bprintf(state, `${message}\n`));
+        return Promise.resolve();
+    }
+}
+
+export class DropItem extends Action {
+    action(state: State): Promise<any> {
+        if (brkword(state) === -1) {
+            return Promise.reject(new Error('Drop what ?'));
+        }
+        return getPlayer(state, state.mynum)
+            .then(player => findCarriedItem(state, state.wordbuf, player))
+            .then((item) => {
+                if (!item) {
+                    return Promise.reject(new Error('You are not carrying that.'));
+                }
+                if ((item.itemId === 32) && (state.my_lev < 10)) {
+                    return Promise.reject(new Error('You can\'t let go of it!'));
+                }
+                return putItem(state, item.itemId, state.curch).then(() => item)
+            })
+            .then((item) => {
+                if (state.curch !== -183) {
+                    return {
+                        state,
+                        messages: [],
+                    };
+                }
+
+                state.my_sco += item.value;
+                return Promise.all([
+                    new Promise((resolve) => {
+                        sendsys(
+                            state,
+                            state.globme,
+                            state.globme,
+                            -10000,
+                            state.curch,
+                            `The ${state.wordbuf} disappears into the bottomless pit.\n`,
+                        );
+                        return resolve();
+                    }),
+                    new Promise((resolve) => {
+                        calibme(state);
+                        return resolve();
+                    }),
+                    putItem(state, item.itemId, -6),
+                ])
+                    .then(() => ({
+                        state,
+                        messages: [
+                            'It disappears down into the bottomless pit.....\n',
+                        ],
+                    }));
+            });
+    }
+
+    decorate(result: any): Promise<void> {
+        const {
+            state,
+            messages,
+        } = result;
+        bprintf(state, 'OK..\n');
+        messages.forEach(message => bprintf(state, `${message}\n`));
+        return Promise.resolve();
     }
 }
