@@ -2,6 +2,7 @@ import State from "./state";
 import {bprintf, brkword, sendsys} from "./__dummies";
 import {Item, getItem, getPlayer, Player, setPlayer} from "./support";
 import {logger} from "./files";
+import {findAvailableItem, findCarriedItem, isCarriedBy} from './objsys';
 
 interface Attack {
     characterId: number,
@@ -30,33 +31,29 @@ const dambyitem = (state: State, itemId: number): Promise<number> => {
 
 /*
 long wpnheld= -1;
-
-void weapcom()
-    {
-    long a,b;
-    if(brkword()== -1)
-       {
-       bprintf("Which weapon do you wish to select though\n");
-       return;
-       }
-    a=fobnc(wordbuf);
-    if(a== -1)
-       {
-       bprintf("Whats one of those ?\n");
-       return;
-       }
-    b=dambyitem(a);
-    if(b<0)
-       {
-       bprintf("Thats not a weapon\n");
-       wpnheld= -1;
-       return;
-       }
-    wpnheld=a;
-    	calibme();
-    bprintf("OK...\n");
-    }
 */
+
+const weapcom = (state: State): Promise<void> => {
+    if (brkword(state) === -1) {
+        bprintf(state, 'Which weapon do you wish to select though\n');
+        return Promise.resolve();
+    }
+    return getPlayer(state, state.mynum)
+        .then(player => findCarriedItem(state, state.wordbuf, player))
+        .then((item) => {
+            if (item.itemId === -1) {
+                return bprintf(state, 'Whats one of those ?\n');
+            }
+            const b = dambyitem(state, item.itemId);
+            if (b < 0) {
+                state.wpnheld = -1;
+                return bprintf(state, 'Thats not a weapon\n');
+            }
+            state.wpnheld = item.itemId;
+            calibme(state);
+            return bprintf(state, 'OK...\n');
+        })
+};
 
 const hitplayer = (state: State, victimId: number, weaponId: number): Promise<void> => Promise.all([
     getPlayer(state, state.mynum),
@@ -168,7 +165,8 @@ const killcom = (state: State): Promise<void> => {
             return hitWith(player);
         }
 
-        return getItem(state, fobnc(state, state.wordbuf))
+        return getPlayer(state, state.mynum)
+            .then(me => findCarriedItem(state, state.wordbuf, me))
             .then((item) => {
                 if (item.itemId === -1) {
                     bprintf(state, 'with what ?\n');
@@ -186,7 +184,7 @@ const killcom = (state: State): Promise<void> => {
         bprintf(state, 'Who do you think you are , Moog?\n');
         return Promise.resolve();
     }
-    return getItem(state, fobna(state, state.wordbuf))
+    return findAvailableItem(state, state.wordbuf)
         .then((item) => {
             if (item.itemId !== -1) {
                 return breakitem(state, item.itemId);

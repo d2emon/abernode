@@ -1,6 +1,7 @@
 import State from "./state";
 import {getItem, getItems, getPlayer, Item, setItem, setPlayer} from "./support";
 import {bprintf, brkword} from "./__dummies";
+import {findAvailableItem, isCarriedBy, isLocatedIn} from "./objsys";
 
 /*
 #include "files.h"
@@ -347,7 +348,7 @@ const cancarry = (state: State, playerId: number): Promise<boolean> => getPlayer
         }
         return getItems(state)
             .then(items => items.reduce((count, item)  => {
-                if (iscarrby(state, item.itemId, player.playerId) && !item.isDestroyed) {
+                if (isCarriedBy(item, player, false)) {
                     return count + 1;
                 } else {
                     return count;
@@ -410,7 +411,7 @@ const setcom = (state: State): Promise<void> => {
         bprintf(state, 'Sorry, wizards only\n');
         return Promise.resolve();
     }
-    return getItem(state, fobna(state, state.wordbuf))
+    return findAvailableItem(state, state.wordbuf)
         .then((item) => {
             if (item.itemId === -1) {
                 return setmobile();
@@ -445,7 +446,7 @@ const isdark = (state: State): Promise<boolean> => {
                 if ((item.itemId !== 32) && !item.isLit) {
                     return;
                 }
-                if (ishere(state, item.itemId)) {
+                if (isLocatedIn(item, state.curch, (state.my_lev < 10))) {
                     found = false;
                     return;
                 }

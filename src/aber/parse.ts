@@ -1,8 +1,9 @@
 import State from "./state";
-import {createItem, getItem, getItems, getPlayer, holdItem, itemIsAvailable, setItem, setPlayer} from "./support";
+import {createItem, getItem, getItems, getPlayer, holdItem, setItem, setPlayer} from "./support";
 import {bprintf, brkword, sendsys} from "./__dummies";
 import {logger, RESET_DATA, ROOMS} from "./files";
 import {CONTAINED_IN, IS_DESTROYED} from "./object";
+import {isCarriedBy, isAvailable, findAvailableItem, findCarriedItem, findItem} from "./objsys";
 
 /*
 #include "files.h"
@@ -616,29 +617,35 @@ const doaction = (state: State, actionId: number): Promise<void> => {
           bprintf("Your adventurers automatic monster detecting radar, and long range\n");
           bprintf("mapping kit, is, sadly, out of order.\n");break;
        case 174:
-          if(!in_fight)
-             {
-             dogocom();
-             break;
-             }
-          else
-             {
-             char ar[120];
-             if(iscarrby(32,mynum))
-                {
-                bprintf("The sword won't let you!!!!\n");
-                break;
+       */
+            174: () => new Promise((resolve) => {
+                if (!state.in_fight) {
+                    return dogocom(state);
                 }
-             sprintf(ar,"\001c%s\001 drops everything in a frantic attempt to escape\n",globme);
-             sendsys(globme,globme,-10000,curch,ar);
-             sendsys(globme,globme,-20000,curch,"");
-             my_sco-=my_sco/33; *//* loose 3% *//*
-             calibme();
-             in_fight=0;
-             on_flee_event();
-             dogocom();
-             break;
-             }
+                return Promise.all([
+                    getPlayer(state, state.mynum),
+                    getItem(state, 32),
+                ])
+                    .then(([
+                        player,
+                        runeSword,
+                    ]) => {
+                        if (isCarriedBy(runeSword, player, (state.my_lev < 10))) {
+                            bprintf(state, 'The sword won\'t let you!!!!\n');
+                            return resolve();
+                        }
+                        const ar = `[c]${state.globme}[/c] drops everything in a frantic attempt to escape\n`;
+                        sendsys(state, state.globme, state.globme, -10000, state.curch, ar);
+                        sendsys(state, state.globme, state.globme, -20000, state.curch, null);
+                        state.my_sco -= state.my_sco / 33;
+                        /* loose 3% */
+                        calibme(state);
+                        state.in_fight = 0;
+                        on_flee_event(state);
+                        return dogocom(state);
+                    });
+            }),
+        /*
        case 175:
           bugcom();
           break;
@@ -763,9 +770,17 @@ const dodirn = (state: State, n: number): Promise<void> => {
         return Promise.resolve();
     }
 
-    return getPlayer(state, 25)
-        .then((player25) => {
-            if ((iscarrby(state, 32, state.mynum)) && (player25.locationId === state.curch) && player25.exists) {
+    return  Promise.all([
+        getPlayer(state, state.mynum),
+        getItem(state, 32),
+        getPlayer(state, 25),
+    ])
+        .then(([
+            player,
+            runeSword,
+            player25,
+        ]) => {
+            if (isCarriedBy(runeSword, player, (state.my_lev < 10)) && (player25.locationId === state.curch) && player25.exists) {
                 bprintf(state, '[c]The Golem[/c] bars the doorway!');
                 return;
             }
@@ -1140,7 +1155,7 @@ const eatcom = (state: State): Promise<void> => {
     if (state.wordbuf === 'from') {
         brkword(state);
     }
-    return getItem(state, fobna(state, state.wordbuf))
+    return findAvailableItem(state, state.wordbuf)
         .then((item) => {
             if (item.itemId === -1) {
                 return bprintf(state, 'There isn\'t one of those here\n');
@@ -1237,12 +1252,15 @@ const playcom = (state: State): Promise<void> => {
         bprintf(state, 'Play what ?\n');
         return Promise.resolve();
     }
-    return getItem(state, fobna(state, state.wordbuf))
-        .then((item) => {
-            if (item.itemId === -1) {
-                return bprintf(state, 'That isn\'t here\n');
-            }
-            if (!itemIsAvailable(state, item)) {
+    return Promise.all([
+        getPlayer(state, state.mynum),
+        findAvailableItem(state, state.wordbuf),
+    ])
+        .then(([
+            player,
+            item,
+        ]) => {
+            if ((item.itemId === -1) || !isAvailable(item, player, state.curch, (state.my_lev < 10))) {
                 return bprintf(state, 'That isn\'t here\n');
             }
         })
@@ -1347,80 +1365,70 @@ const exorcom = (state: State): Promise<void> => {
         })
 };
 
-/*
- givecom()
-    {
-    auto long  a,b;
-    auto long  c,d;
-    extern char wordbuf[];
-    if(brkword()== -1)
-       {
-       bprintf("Give what to who ?\n");
-       return;
-       }
-    if(fpbn(wordbuf)!= -1) goto obfrst;
-    a=fobna(wordbuf);
-    if(a== -1)
-       {
-       bprintf("You aren't carrying that\n");
-       return(0);
-       }
-    *//* a = item giving *//*
-    if(brkword()== -1)
-       {
-       bprintf("But to who ?\n");
-       return;
-       }
-    if(!strcmp(wordbuf,"to"))
-       {
-       if(brkword()== -1)
-          {
-          bprintf("But to who ?\n");
-          return;
-          }
-       }
-    c=fpbn(wordbuf);
-    if(c== -1)
-       {
-       bprintf("I don't know who %s is\n",wordbuf);
-       return;
-       }
-    dogive(a,c);
-    return;
-    obfrst:*//* a=player *//*
-    a=fpbn(wordbuf);
-    if(a== -1)
-       {
-       bprintf("Who is %s\n",wordbuf);
-       return;
-       }
-    if(brkword()== -1)
-       {
-       bprintf("Give them what ?\n");
-       return;
-       }
-    c=fobna(wordbuf);
-    if(c== -1)
-       {
-       bprintf("You are not carrying that\n");
-       return;
-       }
-    dogive(c,a);
+const givecom = (state: State): Promise<void> => {
+    const obfrst = () => {
+        const c = fpbn(state, state.wordbuf);
+        if (c === -1) {
+            bprintf(state, `Who is ${state.wordbuf}\n`);
+            return Promise.resolve();
+        }
+        if (brkword(state) === -1) {
+            bprintf(state, 'Give them what ?\n');
+            return Promise.resolve();
+        }
+        return findAvailableItem(state, state.wordbuf)
+            .then((item) => {
+                if (item.itemId === -1) {
+                    return bprintf(state, 'You are not carrying that\n');
+                }
+                return dogive(state, item.itemId, c);
+            })
+    };
+
+    if (brkword(state) === -1) {
+        bprintf(state, 'Give what to who ?\n');
+        return Promise.resolve();
     }
-*/
+    if (fpbn(state, state.wordbuf) !== -1) {
+        return obfrst();
+    }
+    return findAvailableItem(state, state.wordbuf)
+        .then((item) => {
+            if (item.itemId === -1) {
+                return bprintf(state, 'You aren\'t carrying that\n');
+            }
+            /* a = item giving */
+            if (brkword(state) === -1) {
+                return bprintf(state, 'But to who ?\n');
+            }
+            if (state.wordbuf === 'to') {
+                if (brkword(state) === -1) {
+                    return bprintf(state, 'But to who ?\n');
+                }
+            }
+            const c = fpbn(state, state.wordbuf);
+            if (c === -1) {
+                return bprintf(state, `I don't know who ${state.wordbuf} is\n`);
+            }
+            return dogive(state, item.itemId, c);
+        });
+
+};
 
 const dogive = (state: State, itemId: number, playerId: number): Promise<void> => Promise.all([
+    getPlayer(state, state.mynum),
     getItem(state, itemId),
     getPlayer(state, playerId),
 ])
     .then(([
+        me,
         item,
         player,
     ]) => {
         if ((state.my_lev < 10) && (player.locationId !== state.curch)) {
             return bprintf(state, 'They are not here\n');
         }
-        if (!iscarrby(state, item.itemId, state.mynum)) {
+        if (!isCarriedBy(item, me, (state.my_lev < 10))) {
             return bprintf(state, 'You are not carrying that\n');
         }
         if (!cancarry(state, player.playerId)) {
@@ -1457,7 +1465,7 @@ const stealcom = (state: State): Promise<void> => {
             if (player.playerId === -1) {
                 return bprintf(state, 'Who is that ?\n');
             }
-            return getItem(state, fobncb(state, x, player.playerId))
+            return findCarriedItem(state, x, player)
                 .then((item) => {
                     if (item.itemId === -1) {
                         return bprintf(state, 'They are not carrying that\n');
@@ -1588,24 +1596,22 @@ const rmedit = (state: State): Promise<void> => getPlayer(state, state.mynum)
     sprintf(x,"%s%s%s%s%s","\001s",globme,"\001",globme," has returned to AberMud\n\001");
     sendsys(globme,globme,-10113,0,x);
     }
+*/
 
- inumcom()
-    {
-    extern long my_lev;
-    extern char wordbuf[];
-    if(my_lev<10000)
-       {
-       bprintf("Huh ?\n");
-       return;
-       }
-    if(brkword()== -1)
-       {
-       bprintf("What...\n");
-       return;
-       }
-    bprintf("Item Number is %d\n",fobn(wordbuf));
+const inumcom = (state: State): Promise<void> => {
+    if (state.my_lev < 10000) {
+        bprintf(state, 'Huh ?\n');
+        return;
     }
+    if (brkword(state) === -1) {
+        bprintf(state, 'What...\n');
+        return;
+    }
+    return findItem(state, state.wordbuf)
+        .then(item => bprintf(state, `Item Number is ${item.itemId}\n`));
+};
 
+/*
  updcom()
     {
     extern long my_lev;
@@ -1770,7 +1776,7 @@ const look_cmd = (state: State): Promise<void> => {
         bprintf(state, 'In what ?\n');
         return Promise.resolve();
     }
-    return getItem(state, fobna(state, state.wordbuf))
+    return findAvailableItem(state, state.wordbuf)
         .then((item) => {
             if (item.itemId === -1) {
                 return bprintf(state, 'What ?\n');

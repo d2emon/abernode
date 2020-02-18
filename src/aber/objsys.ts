@@ -6,7 +6,6 @@ import {
     setItem,
     getItems,
     holdItem,
-    itemIsAvailable,
     putItem,
     getPlayers,
     getPlayer,
@@ -15,7 +14,6 @@ import {
 import {bprintf, brkword, sendsys} from "./__dummies";
 import {CONTAINED_IN, HELD_BY} from "./object";
 
-const iscarrby = (state: State, item: Item, player: Player): boolean => false;
 const iswornby = (state: State, item: Item, player: Player): boolean => false;
 
 export const isCarriedBy = (item: Item, owner: Player, destroyed: boolean = false): boolean => {
@@ -37,6 +35,31 @@ export const isContainedIn = (item: Item, container: Item, destroyed: boolean = 
     }
     return item.locationId === container.itemId;
 };
+
+export const isLocatedIn = (item: Item, locationId: number, destroyed: boolean = false): boolean => {
+    if (destroyed && item.isDestroyed) {
+        return false;
+    }
+    if (item.locatedIn === undefined) {
+        return false
+    }
+    return item.locationId === locationId;
+};
+
+export const isAvailable = (item: Item, player: Player, locationId: number, destroyed: boolean = false): boolean => {
+    if (isLocatedIn(item, locationId, destroyed)) {
+        return true;
+    }
+    return isCarriedBy(item, player, destroyed);
+};
+
+export const byMask = (state: State, mask: { [flagId: number]: boolean }): Promise<boolean> => Promise.all([
+    getPlayer(state, state.mynum),
+    getItems(state),
+])
+    .then(([player, items]) => items.some((item) => isAvailable(item, player, state.curch, (state.my_lev < 10))
+        && Object.keys(mask).every((key) => item.flags[key] === mask[key])
+    ));
 
 export const itemsAt = (state: State, locationId: number, mode: number): Promise<string> => {
     const getLocation = (): Promise<Item | Player | undefined> => {
@@ -95,17 +118,12 @@ export const itemsAt = (state: State, locationId: number, mode: number): Promise
         .then(decorate);
 };
 
-const itemsCarriedBy = (state: State, player: Player): Promise<void> => new Promise(() => itemsAt(state, player.playerId, HELD_BY)
+const itemsCarriedBy = (state: State, player: Player): Promise<void> => itemsAt(state, player.playerId, HELD_BY)
     .then((result) => bprintf(state, result));
 
-const MODE_NAME = 0;
-const MODE_SHIELDS = 1;
-const MODE_MY = 2;
-const MODE_CARRIED = 3;
-const MODE_HERE = 4;
-const MODE_CONTAINED = 5;
+// Search item
 
-const findItem = (state: State, name: string, mode: number, payload: number): Promise<Item> => {
+const baseFindItem = (state: State, name: string): Promise<Item> => {
     const byColor = (color: string): Promise<Item> => {
         if (color === 'red') {
             brkword(state);
@@ -120,102 +138,53 @@ const findItem = (state: State, name: string, mode: number, payload: number): Pr
         return undefined;
     };
 
-    const patchForShields = (item: Item) => getPlayer(state, state.mynum)
-        .then((player) => {
-            if (item.itemId === 112) {
-                return Promise.all([
-                    getItem(state, 113),
-                    getItem(state, 114),
-                ])
-                    .then(shields => shields.find(i => isCarriedBy(i, player, (state.my_lev < 10))))
-            }
-            return undefined;
-        })
-        .then((i) => {
-            if (i) {
-                return i;
-            }
-            return itemIsAvailable(state, item);
-        });
-
-    const findMy = (item: Item) => getPlayer(state, state.mynum)
-        .then(player => isCarriedBy(item, player, (state.my_lev < 10)));
-
-    const findCarried = (item: Item) => getPlayer(state, ctInf)
-        .then(player => isCarriedBy(item, player, (state.my_lev < 10)));
-
-    const findHere = (item: Item) => ishere(state, item.itemId);
-
-    const findContained = (item: Item) => getItem(state, ctInf)
-        .then(container => isContainedIn(item, container, (state.my_lev < 10)));
-
-    const searchItem = (item: Item) => {
-        if (item.name.toLowerCase() === name) {
-            state.wd_it = name;
-            if (mode === MODE_NAME) {
-                return true;
-            } else if (mode === MODE_SHIELDS) {
-                /* Patch for shields */
-                return patchForShields(item);
-            } else if (mode === MODE_MY) {
-                return findMy(item);
-            } else if (mode === MODE_CARRIED) {
-                return findCarried(item);
-            } else if (mode === MODE_HERE) {
-                return findHere(item);
-            } else if (mode === MODE_CONTAINED) {
-                return findContained(item);
-            } else {
-                return true;
-            }
-        }
-    };
-
     return byColor(name)
-        .then((item) => item || getItems(state).then(items => items.find(searchItem)));
+        .then(
+            (item) => item || getItems(state)
+                .then(items => items.find(item => item.name.toLowerCase() === name))
+                .then((item) => {
+                    if (item) {
+                        state.wd_it = name;
+                    }
+                    return item;
+                })
+        );
 };
 
-/*
- fobn(word)
- char *word;
-    {
-long x;
-x=fobna(word);
-if(x!=-1) return(x);
-    return(findItem(word.toLowerCase(),0,0));
-    }
+export const findAvailableItem = (state: State, name: string): Promise<Item> => baseFindItem(state, name.toLowerCase())
+    .then((item: Item) => Promise.all([
+        getPlayer(state, state.mynum),
+        Promise.resolve(item),
+    ]))
+    .then(([
+        player,
+        item,
+    ]) => {
+        if (item.itemId !== 112) {
+            return isAvailable(item, player, state.curch, (state.my_lev < 10)) && item;
+        }
+        return Promise.all([
+            getItem(state, 113),
+            getItem(state, 114),
+        ])
+            .then(shields => shields.find(
+                shield => isCarriedBy(shield, player, (state.my_lev < 10))
+            ));
+    });
 
- fobna(word)
- char *word;
-    {
-    return(findItem(word.toLowerCase(),1,0));
-    }
+export const findCarriedItem = (state: State, name: string, player: Player): Promise<Item> => baseFindItem(state, name.toLowerCase())
+    .then(item => isCarriedBy(item, player, (state.my_lev < 10)) && item);
 
- fobnin(word,ct)
- char *word;
- long ct;
- {
- 	return(findItem(word.toLowerCase(),5,ct));
- }
+const findHereItem = (state: State, name: string): Promise<Item> => baseFindItem(state, name.toLowerCase())
+    .then(item => isLocatedIn(item, state.curch, (state.my_lev < 10)) && item);
 
- fobnc(word)
- char *word;
-    {
-    return(findItem(word.toLowerCase(),2,0));
-    }
+const findContainedItem = (state: State, name: string, container: Item): Promise<Item> => baseFindItem(state, name.toLowerCase())
+    .then(item => isContainedIn(item, container, (state.my_lev < 10)) && item);
 
- fobncb(word,by)
- char *word;
-    {
-    return(findItem(word.toLowerCase(),3,by));
-    }
+export const findItem = (state: State, name: string): Promise<Item> => findAvailableItem(state, name)
+    .then((item) => item || baseFindItem(state, name.toLowerCase()));
 
- fobnh(word)
- char *word;
-    {
-    return(findItem(word.toLowerCase(),4,0));
-    }
-*/
+//
 
 const getobj = (state: State): Promise<void> => {
     let des_inf: number = -1;
@@ -224,7 +193,7 @@ const getobj = (state: State): Promise<void> => {
         bprintf(state, 'Get what ?\n');
         return Promise.resolve();
     }
-    return getItem(state, fobnh(state, state.wordbuf))
+    return findHereItem(state, state.wordbuf)
         .then((item) => {
             /* Hold */
             const i = state.stp;
@@ -233,12 +202,14 @@ const getobj = (state: State): Promise<void> => {
                 if (brkword(state) === -1) {
                     return bprintf(state, 'From what ?\n')
                 }
-                des_inf = fobna(state, state.wordbuf);
-                if (des_inf === -1) {
-                    return bprintf(state, 'You can\'t take things from that - it\'s not here\n');
-                }
-                state.stp = i;
-                return getItem(state, fobnin(state, bf, des_inf));
+                return findAvailableItem(state, state.wordbuf)
+                    .then((item) => {
+                        if (!item || (item.itemId === -1)) {
+                            return bprintf(state, 'You can\'t take things from that - it\'s not here\n');
+                        }
+                        state.stp = i;
+                        return findContainedItem(state, bf, item);
+                    });
             }
             state.stp = i;
             return item;
@@ -311,26 +282,13 @@ const getobj = (state: State): Promise<void> => {
         });
 };
 
-const ishere = (state: State, itemId: number): Promise<boolean> => getItem(state, itemId)
-    .then((item) => {
-        if ((state.my_lev < 10) && item.isDestroyed) {
-            return false;
-        }
-        if (item.locatedIn !== undefined) {
-            return false
-        }
-        if (item.locationId !== state.curch) {
-            return false;
-        }
-        return true;
-    });
-
 const dropitem = (state: State): Promise<void> => {
     if (brkword(state) === -1) {
         bprintf(state, 'Drop what ?\n');
         return Promise.resolve();
     }
-    return getItem(state, fobnc(state, state.wordbuf))
+    return getPlayer(state, state.mynum)
+        .then(player => findCarriedItem(state, state.wordbuf, player))
         .then((item) => {
             if (item.itemId === -1) {
                 return bprintf(state, 'You are not carrying that.\n');
@@ -368,7 +326,7 @@ const dropitem = (state: State): Promise<void> => {
 
 const lojal2 = (state: State, flannel: boolean): Promise<void> => getItems(state)
     .then(items => items.forEach((item) => {
-        if (ishere(state, item.itemId) && (item.flannel === flannel)) {
+        if (isLocatedIn(item, state.curch, (state.my_lev < 10)) && (item.flannel === flannel)) {
             if (item.state > 3) {
                 return;
             }

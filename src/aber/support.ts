@@ -19,8 +19,6 @@ import ItemInterface, {
     CHANGE_STATE_ON_TAKE, IS_LEVER, IS_SWITCH, CAN_BE_WORN, IS_FOOD,
 } from './object';
 
-const ishere = (state: State, itemId: number, playerId: number): boolean => false;
-const iscarrby = (state: State, itemId: number, playerId: number): boolean => false;
 const tscale = (state: State): number => 1;
 const damof = (state: State, playerId: number): number => 0;
 
@@ -160,12 +158,6 @@ export const putItemIn = (state: State, itemId: number, locationId: number): Pro
     carryFlag: CONTAINED_IN,
 });
 
-export const itemIsAvailable = (state: State, item: Item): boolean => {
-    if (ishere(state, item.itemId, state.mynum)) {
-        return true;
-    }
-    return iscarrby(state, item.itemId, state.mynum);
-};
 export const createItem = (state: State, itemId: number, newItem: {} = {}): Promise<Item> => setItem(state, itemId, {
     ...newItem,
     flags: {
@@ -173,11 +165,6 @@ export const createItem = (state: State, itemId: number, newItem: {} = {}): Prom
     },
 })
     .then(() => getItem(state, itemId));
-
-export const availableByMask = (state: State, mask: { [flagId: number]: boolean }): Promise<boolean> => getItems(state)
-    .then(items => items.some((item) => itemIsAvailable(state, item)
-        && Object.keys(mask).every((key) => item.flags[key] === mask[key])
-    ));
 
 // Player
 

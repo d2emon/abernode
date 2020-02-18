@@ -5,6 +5,8 @@ import {
 } from './__dummies';
 import State from "./state";
 import {createItem, getItem, getPlayer, setPlayer, holdItem, Item, putItem} from "./support";
+import {findItem, isCarriedBy} from "./objsys";
+import state from "./state";
 
 /*
 #include "files.h"
@@ -63,60 +65,73 @@ const sumcom = (state: State): Promise<void> => {
             dumpstuff(state, player.playerId, player.locationId);
             const seg = `[s name=\"${player.name}\"]${player.name} has arrived\n[/s]`;
             sendsys(state, null, null, -10000, state.curch, seg);
-            return setPlayer(state, player.playerId, { locationId: state.curch });
+            return setPlayer(state, player.playerId, {locationId: state.curch});
         });
-    };
 
     if (brkword(state) === -1) {
         bprintf(state, 'Summon who ?\n');
         return Promise.resolve();
     }
 
-    const itemId = fobn(state, state.wordbuf);
-    if (itemId !== -1) {
-        return getItem(state, itemId).then(sumob);
-    }
-    return Promise.resolve(fpbn(state, state.wordbuf))
-        .then((playerId) => {
-            if (playerId !== -1) {
-                return bprintf(state, 'I dont know who that is\n');
+    return findItem(state, state.wordbuf)
+        .then((item) => {
+            if (item && (item.itemId !== -1)) {
+                return sumob(item);
             }
-            if (state.my_str < 10) {
-                return bprintf(state, 'You are too weak\n');
-            }
-            if (state.my_lev < 10) {
-                state.my_str -= 2;
-            }
-            let c = state.my_lev * 2;
-            if (state.my_lev > 9) {
-                c = 101;
-            }
-            if (iscarby(state, 111, state.mynum)) {
-                c += state.my_lev;
-            }
-            if (iscarby(state, 121, state.mynum)) {
-                c += state.my_lev;
-            }
-            if (iscarby(state, 163, state.mynum)) {
-                c += state.my_lev;
-            }
-            const d = randperc(state);
-            if (state.my_lev > 9) {
-                return willwork(playerId);
-            }
-            if (iswornby(state, 90, playerId) || (c < d)) {
-                return bprintf(state, 'The spell fails....\n');
-            }
-            if ((playerId === fpbn(state, 'wraith')) || iscarrby(state, 32, playerId) || iscarrby(state, 159, playerId) || iscarrby(state, 174, playerId)) {
-                return bprintf(state, 'Something stops your summoning from succeeding\n');
-            }
-            if (playerId === state.mynum) {
-                return bprintf(state, 'Seems a waste of effort to me....\n');
-            }
-            if ((state.curch >= -1082) && (state.curch <= -1076)) {
-                return bprintf(state, 'Something about this place makes you fumble the magic\n');
-            }
-            return willwork(playerId);
+            return Promise.resolve(fpbn(state, state.wordbuf))
+                .then((playerId) => {
+                    if (playerId !== -1) {
+                        return bprintf(state, 'I dont know who that is\n');
+                    }
+                    if (state.my_str < 10) {
+                        return bprintf(state, 'You are too weak\n');
+                    }
+                    if (state.my_lev < 10) {
+                        state.my_str -= 2;
+                    }
+                    let c = state.my_lev * 2;
+                    if (state.my_lev > 9) {
+                        c = 101;
+                    }
+                    return getPlayer(state, state.mynum)
+                        .then((player) => {
+                            return Promise.all([
+                                111,
+                                121,
+                                163,
+                            ].map(itemId => getItem(state, itemId)))
+                                .then(items => items.filter(item => isCarriedBy(item, player, (state.my_lev < 10))))
+                                .then(items => items.forEach(() => {
+                                    c += state.my_lev;
+                                }))
+                                .then(() => {
+                                    const d = randperc(state);
+                                    if (state.my_lev > 9) {
+                                        return willwork(playerId);
+                                    }
+                                    if (iswornby(state, 90, playerId) || (c < d)) {
+                                        return bprintf(state, 'The spell fails....\n');
+                                    }
+                                    return Promise.all([
+                                        32,
+                                        159,
+                                        174
+                                    ].map(itemId => getItem(state, itemId)))
+                                        .then((items) => {
+                                            if ((playerId === fpbn(state, 'wraith')) || items.some(item => isCarriedBy(item, player, (state.my_lev < 10)))) {
+                                                return bprintf(state, 'Something stops your summoning from succeeding\n');
+                                            }
+                                            if (playerId === state.mynum) {
+                                                return bprintf(state, 'Seems a waste of effort to me....\n');
+                                            }
+                                            if ((state.curch >= -1082) && (state.curch <= -1076)) {
+                                                return bprintf(state, 'Something about this place makes you fumble the magic\n');
+                                            }
+                                            return willwork(playerId);
+                                        });
+                                });
+                        });
+                });
         });
 };
 
@@ -265,7 +280,7 @@ const ressurcom = (state: State): Promise<void> => {
         bprintf(state, 'Yes but what ?\n');
         return Promise.resolve();
     }
-    return getItem(state, fobn(state, state.wordbuf))
+    return findItem(state, state.wordbuf)
         .then((item) => {
             if (item.itemId === -1) {
                 return bprintf(state, 'You can only ressurect objects\n')

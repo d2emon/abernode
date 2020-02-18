@@ -7,8 +7,8 @@ import {
 import State from "./state";
 import {createItem, getItem, getItems, getPlayer, holdItem, Item, setItem, setPlayer} from "./support";
 import {EXAMINES, HELP1} from "./files";
-import get = Reflect.get;
 import {CONTAINED_IN, HELD_BY, IS_DESTROYED, LOCATED_IN} from "./object";
+import {findAvailableItem, findItem, isCarriedBy} from './objsys';
 
 /*
 #include "files.h"
@@ -88,7 +88,7 @@ const valuecom = (state: State): Promise<void> => {
         bprintf(state, 'Value what ?\n');
         return Promise.resolve();
     }
-    return getItem(state, fobna(state, state.wordbuf))
+    return findAvailableItem(state, state.wordbuf)
         .then((item) => {
             if (item.itemId === -1) {
                 return bprintf(state, 'There isn\'t one of those here.\n');
@@ -108,7 +108,7 @@ const stacom = (state: State): Promise<void> => {
         return Promise.resolve();
     }
 
-    return getItem(state, fobn(state, state.wordbuf))
+    return findItem(state, state.wordbuf)
         .then((item: Item) => (
             item.containedIn !== undefined)
                 ? getItem(state, item.containedIn).then((container: Item) => [
@@ -152,7 +152,7 @@ const examcom = (state: State): Promise<void> => {
         bprintf(state, 'Examine what ?\n');
         return Promise.resolve();
     }
-    return getItem(state, fobna(state.wordbuf))
+    return findAvailableItem(state.wordbuf)
         .then((item: Item) => {
             if (item.itemId === -1) {
                 return bprintf(state, 'You see nothing special at all\n');

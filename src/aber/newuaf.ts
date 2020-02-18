@@ -1,6 +1,7 @@
 import State from "./state";
 import {getPlayer} from "./support";
 import {bprintf} from "./__dummies";
+import {findItem} from "./objsys";
 
 /*
 #include <errno.h>
@@ -200,33 +201,28 @@ const saveme = (state: State): Promise<void> => getPlayer(state, state.mynum)
         return putpers(state.globme, x);
     });
 
-/*
- validname(name)
- char *name;
-    {
-    long a;
-    if(resword(name)){bprintf("Sorry I cant call you that\n");return(0);  }
-    if(strlen(name)>10)
-       {
-       return(0);
-       }
-    a=0;
-    while(name[a])
-       {
-       if(name[a]==' ')
-          {
-          return(0);
-          }
-       a++;
-       }
-    if(fobn(name)!=-1)
-       {
-      bprintf("I can't call you that , It would be confused with an object\n");
-       return(0);
-       }
-    return(1);
+const validname = (state: State, name: string): Promise<boolean> => {
+    if (resword(state, name)) {
+        bprintf(state, 'Sorry I cant call you that\n');
+        return Promise.resolve(false);
     }
+    if (name.length > 10) {
+        return Promise.resolve(false);
+    }
+    if (name.indexOf(' ')) {
+        return Promise.resolve(false);
+    }
+    return findItem(state, name)
+        .then((item) => {
+            if (item.itemId !== -1) {
+                bprintf(state, 'I can\'t call you that , It would be confused with an object\n');
+                return false;
+            }
+        })
+        .then(() => true);
+};
 
+/*
 resword(name)
 {
 if(!strcmp(name,"The")) return(1);

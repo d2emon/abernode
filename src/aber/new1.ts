@@ -12,7 +12,6 @@ import {
     wearItem,
     putItemIn,
     setItem,
-    availableByMask,
     getItems,
     getPlayer, setPlayer, getPlayers, getHelper
 } from "./support";
@@ -23,6 +22,7 @@ import {
     IS_LIT, IS_KEY,
 } from "./object";
 import {logger} from "./files";
+import {isCarriedBy, byMask, findAvailableItem} from "./objsys";
 
 /*
 struct player_res
@@ -69,28 +69,23 @@ extern char wordbuf[];
     }
 
  *//* Door is 6 panel 49
- *//*
+ */
 
- ohereandget(onm)
- long *onm;
-    {
-    long b;
-    extern char wordbuf[];
-    if(brkword()==-1)
-       {
-       bprintf("Tell me more ?\n");
-       return(-1);
-       }
-    openworld();
-    *onm=fobna(wordbuf);
-    if(*onm==-1)
-       {
-       bprintf("There isn't one of those here\n");
-       return(-1);
-       }
-    return(1);
+const ohereandget = (state: State): Promise<number[]> => {
+    if (brkword(state) === -1) {
+        bprintf(state, 'Tell me more ?\n');
+        return Promise.resolve([-1]);
     }
-*/
+    openworld(state);
+    return findAvailableItem(state, state.wordbuf)
+        .then((item) => {
+            if (item.itemId === -1) {
+                bprintf(state, 'There isn\'t one of those here\n');
+                return [-1, item.itemId];
+            }
+            return [1, item.itemId];
+        })
+};
 
 const opencom = (state: State): Promise<void> => {
     const [b, itemId] = ohereandget();
@@ -162,7 +157,7 @@ const lockcom = (state: State): Promise<void> => {
     if (b === -1) {
         return Promise.resolve();
     }
-    return availableByMask(state, { [IS_KEY]: true })
+    return byMask(state, { [IS_KEY]: true })
         .then((found) => {
             if (found) {
                 return bprintf(state, 'You haven\'t got a key\n');
@@ -186,7 +181,7 @@ const unlockcom = (state: State): Promise<void> => {
     if (b === -1) {
         return Promise.resolve();
     }
-    return availableByMask(state, { [IS_KEY]: true })
+    return byMask(state, { [IS_KEY]: true })
         .then((found) => {
             if (found) {
                 return bprintf(state, 'You have no keys\n');
@@ -259,7 +254,7 @@ const putcom = (state: State): Promise<void> => {
     }
     return  Promise.all([
         getItem(state, itemId),
-        getItem(state, fobna(state, state.wordbuf)),
+        findAvailableItem(state, state.wordbuf),
     ])
         .then(([
             item,
@@ -369,7 +364,7 @@ const lightcom = (state: State): Promise<void> => {
     }
     return Promise.all([
         getItem(state, itemId),
-        availableByMask(state, { [IS_LIT]: true }),
+        byMask(state, { [IS_LIT]: true }),
     ])
         .then(([
             item,
@@ -432,7 +427,7 @@ const pushcom = (state: State): Promise<void> => {
         bprintf(state, 'Push what ?\n');
         return Promise.resolve();
     }
-    return getItem(state, fobna(state, state.wordbuf))
+    return findAvailableItem(state, state.wordbuf)
         .then((item) => {
             if (item.itemId === -1) {
                 return bprintf(state, 'That is not here\n');
@@ -864,6 +859,52 @@ const vichere = (state: State, playerId: number): Promise<number> => getPlayer(s
         return player.locationId;
     };
 
+const vicf2 = (state: State, mode: number): Promise<number[]> => {
+    const [a, playerId] = vicbase(state);
+    if (a === -1) {
+        return Promise.resolve([-1, playerId]);
+    }
+    if (state.my_str < 10) {
+        bprintf(state, 'You are too weak to cast magic\n');
+        return Promise.resolve([-1, playerId]);
+    }
+    if (state.my_lev < 10) {
+        state.my_str -= 2;
+    }
+    return Promise.all([
+        getPlayer(state, state.mynum),
+        Promise.all([
+            111,
+            121,
+            163,
+        ].map(itemId => getItem(state, itemId))),
+    ])
+        .then(([
+            player,
+            items,
+        ]) => {
+            let i = 5;
+            items.forEach((item) => {
+                if (isCarriedBy(item, player, (state.my_lev < 10))) {
+                    i += 1;
+                }
+            })
+            if ((state.my_lev < 10) && (randperc(state) > i * state.my_lev)) {
+                bprintf(state, 'You fumble the magic\n');
+                if (mode === 1) {
+                    bprintf(state, 'The spell reflects back\n');
+                    return [a, state.mynum];
+                } else {
+                    return [-1, playerId];
+                }
+            } else {
+                if (state.my_lev < 10) {
+                    bprintf(state, 'The spell succeeds!!\n');
+                }
+                return [a, playerId];
+            }
+        })
+};
 
 /*
  vicf2(x,f1)
@@ -874,34 +915,6 @@ long *x;
     extern long my_str,my_lev;
     extern long curch;
     long b,i;
-    a=vicbase(x);
-    if(a== -1) return(-1);
-    if(my_str<10)
-       {
-       bprintf("You are too weak to cast magic\n");
-       return(-1);
-       }
-    if(my_lev<10) my_str-=2;
-i=5;
-if(iscarrby(111,mynum)) i++;
-if(iscarrby(121,mynum)) i++;
-if(iscarrby(163,mynum)) i++;
-    if((my_lev<10)&&(randperc()>i*my_lev))
-       {
-       bprintf("You fumble the magic\n");
-       if(f1==1){*x=mynum;bprintf("The spell reflects back\n");}
-       else
-          {
-          return(-1);
-          }
-       return(a);
-       }
-
-    else
-       {
-       if(my_lev<10)bprintf("The spell succeeds!!\n");
-       return(a);
-       }
     }
 
  vicfb(x)
@@ -1266,12 +1279,15 @@ const wearcom = (state: State): Promise<void> => {
     if (b === -1) {
         return Promise.resolve();
     }
-    return getItem(state, itemId)
-        .then((item) => {
-            if (!iscarrby(state, item.itemId, state.mynum)) {
+    return Promise.all([
+        getPlayer(state, state.mynum),
+        getItem(state, itemId),
+    ])
+        .then(([player, item]) => {
+            if (!isCarriedBy(item, player, (state.my_lev < 10))) {
                 return bprintf(state, 'You are not carrying this\n');
             }
-            if (iswornby(state, item.itemId, state.mynum)) {
+            if (iswornby(state, item.itemId, player.playerId)) {
                 return bprintf(state, 'You are wearing this\n');
             }
             if ((iswornby(state, 89, state.mynum) || iswornby(state, 113, state.mynum) || iswornby(state, 114, state.mynum))
@@ -1300,9 +1316,12 @@ const removecom = (state: State): Promise<void> => {
         });
 };
 
-const iswornby = (state: State, itemId: number, characterId: number): Promise<boolean> => getItem(state, itemId)
-    .then((item) => {
-        if (!iscarrby(state, item.itemId, characterId)) {
+const iswornby = (state: State, itemId: number, characterId: number): Promise<boolean> => Promise.all([
+    getPlayer(state, characterId),
+    getItem(state, itemId),
+])
+    .then(([player, item]) => {
+        if (!isCarriedBy(item, player, (state.my_lev < 10))) {
             return false;
         }
         if (item.heldBy === undefined) {
@@ -1418,11 +1437,16 @@ long newch;
 }
  */
 
-const on_flee_event = (state: State): Promise<void> => getItems(state)
-    .then(items => items.forEach((item) => {
-        if ((iscarrby(state, item.itemId, state.mynum)) && (!iswornby(state, item.itemId, state.mynum))) {
-            return getPlayer(state, state.mynum)
-                .then(() => putItem(state, item.itemId, item.locationId));
+const on_flee_event = (state: State): Promise<void> => Promise.all([
+    getPlayer(state, state.mynum),
+    getItems(state),
+])
+    .then(([
+        player,
+        items,
+    ]) => items.forEach((item) => {
+        if (isCarriedBy(item, player, (state.my_lev < 10)) && !iswornby(state, item.itemId, state.mynum)) {
+            return putItem(state, item.itemId, item.locationId);
         }
     }))
     .then(() => undefined);

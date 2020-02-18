@@ -1,10 +1,11 @@
 import {
-    bprintf,
+    bprintf, brkword,
     sendsys,
 } from './__dummies';
 import State from "./state";
-import {availableByMask, getItem, getItems, getPlayer, getPlayers, setPlayer} from "./support";
+import {getItem, getItems, getPlayer, getPlayers, setPlayer} from "./support";
 import {IS_LIT} from "./object";
+import {isCarriedBy, byMask, findAvailableItem} from "./objsys";
 
 /*
 #include "files.h"
@@ -17,35 +18,42 @@ on_timing()
 }
 */
 
-const onlook = (state: State): Promise<void> => {
-    chkfight(state, fpbnd(state, 'shazareth'));
-    if (!iscarrby(state, 45, state.mynum)) {
-        chkfight(state, fpbnd(state, 'wraith'));
-    }
-    chkfight(state, fpbnd(state, 'bomber'));
-    chkfight(state, fpbnd(state, 'owin'));
-    chkfight(state, fpbnd(state, 'glowin'));
-    chkfight(state, fpbnd(state, 'smythe'));
-    chkfight(state, fpbnd(state, 'dio'));
-    if (!iscarrby(state, 45, state.mynum)) {
-        chkfight(state, fpbnd(state, 'zombie'));
-    }
-    chkfight(state, fpbnd(state, 'rat'));
-    chkfight(state, fpbnd(state, 'ghoul'));
-    chkfight(state, fpbnd(state, 'ogre'));
-    chkfight(state, fpbnd(state, 'riatha'));
-    chkfight(state, fpbnd(state, 'yeti'));
-    chkfight(state, fpbnd(state, 'guardian'));
-    if (!iscarrby(state, 32, state.mynum)) {
-        dorune(state);
-    }
-    return getPlayer(state, state.mynum)
-        .then((player) => {
-            if (player.helping !== -1) {
-                helpchkr(state);
-            }
-        });
-};
+const onlook = (state: State): Promise<void> => Promise.all([
+    getPlayer(state, state.mynum),
+    getItem(state, 45),
+    getItem(state, 32),
+])
+    .then(([
+        player,
+        item45,
+        runeSword,
+    ]) => {
+        chkfight(state, fpbnd(state, 'shazareth'));
+        if (!isCarriedBy(item45, player, (state.my_lev < 10))) {
+            chkfight(state, fpbnd(state, 'wraith'));
+        }
+        chkfight(state, fpbnd(state, 'bomber'));
+        chkfight(state, fpbnd(state, 'owin'));
+        chkfight(state, fpbnd(state, 'glowin'));
+        chkfight(state, fpbnd(state, 'smythe'));
+        chkfight(state, fpbnd(state, 'dio'));
+        if (!isCarriedBy(item45, player, (state.my_lev < 10))) {
+            chkfight(state, fpbnd(state, 'zombie'));
+        }
+        chkfight(state, fpbnd(state, 'rat'));
+        chkfight(state, fpbnd(state, 'ghoul'));
+        chkfight(state, fpbnd(state, 'ogre'));
+        chkfight(state, fpbnd(state, 'riatha'));
+        chkfight(state, fpbnd(state, 'yeti'));
+        chkfight(state, fpbnd(state, 'guardian'));
+        if (isCarriedBy(runeSword, player, (state.my_lev < 10))) {
+            dorune(state);
+        }
+
+        if (player.helping !== -1) {
+            helpchkr(state);
+        }
+    });
 
 const chkfight = (state: State, playerId: number): Promise<void> => Promise.all([
     getPlayer(state, playerId),
@@ -74,7 +82,7 @@ const chkfight = (state: State, playerId: number): Promise<void> => Promise.all(
         if (randperc(state) > 40) {
             return;
         }
-        return availableByMask(state, { [IS_LIT]: true })
+        return byMask(state, { [IS_LIT]: true })
             .then((found) => {
                 if ((player.playerId === fpbns('yeti')) && found) {
                     return;
@@ -107,46 +115,32 @@ const chkfight = (state: State, playerId: number): Promise<void> => Promise.all(
     sillycom( "\001P%s\001\001d sings in Gaelic\n\001" ) ;
     bprintf( "You sing\n" ) ;
     }
+*/
 
- spraycom(  )
-    {
-    long a, b ;
-    long c ;
-    char bk[ 128 ] ;
-    extern long wordbuf[  ] ;
-    extern long mynum ;
-    extern long curch ;
-    b=vichere( &a ) ;
-    if( b== -1 ) return ;
-    if( brkword(  )== -1 )
-       {
-       bprintf( "With what ?\n" ) ;
-       return ;
-       }
-    if( !strcmp( wordbuf, "with" ) )
-       {
-       if( brkword(  )== -1 )
-          {
-          bprintf( "With what ?\n" ) ;
-          return ;
-          }
-       }
-    c=fobna( wordbuf ) ;
-    if( c== -1 )
-       {
-       bprintf( "With what ?\n" ) ;
-       return ;
-       }
-    switch( c )
-       {
-       default:
-          bprintf( "You can't do that\n" ) ;
-          break ;
-          }
-    return ;
+const spraycom = (state: State): Promise<void> => {
+    const [b, playerId] = vichere();
+    if (b === -1) {
+        return Promise.resolve();
     }
-
- */
+    if (brkword(state) === -1) {
+        bprintf(state, 'With what ?\n');
+        return Promise.resolve();
+    }
+    if (state.wordbuf === 'with') {
+        if (brkword(state) === -1) {
+            bprintf(state, 'With what ?\n');
+            return Promise.resolve();
+        }
+    }
+    return findAvailableItem(state, state.wordbuf)
+        .then((item) => {
+            if (item.itemId === -1) {
+                return bprintf(state, 'With what ?\n');
+            } else {
+                return bprintf(state, 'You can\'t do that\n');
+            }
+        })
+};
 
 /* More new stuff */
 
@@ -249,9 +243,12 @@ const pepdrop = (state: State): Promise<void> => {
                 return Promise.resolve();
             }
             /* Ok dragon and pepper time */
-            return getItem(state, 89)
-                .then((pepper) => {
-                    if (iscarrby(state, pepper.itemId, state.mynum) && (pepper.heldBy !== undefined)) {
+            return Promise.all([
+                getPlayer(state, state.mynum),
+                getItem(state, 89),
+            ])
+                .then(([player, pepper]) => {
+                    if (isCarriedBy(pepper, player, (state.my_lev < 10)) && (pepper.heldBy !== undefined)) {
                         /* Fried dragon */
                         return setPlayer(state, dragon.playerId, { exists: false })
                             .then(() => {
