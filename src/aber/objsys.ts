@@ -201,7 +201,7 @@ const listItems = (state: State, items: Item[]): string[] => items.map((item) =>
     return `${item.isDestroyed ? '--' : ''}${itemDescription(item, state.debug_mode)}`;
 });
 
-export const lisobs = (state: State): Promise<void> => getItems(state)
+export const showItems = (state: State): Promise<void> => getItems(state)
     .then(items => items.filter((item) => {
         if (!isLocatedIn(item, state.curch, (state.my_lev < 10))) {
             return false;
@@ -219,37 +219,13 @@ export const lisobs = (state: State): Promise<void> => getItems(state)
             .forEach(message => bprintf(state, `${message}\n`));
     });
 
-const dumpitems = (state: State) => dumpstuff(state, state.mynum, state.curch);
+export const dropItems = (state: State, player: Player, locationId?: number): Promise<void> => getItems(state)
+    .then(items => items.filter(item => isCarriedBy(item, player, (state.my_lev < 10))))
+    .then(items => Promise.all(items.map(item => putItem(state, item.itemId, (locationId === undefined) ? player.locationId : locationId))))
+    .then(() => {});
 
-const dumpstuff = (state: State, playerId: number, locationId: number): Promise<void> => getPlayer(state, playerId)
-    .then(player => getItems(state)
-        .then(items => items.forEach((item) => {
-            if (isCarriedBy(item, player, (state.my_lev < 10))) {
-                return putItem(state, item.itemId, locationId);
-            }
-        }))
-    );
-
-// long ublock[16*49];
-
-const whocom = (state: State): Promise<void> => {
-    let base = state.maxu;
-    if (state.my_lev > 9) {
-        bprintf(state, 'Players\n');
-        base = 0;
-    }
-    return getPlayers(state, base)
-        .then(players => players.forEach((player) => {
-            if (player.playerId === state.maxu) {
-                bprintf(state, '----------\nMobiles\n');
-                if (!player.exists) {
-                    return;
-                }
-                dispuser(state, player.playerId);
-            }
-        }))
-        .then(() => bprintf(state, '\n'));
-};
+export const dropMyItems = (state: State) => getPlayer(state, state.mynum)
+    .then(player => dropItems(state, player, state.curch));
 
 const dispuser = (state: State, playerId: number): Promise<void> => getPlayer(state, playerId)
     .then((player) => {
@@ -646,6 +622,36 @@ export class DropItem extends Action {
         } = result;
         bprintf(state, 'OK..\n');
         messages.forEach(message => bprintf(state, `${message}\n`));
+        return Promise.resolve();
+    }
+}
+
+class Who extends Action {
+    action(state: State): Promise<any> {
+        const maxPlayerId = (state.my_lev > 9) ? 0 : state.maxu;
+        if (maxPlayerId === 0) {
+            bprintf(state, 'Players\n');
+        }
+        return getPlayers(state, maxPlayerId)
+            .then(players => players.forEach((player) => {
+                if (player.playerId === state.maxu) {
+                    bprintf(state, '----------\nMobiles\n');
+                }
+                if (!player.exists) {
+                    return;
+                }
+                dispuser(state, player.playerId)
+            }))
+            .then(() => ({
+                state,
+            }));
+    }
+
+    decorate(result: any): Promise<void> {
+        const {
+            state,
+        } = result;
+        bprintf(state, '\n');
         return Promise.resolve();
     }
 }

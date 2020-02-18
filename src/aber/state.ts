@@ -105,6 +105,7 @@ interface PlayerData {
 export default interface State {
     // objsys
     numobs: number; // NOBS
+    ublock: PlayerData[],
     //
     argv_p: any,
     brmode: boolean,
@@ -129,7 +130,6 @@ export default interface State {
     out_ms: string,
     stp: number,
     sysbuf: string,
-    ublock: PlayerData[],
     wd_it: string,
     wordbuf: string,
     wpnheld: number,

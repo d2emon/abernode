@@ -5,7 +5,7 @@ import {
 } from './__dummies';
 import State from "./state";
 import {createItem, getItem, getPlayer, setPlayer, holdItem, Item, putItem} from "./support";
-import {findItem, isCarriedBy} from "./objsys";
+import {dropItems, findItem, isCarriedBy} from "./objsys";
 import state from "./state";
 
 /*
@@ -62,10 +62,12 @@ const sumcom = (state: State): Promise<void> => {
                 return;
             }
 
-            dumpstuff(state, player.playerId, player.locationId);
-            const seg = `[s name=\"${player.name}\"]${player.name} has arrived\n[/s]`;
-            sendsys(state, null, null, -10000, state.curch, seg);
-            return setPlayer(state, player.playerId, {locationId: state.curch});
+            return dropItems(state, player)
+                .then(() => {
+                    const seg = `[s name=\"${player.name}\"]${player.name} has arrived\n[/s]`;
+                    sendsys(state, null, null, -10000, state.curch, seg);
+                    return setPlayer(state, player.playerId, {locationId: state.curch});
+                });
         });
 
     if (brkword(state) === -1) {

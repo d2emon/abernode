@@ -22,7 +22,7 @@ import {
     IS_LIT, IS_KEY,
 } from "./object";
 import {logger} from "./files";
-import {isCarriedBy, byMask, findAvailableItem, itemDescription} from "./objsys";
+import {isCarriedBy, byMask, findAvailableItem, itemDescription, dropItems, dropMyItems} from "./objsys";
 
 /*
 struct player_res
@@ -1179,13 +1179,15 @@ const wounded = (state: State, damage: number): Promise<void> => {
             delpers(state, state.globme);
             state.zapped = true;
             openworld(state);
-            dumpitems(state);
-            loseme(state);
-            const ms1 = `${state.globme} has just died\n`;
-            sendsys(state, state.globme, state.globme, -10000, state.curch, ms1);
-            const ms2 = `[ ${state.globme} has just died ]\n`;
-            sendsys(state, state.globme, state.globme, -10113, state.curch, ms1);
-            crapup(state, 'Oh dear you just died\n');
+            return dropMyItems(state)
+                .then(() => {
+                    loseme(state);
+                    const ms1 = `${state.globme} has just died\n`;
+                    sendsys(state, state.globme, state.globme, -10000, state.curch, ms1);
+                    const ms2 = `[ ${state.globme} has just died ]\n`;
+                    sendsys(state, state.globme, state.globme, -10113, state.curch, ms2);
+                    crapup(state, 'Oh dear you just died\n');
+                });
         });
 };
 
@@ -1197,10 +1199,12 @@ const woundmn = (state: State, playerId: number, damage: number): Promise<void> 
                 if (strength >= 0) {
                     return mhitplayer(state, player.playerId, state.mynum);
                 }
-                dumpstuff(state, player.playerId, player.locationId);
-                const ms = `[ ${player.name} has just died ]\n`;
-                setPlayer(state, player.playerId, { exists: false })
-                    .then(() => sendsys(state, state.globme, state.globme, -10113, player.locationId, ms));
+                return dropItems(state, player)
+                    .then(() => {
+                        const ms = `[ ${player.name} has just died ]\n`;
+                        sendsys(state, state.globme, state.globme, -10113, player.locationId, ms);
+                        return setPlayer(state, player.playerId, { exists: false });
+                    });
             });
     });
 

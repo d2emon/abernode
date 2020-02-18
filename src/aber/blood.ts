@@ -2,7 +2,7 @@ import State from "./state";
 import {bprintf, brkword, sendsys} from "./__dummies";
 import {Item, getItem, getPlayer, Player, setPlayer} from "./support";
 import {logger} from "./files";
-import {findAvailableItem, findCarriedItem, isCarriedBy} from './objsys';
+import {dropMyItems, findAvailableItem, findCarriedItem, isCarriedBy} from './objsys';
 
 interface Attack {
     characterId: number,
@@ -255,16 +255,18 @@ const bloodrcv = (state: State, attack: Attack, isMe: boolean): Promise<void> =>
         }
         if (state.my_str < 0) {
             logger.write(`${state.globme} slain by ${enemy.name}`);
-            dumpitems(state);
-            loseme(state);
-            closeworld(state);
-            delpers(state, state.globme);
-            openworld(state);
-            const ms1 = `[p]${state.globme}[/p] has just died.\n`;
-            sendsys(state, state.globme, state.globme, -10000, state.curch, ms1);
-            const ms2 = `[ [p]${state.globme}[/p] has been slain by [p]${enemy.name}[/p] ]\n`;
-            sendsys(state, state.globme, state.globme, -10113, state.curch, ms2);
-            crapup(state, 'Oh dear... you seem to be slightly dead\\n');
+            return dropMyItems(state)
+                .then(() => {
+                    loseme(state);
+                    closeworld(state);
+                    delpers(state, state.globme);
+                    openworld(state);
+                    const ms1 = `[p]${state.globme}[/p] has just died.\n`;
+                    sendsys(state, state.globme, state.globme, -10000, state.curch, ms1);
+                    const ms2 = `[ [p]${state.globme}[/p] has been slain by [p]${enemy.name}[/p] ]\n`;
+                    sendsys(state, state.globme, state.globme, -10113, state.curch, ms2);
+                    crapup(state, 'Oh dear... you seem to be slightly dead\\n');
+                });
         }
         state.me_cal = 1; /* Queue an update when ready */
     });

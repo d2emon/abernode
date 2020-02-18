@@ -1,6 +1,8 @@
 import State from "./state";
 import {logger} from "./files";
 import {getPlayer, getPlayers, setPlayer} from "./support";
+import {bprintf} from "./__dummies";
+import {dropItems, dropMyItems, showItems} from "./objsys";
 
 /*
  *
@@ -513,20 +515,21 @@ const loseme = (state: State, name: string): Promise<void> => getPlayer(state, s
         /* ABOUT 2 MINUTES OR SO */
         state.i_setup = false;
         openworld(state);
-        dumpitems(state);
-        if (player.visibility < 10000) {
-            const bk = `${state.globme} has departed from AberMUDII\n`;
-            sendsys(state, state.globme, state.globme, -10113, 0, bk);
-        }
-        return setPlayer(state, player.playerId, { exists: false })
+        return dropMyItems(state)
+            .then(() => {
+                if (player.visibility < 10000) {
+                    const bk = `${state.globme} has departed from AberMUDII\n`;
+                    sendsys(state, state.globme, state.globme, -10113, 0, bk);
+                }
+                return setPlayer(state, player.playerId, { exists: false })
+            })
             .then(() => {
                 closeworld(state);
                 if (!state.zapped) {
                     saveme(state);
                 }
                 chksnp(state);
-            })
-
+            });
     });
 
 /*
@@ -549,77 +552,86 @@ const revise = (state: State, cutoff: number): Promise<void> => {
         .then(players => players.forEach((player) => {
             if (!player.exists && (player.eventId < (cutoff / 2)) && !player.isAbsent) {
                 broad(state, `${player.name} has been timed out\n`);
-                dumpstuff(state, player.playerId, player.locationId);
-                return setPlayer(state, player.playerId, { name: '' });
+                return dropItems(state, player)
+                    .then(() => setPlayer(state, player.playerId, { name: '' }));
             }
         }));
 };
 
-/*
- lookin(room)
- long room; *//* Lords ???? *//*
-    {
-    extern char globme[];
-    FILE *un1,un2;
-    char str[128];
-    long xxx;
-    extern long brmode;
-    extern long curmode;
-    extern long ail_blind;
-    long ct;
-    extern long my_lev;
-    closeworld();
-    if(ail_blind)
-    {
-    	bprintf("You are blind... you can't see a thing!\n");
+const lookin = (state: State, roomId: number): Promise<void> => {
+    /* Lords ???? */
+    closeworld(state);
+    if (state.ail_blind) {
+        bprintf(state, 'You are blind... you can\'t see a thing!\n');
     }
-    if(my_lev>9) showname(room);
-    un1=openroom(room,"r");
-    if (un1!=NULL)
-    {
-xx1:   xxx=0;
-       lodex(un1);
-       	if(isdark())
-       	{
-          		fclose(un1);
-          		bprintf("It is dark\n");
-                        openworld();
-          		onlook();
-          		return;
-          	}
-       while(getstr(un1,str)!=0)
-          {
-          if(!strcmp(str,"#DIE"))
-             {
-             if(ail_blind) {rewind(un1);ail_blind=0;goto xx1;}
-             if(my_lev>9)bprintf("<DEATH ROOM>\n");
-             else
-                {
-                loseme(globme);
-                crapup("bye bye.....\n");
+    if (state.my_lev > 9) {
+        showname(state, roomId);
+    }
+    return openroom(roomId, 'r')
+        .then((un1) => {
+            const xx1 = () => {
+                let xxx = false;
+                lodex(state, un1);
+                if (isdark(state)) {
+                    return fclose(un1)
+                        .then(() => {
+                            bprintf(state, 'It is dark\n');
+                            openworld(state);
+                            onlook(state);
+                        })
                 }
-             }
-          else
-{
-if(!strcmp(str,"#NOBR")) brmode=0;
-else
-             if((!ail_blind)&&(!xxx))bprintf("%s\n",str);
-          xxx=brmode;
-}
-          }
-       }
-    else
-       bprintf("\nYou are on channel %d\n",room);
-    fclose(un1);
-    openworld();
-    if(!ail_blind)
-    {
-	    lisobs();
-	    if(curmode==1) lispeople();
-    }
-    bprintf("\n");
-    onlook();
-    }
+                return getstr(un1)
+                    .then((content) => {
+                        content.forEach((s) => {
+                            if (s === '#DIE') {
+                                if (state.ail_blind) {
+                                    return rewind(state, un1)
+                                        .then(() => {
+                                            state.ail_blind = false;
+                                            return xx1();
+                                        });
+                                }
+                                if (state.my_lev > 9) {
+                                    return bprintf(state, '<DEATH ROOM>\n');
+                                } else {
+                                    loseme(state, state.globme);
+                                    return crapup(state, 'bye bye.....');
+                                }
+                            } else if (s === '#NOBR') {
+                                state.brmode = false;
+                            } else {
+                                if (!state.ail_blind && !xxx) {
+                                    bprintf(state, `${s}\n`);
+                                }
+                                xxx = state.brmode
+                            }
+                        });
+                        return fclose(state, un1);
+                    });
+            };
+            return xx1();
+        })
+        .catch(() => {
+            bprintf(state, `\nYou are on channel ${roomId}\n`);
+        })
+        .then(() => {
+            openworld(state);
+            if (!state.ail_blind) {
+                return showItems(state)
+                    .then(() => {
+                        if (state.curmode === 1) {
+                            lispeople(state);
+                        }
+                    })
+            }
+        })
+        .then(() => {
+            bprintf(state, '\n');
+            onlook(state);
+        });
+};
+
+/*
  loodrv()
     {
     extern long curch;

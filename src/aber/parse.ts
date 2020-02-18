@@ -3,7 +3,7 @@ import {createItem, getItem, getItems, getPlayer, holdItem, setItem, setPlayer} 
 import {bprintf, brkword, sendsys} from "./__dummies";
 import {logger, RESET_DATA, ROOMS} from "./files";
 import {CONTAINED_IN, IS_DESTROYED} from "./object";
-import {isCarriedBy, isAvailable, findAvailableItem, findCarriedItem, findItem} from "./objsys";
+import {isCarriedBy, isAvailable, findAvailableItem, findCarriedItem, findItem, dropItems, dropMyItems} from "./objsys";
 
 /*
 #include "files.h"
@@ -259,11 +259,11 @@ const doaction = (state: State, actionId: number): Promise<void> => {
             sendsys(state, state.globme, state.globme, -10000, state.curch, xx1);
             const xx2 = `[ Quitting Game : ${state.globme} ]\n`;
             sendsys(state, state.globme, state.globme, -10113, state.curch, xx2);
-            dumpitems(state);
-            return setPlayer(state, state.mynum, {
-                exists: false,
-                isDead: true,
-            })
+            return dropMyItems(state)
+                .then(() => setPlayer(state, state.mynum, {
+                    exists: false,
+                    isDead: true,
+                }))
                 .then(() => {
                     closeworld(state);
                     state.curmode = 0;
@@ -1357,8 +1357,8 @@ const exorcom = (state: State): Promise<void> => {
                 return bprintf(state, 'You can\'t exorcise them, they dont want to be exorcised\n');
             }
             return logger.write(`${state.globme} exorcised ${player.name}`)
+                .then(() => dropItems(state, player))
                 .then(() => {
-                    dumpstuff(state, player.playerId, player.locationId);
                     sendsys(state, player.name, state.globme, -10010, state.curch, null);
                     return setPlayer(state, player.playerId, { exists: false });
                 });
@@ -1505,21 +1505,19 @@ const stealcom = (state: State): Promise<void> => {
         })
 };
 
-/*
- dosumm(loc)
-    {
-    char ms[128];
-    extern long curch;
-    extern char globme[];
-    sprintf(ms,"\001s%s\001%s vanishes in a puff of smoke\n\001",globme,globme);
-    sendsys(globme,globme,-10000,curch,ms);
-    sprintf(ms,"\001s%s\001%s appears in a puff of smoke\n\001",globme,globme);
-    dumpitems();
-    curch=loc;
-    sendsys(globme,globme,-10000,curch,ms);
-    trapch(curch);
-    }
+const dosumm = (state: State, locationId: number): Promise<void> => {
+    const ms1 = `[s name="${state.globme}"]${state.globme} vanishes in a puff of smoke\n[/s]`;
+    sendsys(state, state.globme, state.globme, -10000, state.curch, ms1);
+    return dropMyItems(state)
+        .then(() => {
+            state.curch = locationId;
+            const ms2 = `[s name="${state.globme}"]${state.globme} appears in a puff of smoke\n[/s]`;
+            sendsys(state, state.globme, state.globme, -10000, state.curch, ms2);
+            trapch(state, state.curch);
+        })
+};
 
+/*
  tsscom()
     {
     char s[128];
