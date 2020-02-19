@@ -6,6 +6,7 @@ import State from "./state";
 import {getItem, getItems, getPlayer, getPlayers, setPlayer} from "./support";
 import {IS_LIT} from "./object";
 import {isCarriedBy, byMask, findAvailableItem, findPlayer} from "./objsys";
+import {hitPlayer} from "./blood";
 
 /*
 #include "files.h"
@@ -234,7 +235,8 @@ const dorune = (state: State): Promise<void> => {
                             return;
                         }
                         bprintf(state, 'The runesword twists in your hands lashing out savagely\n');
-                        hitplayer(state, player1.playerId, 32);
+                        return getItem(state, 32)
+                            .then(weapon => hitPlayer(state, player1, weapon));
                     });
             }
         }))

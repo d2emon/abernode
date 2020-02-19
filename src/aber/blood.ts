@@ -1,8 +1,36 @@
-import State from "./state";
-import {bprintf, brkword, sendsys} from "./__dummies";
-import {Item, getItem, getPlayer, Player, setPlayer} from "./support";
-import {logger} from "./files";
-import {dropMyItems, findAvailableItem, findCarriedItem, findVisiblePlayer, isCarriedBy} from './objsys';
+import State from './state';
+import {
+    bprintf,
+    brkword,
+    sendsys,
+} from './__dummies';
+import {
+    Item,
+    Player,
+    getItem,
+    getPlayer,
+    setPlayer,
+} from './support';
+import {logger} from './files';
+import {
+    dropMyItems,
+    findAvailableItem,
+    findCarriedItem,
+    findVisiblePlayer,
+    isCarriedBy,
+} from './objsys';
+import Action from './action';
+
+const openworld = (state: State): void => undefined;
+const closeworld = (state: State): void => undefined;
+const calibme = (state: State): void => undefined;
+const crapup = (state: State, message: string): void => undefined;
+const delpers = (state: State, name: string): void => undefined;
+const loseme = (state: State): void => undefined;
+const randperc = (state: State): number => 0;
+const sys_reset = (state: State): void => undefined;
+const iswornby = (state: State, item: Item, player: Player): boolean => false;
+const woundmn = (state: State, victim: Player, damage: number): void => undefined;
 
 interface Attack {
     characterId: number,
@@ -10,205 +38,130 @@ interface Attack {
     weaponId?: number,
 }
 
-
-/*
-#include <stdio.h>
-#include "files.h"
-#include "System.h"
-
-
-
-long in_fight=0;
-long  fighting= -1;
-*/
-
-const dambyitem = (state: State, itemId: number): Promise<number> => {
-    if (itemId === -1) {
-        return Promise.resolve(4);
-    }
-    return getItem(state, itemId).then(item => item.damage);
+const getWeaponId = (state: State): number => state.wpnheld;
+const setWeapon = (state: State, weapon?: Item): void => {
+    state.wpnheld = weapon ? weapon.itemId : undefined;
 };
 
-/*
-long wpnheld= -1;
-*/
-
-const weapcom = (state: State): Promise<void> => {
-    if (brkword(state) === -1) {
-        bprintf(state, 'Which weapon do you wish to select though\n');
-        return Promise.resolve();
-    }
-    return getPlayer(state, state.mynum)
-        .then(player => findCarriedItem(state, state.wordbuf, player))
-        .then((item) => {
-            if (item.itemId === -1) {
-                return bprintf(state, 'Whats one of those ?\n');
-            }
-            const b = dambyitem(state, item.itemId);
-            if (b < 0) {
-                state.wpnheld = -1;
-                return bprintf(state, 'Thats not a weapon\n');
-            }
-            state.wpnheld = item.itemId;
-            calibme(state);
-            return bprintf(state, 'OK...\n');
-        })
+const getFight = (state: State): number => state.in_fight;
+const setFight = (state: State, enemy: Player): void => {
+    state.fighting = enemy.playerId;
+    state.in_fight = 300;
+};
+const resetFight = (state: State): void => {
+    state.in_fight = 0;
+    state.fighting = -1;
 };
 
-const hitplayer = (state: State, victimId: number, weaponId: number): Promise<void> => Promise.all([
-    getPlayer(state, state.mynum),
-    getPlayer(state, victimId),
-    getItem(state, weaponId),
-])
-    .then(([
-        player,
-        victim,
-        weapon,
-    ]) => {
+const damageByItem = (item?: Item): number => item ? item.damage : 4;
+
+const SCEPTRE_ID = 16;
+const RUNE_SWORD_ID = 32;
+
+export const hitPlayer = (state: State, victim: Player, weapon?: Item): Promise<void> => getPlayer(state, state.mynum)
+    .then((player) => {
         if (!victim.exists) {
             return;
         }
         /* Chance to hit stuff */
-        if (!isCarriedBy(weapon, player, (state.my_lev < 10)) && (weapon.itemId !== -1)) {
-            bprintf(state, `You belatedly realise you dont have the ${weapon.name},\nand are forced to use your hands instead..\n`);
-            if (state.wpnheld === weapon.itemId) {
-                state.wpnheld = -1;
-            }
+        if (weapon && !isCarriedBy(weapon, player, (state.my_lev < 10))) {
+            bprintf(state, `You belatedly realise you dont have the ${weapon.name},\n`);
+            bprintf(state, 'and are forced to use your hands instead..\n');
             weapon = undefined;
         }
-        state.wpnheld = weapon ? weapon.itemId : undefined;
-        return getItem(state, 16)
-            .then((runeShield) => {
-                if (weapon && (weapon.itemId === 32) && isCarriedBy(runeShield, victim, (state.my_lev < 10))) {
-                    return bprintf(state, 'The runesword flashes back away from its target, growling in anger!\n');
+        setWeapon(state, weapon);
+
+        let p = Promise.resolve();
+        if (weapon && (weapon.itemId === RUNE_SWORD_ID)) {
+            p = getItem(state, SCEPTRE_ID)
+                .then((sceptre) => {
+                    if (isCarriedBy(sceptre, victim, (state.my_lev < 10))) {
+                        throw new Error('The runesword flashes back away from its target, growling in anger!');
+                    }
+                })
+        }
+        return p
+            .then(() => {
+                if (damageByItem(weapon) === undefined) {
+                    setWeapon(state, undefined);
+                    throw new Error('Thats no good as a weapon');
                 }
-                return dambyitem(state, weapon.itemId)
-                    .then((damage) => {
-                        if (damage < 0) {
-                            bprintf(state, 'Thats no good as a weapon\n');
-                            state.wpnheld = -1;
-                            return;
+                if (getFight(state)) {
+                    throw new Error('You are already fighting!');
+                }
+
+                setFight(state, victim);
+                return Promise.all([
+                    getItem(state, 89),
+                    getItem(state, 113),
+                    getItem(state, 114),
+                ])
+            })
+            .then((shields) => {
+                let toHit = 40 + 3 * state.my_lev;
+                if (shields.some(shield => iswornby(state, shield, victim))) {
+                    toHit -= 10;
+                }
+                if (toHit < 0) {
+                    toHit = 0;
+                }
+                return randperc(state) < toHit;
+            })
+            .then((hit: boolean) => {
+                if (hit) {
+                    const weaponDescription = weapon ? `with the ${weapon.name}` : '';
+                    bprintf(state, `You hit [p]${victim.name}[/p] ${weaponDescription}\n`);
+
+                    const attack: Attack = {
+                        characterId: state.mynum,
+                        damage: randperc(state) % damageByItem(weapon),
+                        weaponId: weapon ? weapon.itemId : undefined,
+                    };
+                    const promises = [];
+                    if (attack.damage > victim.strength) {
+                        // Killed
+                        bprintf(state, 'Your last blow did the trick\n');
+                        if (!victim.isDead) {
+                            /* Bonus ? */
+                            state.my_sco += victim.value;
                         }
-                        if (state.in_fight) {
-                            bprintf(state, 'You are already fighting!\n');
-                            return;
-                        }
-                        state.fighting = victim.playerId;
-                        state.in_fight = 300;
-                        const res = randperc(state);
-                        let cth = 40 + 3 * state.my_lev;
-                        if (iswornby(state, 89, victim) || iswornby(state, 113, victim) || iswornby(state, 114, victim)) {
-                            cth -= 10;
-                        }
-                        if (cth < 0) {
-                            cth = 0;
-                        }
-                        if (cth > res) {
-                            bprintf(state, `You hit [p]${victim.name}[/p] `);
-                            if (weapon && (weapon.itemId === -1)) {
-                                bprintf(state, `with the ${weapon.name}`);
-                            }
-                            bprintf(state, '\n');
-                            const ddn = randperc(state) % damage;
-                            const x: Attack = {
-                                characterId: state.mynum,
-                                damage: ddn,
-                                weaponId: weapon && weapon.itemId,
-                            };
-                            if (victim.strength - ddn < 0) {
-                                bprintf(state, 'Your last blow did the trick\n');
-                                if (!victim.isDead) {
-                                    /* Bonus ? */
-                                    state.my_sco += victim.value;
-                                }
-                                setPlayer(state, victim.playerId, { isDead: true });
-                                /* MARK ALREADY DEAD */
-                                state.in_fight = 0;
-                                state.fighting = -1;
-                            }
-                            if (victim.playerId < 16) {
-                                sendsys(state, victim.name, state.globme, -10021, state.curch, x);
-                            } else {
-                                woundmn(state, victim.playerId, ddn);
-                            }
-                            state.my_sco += ddn * 2;
+                        resetFight(state);
+                        /* MARK ALREADY DEAD */
+                        promises.push(setPlayer(state, victim.playerId, { isDead: true }));
+                    }
+                    return Promise.all(promises)
+                        .then(() => {
+                            state.my_sco += attack.damage * 2;
                             calibme(state);
-                            return;
-                        } else {
-                            bprintf(state, `You missed [p]${victim.name}[/p]\n`);
-                            const x: Attack = {
-                                characterId: state.mynum,
-                                damage: -1,
-                                weaponId: weapon && weapon.itemId,
-                            };
-                            if (victim.playerId < 16) {
-                                sendsys(state, victim.name, state.globme, -10021, state.curch, x);
-                            } else {
-                                woundmn(state, victim, 0);
-                            }
-                        }
-                    });
-            });
+                            return attack;
+                        });
+                } else {
+                    bprintf(state, `You missed [p]${victim.name}[/p]\n`);
+                    return {
+                        characterId: state.mynum,
+                        damage: undefined,
+                        weaponId: weapon ? weapon.itemId : undefined,
+                    };
+                }
+            })
+            .then((attack) => {
+                if (victim.playerId < 16) {
+                    return sendsys(
+                        state,
+                        victim.name,
+                        state.globme,
+                        -10021,
+                        state.curch,
+                        attack,
+                    );
+                } else {
+                    return woundmn(state, victim, attack.damage || 0);
+                }
+            })
+            .catch(e => bprintf(state, `${e}\n`));
     });
 
-const killcom = (state: State): Promise<void> => {
-    const hitWith = (player: Player): Promise<void> => {
-        if (brkword(state) === -1) {
-            return hitplayer(state, player.playerId, state.wpnheld);
-        }
-        if (state.wordbuf === 'with') {
-            if (brkword(state) === -1) {
-                bprintf(state, 'with what ?\n');
-                return Promise.resolve();
-            }
-        } else {
-            return hitWith(player);
-        }
-
-        return getPlayer(state, state.mynum)
-            .then(me => findCarriedItem(state, state.wordbuf, me))
-            .then((item) => {
-                if (item.itemId === -1) {
-                    bprintf(state, 'with what ?\n');
-                    return Promise.resolve();
-                }
-                return hitplayer(state, player.playerId, item.itemId);
-            });
-    };
-
-    if (brkword(state) === -1) {
-        bprintf(state, 'Kill who\n');
-        return Promise.resolve();
-    }
-    if (state.wordbuf === 'door') {
-        bprintf(state, 'Who do you think you are , Moog?\n');
-        return Promise.resolve();
-    }
-    return findAvailableItem(state, state.wordbuf)
-        .then((item) => {
-            if (item.itemId !== -1) {
-                return breakitem(state, item.itemId);
-            }
-            return findVisiblePlayer(state, state.wordbuf)
-                .then((player) => {
-                    if (!player) {
-                        bprintf(state, 'You can\'t do that\n');
-                        return Promise.resolve();
-                    }
-                    if (player.playerId === state.mynum) {
-                        bprintf(state, 'Come on, it will look better tomorrow...\n');
-                        return Promise.resolve();
-                    }
-                    if (player.locationId !== state.curch) {
-                        bprintf(state, 'They aren\'t here\n');
-                        return Promise.resolve();
-                    }
-                    return hitWith(player);
-                });
-        })
-};
-
-const bloodrcv = (state: State, attack: Attack, isMe: boolean): Promise<void> => Promise.all([
+export const receiveDamage = (state: State, attack: Attack, isMe: boolean): Promise<void> => Promise.all([
     getPlayer(state, attack.characterId),
     Promise.resolve(attack.damage),
     getItem(state, attack.weaponId),
@@ -218,71 +171,180 @@ const bloodrcv = (state: State, attack: Attack, isMe: boolean): Promise<void> =>
         damage,
         weapon,
     ]) => {
+        const lifeDrain = () => {
+            state.my_sco -= 100 * damage;
+            bprintf(state, 'You feel weaker, as the wraiths icy touch seems to drain your very life force\n');
+            if (state.my_sco < 0) {
+                state.my_str = -1;
+            }
+        };
+
+        const killed = () => Promise.all([
+            logger.write(`${state.globme} slain by ${enemy.name}`),
+            dropMyItems(state),
+        ])
+            .then(() => {
+                loseme(state);
+                closeworld(state);
+                delpers(state, state.globme);
+                openworld(state);
+                sendsys(
+                    state,
+                    state.globme,
+                    state.globme,
+                    -10000,
+                    state.curch,
+                    `[p]${state.globme}[/p] has just died.\n`,
+                );
+                sendsys(
+                    state,
+                    state.globme,
+                    state.globme,
+                    -10113,
+                    state.curch,
+                    `[ [p]${state.globme}[/p] has been slain by [p]${enemy.name}[/p] ]\n`,
+                );
+                return crapup(state, 'Oh dear... you seem to be slightly dead');
+            });
+
+        const missed = () => {
+            const weaponMessage = weapon ? ` with the ${weapon.name}` : '';
+            bprintf(state, `[p]${enemy.name}[/p] attacks you${weaponMessage}\n`);
+        };
+
+        const wounded = () => {
+            const weaponMessage = weapon ? ` with the ${weapon.name}` : '';
+            bprintf(state, `You are wounded by [p]${enemy.name}[/p]${weaponMessage}\n`);
+
+            if (state.my_lev < 10) {
+                // Set Damage
+                state.my_str -= damage;
+                if (enemy.playerId === 16) {
+                    lifeDrain();
+                }
+            }
+
+            if (state.my_str < 0) {
+                return killed();
+            }
+
+            state.me_cal = 1; /* Queue an update when ready */
+        };
+
         if (!isMe) {
             /* for mo */
             return;
         }
-        if (enemy.playerId < 0) {
+        if (!enemy) {
             return;
         }
         if (!enemy.exists) {
             return;
         }
-        state.fighting = enemy.playerId;
-        state.in_fight = 300;
-        if (damage === -1) {
-            bprintf(state, `[p]${enemy.name}[/p] attacks you`);
-            if (weapon && weapon.itemId !== -1) {
-                bprintf(state, ` with the ${weapon.name}`);
-            }
-            bprintf(state, '\n');
-            return;
-        }
-        bprintf(state, `You are wounded by [p]${enemy.name}[/p]`);
-        if (weapon && weapon.itemId !== -1) {
-            bprintf(state, ` with the ${weapon.name}`);
-        }
-        bprintf(state, '\n');
-        if (state.my_lev < 10) {
-            state.my_str -= damage;
-            if (enemy.playerId === 16) {
-                state.my_sco -= 100 * damage;
-                bprintf(state, 'You feel weaker, as the wraiths icy touch seems to drain your very life force\n');
-                if (state.my_sco < 0) {
-                    state.my_str = -1;
-                }
-            }
-        }
-        if (state.my_str < 0) {
-            logger.write(`${state.globme} slain by ${enemy.name}`);
-            return dropMyItems(state)
-                .then(() => {
-                    loseme(state);
-                    closeworld(state);
-                    delpers(state, state.globme);
-                    openworld(state);
-                    const ms1 = `[p]${state.globme}[/p] has just died.\n`;
-                    sendsys(state, state.globme, state.globme, -10000, state.curch, ms1);
-                    const ms2 = `[ [p]${state.globme}[/p] has been slain by [p]${enemy.name}[/p] ]\n`;
-                    sendsys(state, state.globme, state.globme, -10113, state.curch, ms2);
-                    crapup(state, 'Oh dear... you seem to be slightly dead\\n');
-                });
-        }
-        state.me_cal = 1; /* Queue an update when ready */
+
+        setFight(state, enemy);
+        return (damage === undefined)
+            ? missed()
+            : wounded();
     });
 
-/*
-void  breakitem(x)
-    {
-    switch(x)
-       {
-	case 171:sys_reset();break;
-	case -1:
-          bprintf("What is that ?\n");break;
-       default:
-          bprintf("You can't do that\n");
-          }
+// Actions
+
+export class Weapon extends Action {
+    action(state: State): Promise<any> {
+        if (brkword(state) === -1) {
+            throw new Error('Which weapon do you wish to select though');
+        }
+        return getPlayer(state, state.mynum)
+            .then(player => findCarriedItem(state, state.wordbuf, player))
+            .then((item) => {
+                if (!item) {
+                    throw new Error('Whats one of those ?');
+                }
+                const weapon = (damageByItem(item) !== undefined) ? item : undefined;
+                setWeapon(state, weapon);
+                if (!weapon) {
+                    throw new Error('Thats not a weapon');
+                }
+                calibme(state);
+            });
     }
 
+    decorate(result: any): void {
+        this.output('OK...\n');
+    }
+}
 
- */
+export class Kill extends Action {
+    getVictim(state: State): Promise<Player> {
+        return findVisiblePlayer(state, state.wordbuf)
+            .then((player) => {
+                if (!player) {
+                    throw new Error('You can\'t do that');
+                }
+                if (player.playerId === state.mynum) {
+                    throw new Error('Come on, it will look better tomorrow...');
+                }
+                if (player.locationId !== state.curch) {
+                    throw new Error('They aren\'t here');
+                }
+                return player;
+            });
+    }
+
+    getWeapon(state: State): Promise<Item> {
+        if (brkword(state) === -1) {
+            return getItem(state, getWeaponId(state));
+        }
+        if (state.wordbuf !== 'with') {
+            return this.getWeapon(state);
+        }
+        if (brkword(state) === -1) {
+            throw new Error('with what ?\n');
+        }
+        return getPlayer(state, state.mynum)
+            .then(me => findCarriedItem(state, state.wordbuf, me))
+            .then((weapon) => {
+                if (!weapon) {
+                    throw new Error('with what ?\n');
+                }
+                return weapon;
+            });
+    }
+
+    breakItem(state: State, item?: Item): Promise<any> {
+        if (!item) {
+            throw new Error('What is that ?');
+        }
+        if (item.itemId === 171) {
+            sys_reset(state);
+            return;
+        }
+        throw new Error('You can\'t do that');
+    }
+
+    killPlayer(state: State): Promise<any> {
+        return Promise.all([
+            this.getVictim(state),
+            this.getWeapon(state),
+        ])
+            .then(([player, weapon]) => {
+                return hitPlayer(state, player, weapon);
+            });
+    };
+
+    action(state: State): Promise<any> {
+        if (brkword(state) === -1) {
+            throw new Error('Kill who');
+        }
+        if (state.wordbuf === 'door') {
+            throw new Error('Who do you think you are , Moog?');
+        }
+        return findAvailableItem(state, state.wordbuf)
+            .then((item) => (
+                item
+                    ? this.breakItem(state, item)
+                    : this.killPlayer(state)
+            ));
+    }
+}

@@ -13,6 +13,7 @@ import {
     dropMyItems,
     findVisiblePlayer, findPlayer
 } from "./objsys";
+import {hitPlayer, receiveDamage} from "./blood";
 
 /*
 #include "files.h"
@@ -870,7 +871,7 @@ long ades=0;
 long zapped;
 */
 
-const gamrcv = (state: State, block: { v0: number, code: number }): Promise<void> => {
+const gamrcv = (state: State, block: { locationId: number, code: number }): Promise<void> => {
     const actions = {
         '-9900': () => setPlayer(state, i[0], { visibility: i[1] }),
         /*
@@ -913,7 +914,7 @@ const gamrcv = (state: State, block: { v0: number, code: number }): Promise<void
                 .then((player2) => {
                     state.snoopd = player2 ? player2.playerId : -1;
                 });
-        }
+        },
         /*
        case -10000:
           if((isme!=1)&&(blok[0]==curch))
@@ -923,17 +924,19 @@ const gamrcv = (state: State, block: { v0: number, code: number }): Promise<void
           break;
        case -10030:
           wthrrcv(blok[0]);break;
-       case -10021:
-          if(curch==blok[0])
-             {
-             if(isme==1)
-                {
-                rdes=1;
-                vdes=i[0];
-                bloodrcv((long *)text,isme);
-                }
-             }
-          break;
+       */
+        '-10021': (payload) => {
+            if (!isme) {
+                return Promise.resolve();
+            }
+            if (state.curch !== block.locationId) {
+                return Promise.resolve();
+            }
+            state.rdes = 1;
+            state.vdes = payload.characterId;
+            return receiveDamage(state, payload, isme);
+        }
+        /*
        case -10020:
           if(isme==1)
              {
@@ -1023,10 +1026,10 @@ const gamrcv = (state: State, block: { v0: number, code: number }): Promise<void
                 state.fighting = -1;
                 return;
             } else if (block.code < -10099) {
-                return new1rcv(state, isme, block.v0, name1, name2, block.code, text);
+                return new1rcv(state, isme, block.locationId, name1, name2, block.code, text);
             } else {
                 const action = actions[block.code] || (() => undefined);
-                return action();
+                return action(text);
             }
         });
 };
@@ -1084,8 +1087,11 @@ const eorte = (state: State): Promise<void> => {
                 if (state.in_fight) {
                     if (state.interrupt) {
                         state.in_fight = 0;
-                        hitplayer(state, state.fighting, state.wpnheld);
-                        return;
+                        return Promise.all([
+                            getPlayer(state, state.fighting),
+                            getItem(state, state.wpnheld),
+                        ])
+                            .then(([enemy, weapon]) => hitPlayer(state, enemy, weapon));
                     }
                 }
             });

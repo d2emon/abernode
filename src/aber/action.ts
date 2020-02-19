@@ -4,7 +4,8 @@ import {bprintf} from "./__dummies";
 export interface ActionInterface {
     action(state: State): Promise<any>,
     check(state: State): Promise<void>,
-    decorate(result: any): Promise<void>,
+    decorate(result: any): void,
+    output(message: string): void,
     perform(state: State): Promise<void>,
 }
 
@@ -17,9 +18,13 @@ class Action implements ActionInterface {
         return Promise.resolve();
     }
 
-    decorate(result: any): Promise<void> {
-        return Promise.reject(new Error('Not implemented'));
+    decorate(result: any): void {
+        return;
     };
+
+    output(message: string): void {
+        bprintf({}, message)
+    }
 
     perform(state: State): Promise<void> {
         return this.check(state)

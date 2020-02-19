@@ -103,6 +103,10 @@ export interface PlayerData {
 }
 
 export default interface State {
+    // blood
+    fighting: number,
+    in_fight: number,
+    wpnheld: number,
     // objsys
     numobs: number; // NOBS
     ublock: PlayerData[],
@@ -113,11 +117,9 @@ export default interface State {
     debug_mode: boolean,
     ex_dat: number[],
     exittxt: string[],
-    fighting: number,
     globme: string,
     hasfarted: boolean,
     i_setup: boolean,
-    in_fight: number,
     jumtb: number[],
     maxu: number,
     me_cal: number,
@@ -135,6 +137,5 @@ export default interface State {
     wd_him: string,
     wd_it: string,
     wordbuf: string,
-    wpnheld: number,
     zapped: boolean,
 }

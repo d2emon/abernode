@@ -78,7 +78,7 @@ export interface Item {
     description: string,
     value: number,
     connectedItemId?: number,
-    damage: number,
+    damage?: number,
 }
 
 const itemFromState = (state: State, itemId: number): Item => ({
@@ -123,7 +123,7 @@ const itemFromState = (state: State, itemId: number): Item => ({
         : undefined,
     damage: state.objinfo[itemId].flags[IS_WEAPON]
         ? state.objinfo[itemId].payload.damage
-        : -1,
+        : undefined,
 });
 export const getItem = (state: State, itemId: number): Promise<Item> => Promise.resolve(
     itemFromState(state, itemId)
