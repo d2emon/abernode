@@ -8,7 +8,7 @@ import State from "./state";
 import {createItem, getItem, getItems, getPlayer, holdItem, Item, setItem, setPlayer} from "./support";
 import {EXAMINES, HELP1} from "./files";
 import {CONTAINED_IN, HELD_BY, IS_DESTROYED, LOCATED_IN} from "./object";
-import {findAvailableItem, findItem, isCarriedBy} from './objsys';
+import {findAvailableItem, findItem, findVisiblePlayer, isCarriedBy} from './objsys';
 
 /*
 #include "files.h"
@@ -26,7 +26,7 @@ long getnarg();
 const helpcom = (state: State): Promise<void> => {
     if (brkword(state) !== -1) {
         return Promise.all([
-            getPlayer(state, fpbn(state, state.wordbuf)),
+            findVisiblePlayer(state, state.wordbuf),
             getPlayer(state, state.mynum),
         ])
             .then(([player, me]) => {
@@ -152,7 +152,7 @@ const examcom = (state: State): Promise<void> => {
         bprintf(state, 'Examine what ?\n');
         return Promise.resolve();
     }
-    return findAvailableItem(state.wordbuf)
+    return findAvailableItem(state, state.wordbuf)
         .then((item: Item) => {
             if (item.itemId === -1) {
                 return bprintf(state, 'You see nothing special at all\n');
@@ -242,9 +242,9 @@ const examcom = (state: State): Promise<void> => {
         });
 };
 
-const statplyr = (state: State): Promise<void> => getPlayer(state, fpbn(state, state.wordbuf))
+const statplyr = (state: State): Promise<void> => findVisiblePlayer(state, state.wordbuf)
     .then((player) => {
-        if (player.playerId === -1) {
+        if (!player) {
             return bprintf(state, 'Whats that ?\n');
         }
         bprintf(state, `Name      : ${player.name}\n`);
@@ -255,13 +255,9 @@ const statplyr = (state: State): Promise<void> => getPlayer(state, fpbn(state, s
         showname(state, player.locationId);
     });
 
+const statplyr = (state: State): Promise<void> => findVisiblePlayer(state, state.wordbuf).then(() => {});
+
 /*
- statplyr()
- {
- extern char wordbuf[];
- long a,b;
- b=fpbn(wordbuf);
- }
  wizlist()
  {
  extern long my_lev;
@@ -423,9 +419,9 @@ const wherecom = (state: State): Promise<void> => {
                 }
             }
         }))
-        .then(() => getPlayer(state, fpbn(state.wordbuf)))
+        .then(() => findVisiblePlayer(state, state.wordbuf))
         .then((player) => {
-            if (player.playerId !== -1) {
+            if (player) {
                 found = true;
                 bprintf(state, `${player.name} - `);
                 desrm(state, player.locationId,0);

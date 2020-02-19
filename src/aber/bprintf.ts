@@ -2,6 +2,7 @@ import State from './state';
 import {logger} from './files';
 import {getPlayer} from "./support";
 import {brkword} from "./__dummies";
+import {findPlayer, findVisiblePlayer} from "./objsys";
 
 /*
 #include "files.h"
@@ -80,40 +81,31 @@ int pndeaf(str,ct,file)
     if(!ail_deaf)fprintf(file,"%s",x);
     return(ct);
     }
+*/
 
- pcansee(str,ct,file)
- char *str;
- FILE *file;
-    {
-    char x[25];
-    char z[257];
-    long a;
-    ct=tocontinue(str,ct,x,23);
-    a=fpbns(x);
-    if(!seeplayer(a))
-       {
-       ct=tocontinue(str,ct,z,256);
-       return(ct);
-       }
-    ct=tocontinue(str,ct,z,256);
-    fprintf(file,"%s",z);
-    return(ct);
-    }
+const pcansee = (state: State, text: string, offset: number, file: any): Promise<number> => tocontinue(state, text, offset, '', 23)
+    .then(([offset, name]) => Promise.all([
+        findPlayer(state, name),
+        tocontinue(state, text, offset, '', 256),
+    ]))
+    .then(([player, [offset, z]]) => {
+        if (!seeplayer(state, player.playerId)) {
+            return offset;
+        }
+        return fprintf(file, z)
+            .then(() => offset);
+    });
 
- prname(str,ct,file)
- char *str;
- FILE *file;
-    {
-    char x[24];
-    ct=tocontinue(str,ct,x,24);
-    if(!seeplayer(fpbns(x)))
-    fprintf(file,"Someone");
-    else
-      fprintf(file,"%s",x);
-    return(ct);
-    }
+const prname = (state: State, text: string, offset: number, file: any): Promise<number> => tocontinue(state, text, offset, '', 24)
+    .then(([offset, name]) => Promise.all([
+        findPlayer(state, name),
+        Promise.resolve(offset),
+        Promise.resolve(name),
+    ]))
+    .then(([player, offset, name]) => fprintf(file, seeplayer(state, player.playerId) ? name : 'Someone')
+        .then(() => offset));
 
-
+/*
 int pndark(str,ct,file)
  char *str;
  FILE *file;
@@ -127,7 +119,7 @@ int pndark(str,ct,file)
     }
 */
 
-const tocontinue = (state: State, text: string, offset: number, output: string, maxLength: number): Promise<number> => {
+const tocontinue = (state: State, text: string, offset: number, output: string, maxLength: number): Promise<any[]> => {
     while(!text.substr(offset).startsWith('[\\')) {
         output += text[offset];
         offset += 1;
@@ -135,9 +127,9 @@ const tocontinue = (state: State, text: string, offset: number, output: string, 
     if (output.length >= maxLength) {
         return logger.write('IO_TOcontinue overrun')
             .then(() => crapup(state, 'Buffer OverRun in IO_TOcontinue'))
-            .then(() => 0);
+            .then(() => [0]);
     }
-    return Promise.resolve(offset + 1);
+    return Promise.resolve([offset + 1, output]);
 };
 
 const seeplayer = (state: State, playerId: number): Promise<boolean> => Promise.all([
@@ -169,39 +161,29 @@ const seeplayer = (state: State, playerId: number): Promise<boolean> => Promise.
         return true;
     });
 
+const ppndeaf = (state: State, text: string, offset: number, file: any): Promise<number> => tocontinue(state, text, offset, '', 24)
+    .then(([offset, name]) => {
+        if (state.ail_deaf) {
+            return offset;
+        }
+        return findPlayer(state, name)
+            .then(player => fprintf(file, seeplayer(state, player.playerId) ? name : 'Someone'))
+            .then(() => offset);
+
+    });
+
+const ppnblind = (state: State, text: string, offset: number, file: any): Promise<number> => tocontinue(state, text, offset, '', 24)
+    .then(([offset, name]) => {
+        if (state.ail_blind) {
+            return offset;
+        }
+        return findPlayer(state, name)
+            .then(player => fprintf(file, seeplayer(state, player.playerId) ? name : 'Someone'))
+            .then(() => offset);
+
+    });
+
 /*
-int ppndeaf(str,ct,file)
- char *str;
- FILE *file;
-    {
-    char x[24];
-    extern long ail_deaf;
-    long a;
-    ct=tocontinue(str,ct,x,24);
-    if(ail_deaf) return(ct);
-    a=fpbns(x);
-    if(seeplayer(a)) fprintf(file,"%s",x);
-    else
-      fprintf(file,"Someone");
-    return(ct);
-    }
-
-int  ppnblind(str,ct,file)
-char *str;
-FILE *file;
-    {
-    extern long ail_blind;
-    char x[24];
-    long a;
-    ct=tocontinue(str,ct,x,24);
-    if(ail_blind) return(ct);
-    a=fpbns(x);
-    if(seeplayer(a)) fprintf(file,"%s",x);
-    else
-       fprintf(file,"Someone");
-    return(ct);
-    }
-
 char *sysbuf=NULL;
 
 void makebfr()
@@ -345,9 +327,9 @@ const snoopcom = (state: State): Promise<void> => {
     if (brkword() === -1) {
         return Promise.resolve();
     }
-    return getPlayer(state, fpbn(state, state.wordbuf))
+    return findVisiblePlayer(state, state.wordbuf)
         .then((snooped) => {
-            if (snooped.playerId === -1) {
+            if (!snooped) {
                 return bprintf(state, 'Who is that ?\n');
             }
             if (((state.my_lev < 10000) && snooped.isWizard) || !snooped.canBeSnooped) {
@@ -391,10 +373,18 @@ sendsys(sntn,globme,-400,0,"");
 }
 */
 
-const setname = (state: State, playerId: number): Promise<void> => getPlayer(state, playerId)
-    .then((player) => {
+const setname = (state: State, playerId: number): Promise<void> => Promise.all([
+    getPlayer(state, playerId),
+    findPlayer(state, 'riatha'),
+    findPlayer(state, 'shazareth'),
+])
+    .then(([
+        player,
+        riatha,
+        shazareth,
+    ]) => {
         /* Assign Him her etc according to who it is */
-        if ((player.playerId > 15) && (player.playerId !== fpbns(state, 'riatha')) && (player.playerId !== fpbns(state, 'shazareth'))) {
+        if ((player.playerId > 15) && (player.playerId !== riatha.playerId) && (player.playerId !== shazareth.playerId)) {
             state.wd_it = player.name;
             return;
         }

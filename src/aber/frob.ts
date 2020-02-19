@@ -1,6 +1,7 @@
 import State from "./state";
 import {bprintf} from "./__dummies";
 import {getPlayer} from "./support";
+import {findVisiblePlayer} from "./objsys";
 
 const frobnicate = (state: State): Promise<void> => {
     /*
@@ -18,7 +19,7 @@ const frobnicate = (state: State): Promise<void> => {
         bprintf(state, 'Frobnicate who ?\n');
         return Promise.resolve();
     }
-    return getPlayer(state, fpbn(state, state.wordbuf))
+    return findVisiblePlayer(state, state.wordbuf)
         .then((player) => {
             if ((player.playerId > 15) && (state.my_lev !== 10033)) {
                 return bprintf(state, 'Can\'t frob mobiles old bean.\n');

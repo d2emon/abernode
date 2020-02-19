@@ -227,40 +227,29 @@ export const dropItems = (state: State, player: Player, locationId?: number): Pr
 export const dropMyItems = (state: State) => getPlayer(state, state.mynum)
     .then(player => dropItems(state, player, state.curch));
 
-/*
-fpbn(name)
-char *name;
-{
-long s;
-extern char wd_them[],wd_him[],wd_her[],wd_it[];
-s=fpbns(name);
-if(s==-1) return(s);
-if(!seeplayer(s)) return(-1);
-return(s);
-}
-*/
-
-const fpbns = (state: State, name: string): Promise<number> => getPlayers(state)
+export const findPlayer = (state: State, name: string): Promise<Player> => getPlayers(state)
     .then((players) => {
-        let res = null;
         const n1 = name.toLowerCase();
-        players.forEach((player) => {
-            if (res !== null) {
-                return;
-            }
+        return players.find((player) => {
             const n2 = player.name.toLowerCase();
             if (player.exists && (n1 === n2)) {
-                res = player.playerId;
-                return;
+                return true;
             }
             if (n2.substr(0, 4) === 'the ') {
                 if (player.exists && (n1 === n2.substr(4))) {
-                    res = player.playerId;
-                    return;
+                    return true;
                 }
             }
+            return false;
         });
-        return (res === null) ? -1 : res;
+    });
+
+export const findVisiblePlayer = (state: State, name: string): Promise<Player> => findPlayer(state, name)
+    .then((player) => {
+        if (!player || !seeplayer(state, player.playerId)) {
+            return undefined;
+        }
+        return player;
     });
 
 const lispeople = (state: State): Promise<void> => getPlayers(state)

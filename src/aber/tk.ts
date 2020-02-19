@@ -2,7 +2,7 @@ import State from "./state";
 import {logger} from "./files";
 import {getPlayer, getPlayers, setPlayer} from "./support";
 import {bprintf} from "./__dummies";
-import {dropItems, dropMyItems, showItems} from "./objsys";
+import {dropItems, dropMyItems, findPlayer, findVisiblePlayer, showItems} from "./objsys";
 
 /*
  *
@@ -473,39 +473,43 @@ const putmeon = (state: State, name: string): Promise<void> => {
     */
     state.iamon = false;
     openworld(state);
-    if (fpbn(name) !== -1) {
-        return crapup(state, 'You are already on the system - you may only be on once at a time');
-    }
-    return getPlayers(state, state.maxu)
-        .then((players) => {
-            let f = null;
-            players.forEach((player) => {
-                if (f !== null) {
-                    return;
-                }
-                if (!player.exists) {
-                    f = player.playerId;
-                }
-            });
-            if (f === null) {
-                state.mynum = state.maxu;
-                return;
+    return findVisiblePlayer(state, name)
+        .then((player) => {
+            if (player) {
+                return crapup(state, 'You are already on the system - you may only be on once at a time');
             }
-            return setPlayer(state, f, {
-                name,
-                locationId: state.curch,
-                level: 1,
-                strength: -1,
-                visibility: 0,
-                sex: 0,
-                eventId: -1,
-                weaponId: -1,
-            })
-                .then(() => {
-                    state.mynum = f;
-                    state.iamon = true;
+            return getPlayers(state, state.maxu)
+                .then((players) => {
+                    let f = null;
+                    players.forEach((player) => {
+                        if (f !== null) {
+                            return;
+                        }
+                        if (!player.exists) {
+                            f = player.playerId;
+                        }
+                    });
+                    if (f === null) {
+                        state.mynum = state.maxu;
+                        return;
+                    }
+                    return setPlayer(state, f, {
+                        name,
+                        locationId: state.curch,
+                        level: 1,
+                        strength: -1,
+                        visibility: 0,
+                        sex: 0,
+                        eventId: -1,
+                        weaponId: -1,
+                    })
+                        .then(() => {
+                            state.mynum = f;
+                            state.iamon = true;
+                        });
                 });
-        });
+
+        })
 };
 
 const loseme = (state: State, name: string): Promise<void> => getPlayer(state, state.mynum)
@@ -642,13 +646,14 @@ const lookin = (state: State, roomId: number): Promise<void> => {
 long iamon=0;
 */
 
-const userwrap = (state: State): Promise<void> => {
-    if (fpbns(state.globme) === -1) {
-        return Promise.resolve();
-    }
-    loseme();
-    return logger.write(`System Wrapup exorcised ${state.globme}`);
-}
+const userwrap = (state: State): Promise<void> => findPlayer(state, state.globme)
+    .then((player) => {
+        if (!player) {
+            return;
+        }
+        loseme(state);
+        return logger.write(`System Wrapup exorcised ${state.globme}`);
+    });
 
 /*
 fcloselock(file)

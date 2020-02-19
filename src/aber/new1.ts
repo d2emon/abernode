@@ -22,7 +22,15 @@ import {
     IS_LIT, IS_KEY,
 } from "./object";
 import {logger} from "./files";
-import {isCarriedBy, byMask, findAvailableItem, itemDescription, dropItems, dropMyItems} from "./objsys";
+import {
+    isCarriedBy,
+    byMask,
+    findAvailableItem,
+    itemDescription,
+    dropItems,
+    dropMyItems,
+    findVisiblePlayer, findPlayer
+} from "./objsys";
 
 /*
 struct player_res
@@ -648,7 +656,7 @@ const fireballcom = (state: State): Promise<void> => {
             }
             const ar = 2 * state.my_lev;
 
-            return getPlayer(state, fpbns(state, 'yeti'))
+            return findPlayer(state, 'yeti')
                 .then((yeti) => {
                     if (player.strength - ((player.playerId === yeti.playerId) ? 6 : 2) * state.my_lev < 0) {
                         bprintf(state, 'Your last spell did the trick\n');
@@ -824,29 +832,27 @@ const starecom = (state: State): Promise<void> => {
     }
 
  *//* This one isnt for magic *//*
-
- vicbase(x)
- long *x;
-    {
-    long a,b;
-    extern char wordbuf[];
-    a0:if(brkword()== -1)
-       {
-       bprintf("Who ?\n");
-       return(-1);
-       }
-    b=openworld();
-    if(!strcmp(wordbuf,"at")) goto a0; *//* STARE AT etc *//*
-    a=fpbn(wordbuf);
-    if(a== -1)
-       {
-       bprintf("Who ?\n");
-       return(-1);
-       }
-    *x=a;
-    return(b);
-    }
 */
+
+const vicbase = (state: State): Promise<number[]> => {
+    if (brkword(state) === -1) {
+        bprintf(state, 'Who ?\n');
+        return Promise.resolve([-1]);
+    }
+    const b = openworld(state);
+    if (state.wordbuf === 'at') {
+        /* STARE AT etc */
+        return vicbase(state);
+    }
+    return findVisiblePlayer(state, state.wordbuf)
+        .then((player) => {
+            if (!player) {
+                bprintf(state, 'Who ?\n');
+                return [-1];
+            }
+            return [b, player.playerId];
+        })
+};
 
 const vichere = (state: State, playerId: number): Promise<number> => getPlayer(state, vicbase(state, playerId))
     .then((player) => {

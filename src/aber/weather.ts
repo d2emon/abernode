@@ -1,7 +1,7 @@
 import State from "./state";
 import {getItem, getItems, getPlayer, Item, setItem, setPlayer} from "./support";
 import {bprintf, brkword} from "./__dummies";
-import {findAvailableItem, isCarriedBy, isLocatedIn} from "./objsys";
+import {findAvailableItem, findVisiblePlayer, isCarriedBy, isLocatedIn} from "./objsys";
 
 /*
 #include "files.h"
@@ -359,19 +359,19 @@ const cancarry = (state: State, playerId: number): Promise<boolean> => getPlayer
     });
 
 const setcom = (state: State): Promise<void> => {
-    const setmobile = () => {
-        const playerId = fpbn(state, state.wordbuf);
-        if (playerId === -1) {
-            return bprintf(state, 'Set what ?\n');
-        }
-        if (playerId < 16) {
-            return bprintf(state, 'Mobiles only\n');
-        }
-        if (brkword(state) === -1) {
-            return bprintf(state, 'To what value ?\n');
-        }
-        return setPlayer(state, playerId, { strength: Number(state.wordbuf) });
-    };
+    const setmobile = () => findVisiblePlayer(state, state.wordbuf)
+        .then((player) => {
+            if (!player) {
+                return bprintf(state, 'Set what ?\n');
+            }
+            if (player.playerId < 16) {
+                return bprintf(state, 'Mobiles only\n');
+            }
+            if (brkword(state) === -1) {
+                return bprintf(state, 'To what value ?\n');
+            }
+            return setPlayer(state, player.playerId, { strength: Number(state.wordbuf) });
+        });
 
     const bitset = (item: Item) => {
         if (brkword(state) === -1) {
@@ -511,9 +511,9 @@ const setpflags = (state: State): Promise<void> => getPlayer(state, state.mynum)
             bprintf(state, 'Whose PFlags ?\n');
             return Promise.resolve();
         }
-        return getPlayer(state, fpbn(state, state.wordbuf))
+        return findVisiblePlayer(state, state.wordbuf)
             .then((player) => {
-                if (player.playerId === -1) {
+                if (!player) {
                     return bprintf(state, 'Who is that ?\n');
                 }
                 if (brkword(state) === -1) {

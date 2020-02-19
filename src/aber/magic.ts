@@ -5,7 +5,7 @@ import {
 } from './__dummies';
 import State from "./state";
 import {createItem, getItem, getPlayer, setPlayer, holdItem, Item, putItem} from "./support";
-import {dropItems, findItem, isCarriedBy} from "./objsys";
+import {dropItems, findItem, findVisiblePlayer, isCarriedBy} from "./objsys";
 import state from "./state";
 
 /*
@@ -80,9 +80,9 @@ const sumcom = (state: State): Promise<void> => {
             if (item && (item.itemId !== -1)) {
                 return sumob(item);
             }
-            return Promise.resolve(fpbn(state, state.wordbuf))
-                .then((playerId) => {
-                    if (playerId !== -1) {
+            return findVisiblePlayer(state, state.wordbuf)
+                .then((player) => {
+                    if (!player) {
                         return bprintf(state, 'I dont know who that is\n');
                     }
                     if (state.my_str < 10) {
@@ -96,22 +96,22 @@ const sumcom = (state: State): Promise<void> => {
                         c = 101;
                     }
                     return getPlayer(state, state.mynum)
-                        .then((player) => {
+                        .then((me) => {
                             return Promise.all([
                                 111,
                                 121,
                                 163,
                             ].map(itemId => getItem(state, itemId)))
-                                .then(items => items.filter(item => isCarriedBy(item, player, (state.my_lev < 10))))
+                                .then(items => items.filter(item => isCarriedBy(item, me, (state.my_lev < 10))))
                                 .then(items => items.forEach(() => {
                                     c += state.my_lev;
                                 }))
                                 .then(() => {
                                     const d = randperc(state);
                                     if (state.my_lev > 9) {
-                                        return willwork(playerId);
+                                        return willwork(player.playerId);
                                     }
-                                    if (iswornby(state, 90, playerId) || (c < d)) {
+                                    if (iswornby(state, 90, player.playerId) || (c < d)) {
                                         return bprintf(state, 'The spell fails....\n');
                                     }
                                     return Promise.all([
@@ -120,16 +120,19 @@ const sumcom = (state: State): Promise<void> => {
                                         174
                                     ].map(itemId => getItem(state, itemId)))
                                         .then((items) => {
-                                            if ((playerId === fpbn(state, 'wraith')) || items.some(item => isCarriedBy(item, player, (state.my_lev < 10)))) {
-                                                return bprintf(state, 'Something stops your summoning from succeeding\n');
-                                            }
-                                            if (playerId === state.mynum) {
-                                                return bprintf(state, 'Seems a waste of effort to me....\n');
-                                            }
-                                            if ((state.curch >= -1082) && (state.curch <= -1076)) {
-                                                return bprintf(state, 'Something about this place makes you fumble the magic\n');
-                                            }
-                                            return willwork(playerId);
+                                            return findVisiblePlayer(state, 'wraith')
+                                                .then((wraith) => {
+                                                    if ((wraith && (player.playerId === wraith.playerId)) || items.some(item => isCarriedBy(item, me, (state.my_lev < 10)))) {
+                                                        return bprintf(state, 'Something stops your summoning from succeeding\n');
+                                                    }
+                                                    if (player.playerId === state.mynum) {
+                                                        return bprintf(state, 'Seems a waste of effort to me....\n');
+                                                    }
+                                                    if ((state.curch >= -1082) && (state.curch <= -1076)) {
+                                                        return bprintf(state, 'Something about this place makes you fumble the magic\n');
+                                                    }
+                                                    return willwork(player.playerId);
+                                                });
                                         });
                                 });
                         });

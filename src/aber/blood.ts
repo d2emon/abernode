@@ -2,7 +2,7 @@ import State from "./state";
 import {bprintf, brkword, sendsys} from "./__dummies";
 import {Item, getItem, getPlayer, Player, setPlayer} from "./support";
 import {logger} from "./files";
-import {dropMyItems, findAvailableItem, findCarriedItem, isCarriedBy} from './objsys';
+import {dropMyItems, findAvailableItem, findCarriedItem, findVisiblePlayer, isCarriedBy} from './objsys';
 
 interface Attack {
     characterId: number,
@@ -189,9 +189,9 @@ const killcom = (state: State): Promise<void> => {
             if (item.itemId !== -1) {
                 return breakitem(state, item.itemId);
             }
-            return getPlayer(state, fpbn(state, state.wordbuf))
+            return findVisiblePlayer(state, state.wordbuf)
                 .then((player) => {
-                    if (player.playerId === -1) {
+                    if (!player) {
                         bprintf(state, 'You can\'t do that\n');
                         return Promise.resolve();
                     }

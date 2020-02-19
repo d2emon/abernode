@@ -5,7 +5,7 @@ import {
 import State from "./state";
 import {getItem, getItems, getPlayer, getPlayers, setPlayer} from "./support";
 import {IS_LIT} from "./object";
-import {isCarriedBy, byMask, findAvailableItem} from "./objsys";
+import {isCarriedBy, byMask, findAvailableItem, findPlayer} from "./objsys";
 
 /*
 #include "files.h"
@@ -82,9 +82,12 @@ const chkfight = (state: State, playerId: number): Promise<void> => Promise.all(
         if (randperc(state) > 40) {
             return;
         }
-        return byMask(state, { [IS_LIT]: true })
-            .then((found) => {
-                if ((player.playerId === fpbns('yeti')) && found) {
+        return Promise.all([
+            byMask(state, { [IS_LIT]: true }),
+            findPlayer(state, 'yeti'),
+        ])
+            .then(([found, yeti]) => {
+                if ((player.playerId === yeti.playerId) && found) {
                     return;
                 }
                 mhitplayer(state, player.playerId, me.playerId);
@@ -225,12 +228,14 @@ const dorune = (state: State): Promise<void> => {
                 if (randperc(state) < 9 * state.my_lev) {
                     return;
                 }
-                if (fpbns(state, player.name) === -1) {
-                    return;
-                }
-                bprintf(state, 'The runesword twists in your hands lashing out savagely\n');
-                hitplayer(state, player.playerId, 32);
-                return;
+                return findPlayer(state, player.name)
+                    .then((player1) => {
+                        if (!player1) {
+                            return;
+                        }
+                        bprintf(state, 'The runesword twists in your hands lashing out savagely\n');
+                        hitplayer(state, player1.playerId, 32);
+                    });
             }
         }))
 };
@@ -270,7 +275,7 @@ const dragget = (state: State): Promise<boolean> => {
     if (state.my_lev > 9) {
         return Promise.resolve(false);
     }
-    return getPlayer(state, fpbns(state, 'dragon'))
+    return findPlayer(state, 'dragon')
         .then((dragon) => {
             if (dragon.playerId === -1) {
                 return false;
