@@ -1,5 +1,5 @@
 import State from "./state";
-import {createItem, getItem, getItems, getPlayer, holdItem, setItem, setPlayer} from "./support";
+import {createItem, getItem, getItems, getPlayer, getTitle, holdItem, setItem, setPlayer} from "./support";
 import {bprintf, brkword, sendsys} from "./__dummies";
 import {logger, RESET_DATA, ROOMS} from "./files";
 import {CONTAINED_IN, IS_DESTROYED} from "./object";
@@ -1203,7 +1203,7 @@ const calibme = (state: State): Promise<void> => {
         bprintf(state, `You are now ${state.globme} `);
         logger.write(`${state.globme} to level ${level}`)
             .then(() => {
-                disle3(state, level, state.my_sex);
+                bprintf(state, `${getTitle(level, state.my_sex, state.hasfarted)}\n`);
                 return getPlayer(state, state.mynum);
             })
             .then((player) => {
@@ -1321,23 +1321,14 @@ const tellcom = (state: State): Promise<void> => {
         });
 };
 
-/*
- scorecom()
-    {
-    extern long my_str,my_lev,my_sco;
-    extern long my_sex;
-    extern char globme[];
-    if(my_lev==1)
-       {
-       bprintf("Your strength is %d\n",my_str);
-       return;
-       }
-    else
-       bprintf("Your strength is %d(from %d),Your score is %d\nThis ranks you as %s ",
-          my_str,50+8*my_lev,my_sco,globme);
-    disle3(my_lev,my_sex);
+const scorecom = (state: State): Promise<void> => {
+    if (state.my_lev === 1) {
+        bprintf(state, `Your strength is ${state.my_str}\n`);
+        return Promise.resolve();
     }
-*/
+    bprintf(state, `Your strength is ${state.my_str}(from ${50 + 8 * state.my_lev}),Your score is ${state.my_sco}\n`);
+    bprintf(state, `This ranks you as ${state.globme} ${getTitle(state.my_lev, state.my_sex, state.hasfarted)}\n`);
+};
 
 const exorcom = (state: State): Promise<void> => {
     if (state.my_lev < 10) {

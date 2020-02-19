@@ -1,5 +1,5 @@
 import State, {
-    ItemFlags, PlayerFlags,
+    ItemFlags, PlayerFlags
 } from './state';
 import ItemInterface, {
     HELD_BY,
@@ -18,6 +18,7 @@ import ItemInterface, {
     CAN_BE_EXTINGUISHED,
     CHANGE_STATE_ON_TAKE, IS_LEVER, IS_SWITCH, CAN_BE_WORN, IS_FOOD,
 } from './object';
+import {bprintf} from "./__dummies";
 
 const tscale = (state: State): number => 1;
 const damof = (state: State, playerId: number): number => 0;
@@ -168,6 +169,72 @@ export const createItem = (state: State, itemId: number, newItem: {} = {}): Prom
 
 // Player
 
+export const getTitle = (level: number, sex: number, hasFarted: boolean = false): string => {
+    const titles = {
+        1: 'The Novice',
+        2: (
+            (sex === 0)
+                ? 'The Adventurer'
+                : 'The Adventuress'
+        ),
+        3: `The Hero${(sex === 0) ? '' : 'ine'}`,
+        4: 'The Champion',
+        5: (
+            (sex === 0)
+                ? 'The Conjurer'
+                : 'The Conjuress'
+        ),
+        6: 'The Magician',
+        7: (
+            (sex === 0)
+                ? 'The Enchanter'
+                : 'The Enchantress'
+        ),
+        8: (
+            (sex === 0)
+                ? 'The Sorceror'
+                : 'The Sorceress'
+        ),
+        9: 'The Warlock',
+        10: (
+            (sex === 0)
+                ? 'The Apprentice Wizard'
+                : 'The Apprentice Witch'
+        ),
+        11: 'The 370',
+        12: 'The Hilbert-Space',
+        // 13: '',
+        14: 'The Completely Normal Naughty Spud',
+        15: 'The Wimbledon Weirdo',
+        16: 'The DangerMouse',
+        17: `The Charred Wi${(sex === 0) ? 'zard' : 'tch'}`,
+        18: 'The Cuddly Toy',
+        19: (
+            (hasFarted)
+                ? 'Raspberry Blower Of Old London Town'
+                : 'Of The Opera'
+        ),
+        20: 'The 50Hz E.R.C.S',
+        21: 'who couldn\'t decide what to call himself',
+        22: 'The Summoner',
+        10000: 'The 159 IQ Mega-Creator',
+        10033: `The Arch-Wi${(sex === 0) ? 'zard' : 'tch'}`,
+        10001: `The Arch-Wi${(sex === 0) ? 'zard' : 'tch'}`,
+        10002: 'The Wet Kipper',
+        10003: 'The Thingummy',
+        68000: 'The Wanderer',
+        '-2': '&08;',
+        '-11': 'The Broke Dwarf',
+        '-12': 'The Radioactive Dwarf',
+        '-10': 'The Heavy-Fan Dwarf',
+        '-13': 'The Upper Class Dwarven Smith',
+        '-14': 'The Singing Dwarf',
+        '-30': 'The Sorceror',
+        '-31': 'the Acolyte',
+    };
+    return  titles[level] || 'The Cardboard Box';
+};
+
 export interface Player {
     playerId: number,
 
@@ -197,6 +264,7 @@ export interface Player {
     isDead: boolean,
     value: number,
     isAbsent: boolean,
+    title: string,
 }
 const playerFromState = (state: State, playerId: number): Player => ({
     playerId,
@@ -229,6 +297,7 @@ const playerFromState = (state: State, playerId: number): Player => ({
         ? state.ublock[playerId].level * state.ublock[playerId].level * 100
         : 10 * damof(state, playerId),
     isAbsent: state.ublock[playerId].eventId === -2,
+    title: getTitle(state.ublock[playerId].level, state.ublock[playerId].flags.sex ? 0 : 1, state.hasfarted),
 });
 export const getPlayer = (state: State, playerId: number): Promise<Player> => Promise.resolve(
     playerFromState(state, playerId)

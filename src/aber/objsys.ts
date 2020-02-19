@@ -227,134 +227,7 @@ export const dropItems = (state: State, player: Player, locationId?: number): Pr
 export const dropMyItems = (state: State) => getPlayer(state, state.mynum)
     .then(player => dropItems(state, player, state.curch));
 
-const dispuser = (state: State, player: Player): void => {
-    if (player.isDead) {
-        /* On  Non game mode */
-        return;
-    }
-    if (player.visibility > state.my_lev) {
-        return;
-    }
-    if (player.visibility) {
-        bprintf(state, '(');
-    }
-    bprintf(state, `${player.name} `);
-    disl4(state, player.level, player.sex);
-    if (player.visibility) {
-        bprintf(state, ')');
-    }
-    if (player.isAbsent) {
-        bprintf(state, ' [Absent From Reality]');
-    }
-    bprintf(state, '\n');
-};
-
 /*
- disle3(n,s)
-    {
-    disl4(n,s);
-   bprintf("\n");
-    }
- disl4(n,s)
-    {
-    extern long hasfarted;
-    switch(n)
-       {
-       case 1:
-         bprintf("The Novice");
-          break;
-       case 2:
-          if(!s)bprintf("The Adventurer");
-          else
-            bprintf("The Adventuress");
-          break;
-       case 3:
-         bprintf("The Hero");
-          if(s)bprintf("ine");
-          break;
-       case 4:
-         bprintf("The Champion");
-          break;
-       case 5:
-          if(!s)bprintf("The Conjurer");
-          else
-            bprintf("The Conjuress");
-          break;
-       case 6:
-         bprintf("The Magician");
-          break;
-       case 7:
-          if(s)bprintf("The Enchantress");
-          else
-            bprintf("The Enchanter");
-          break;
-       case 8:
-          if(s)bprintf("The Sorceress");
-          else
-            bprintf("The Sorceror");
-          break;
-case 9:bprintf("The Warlock");
-break;
-       case 10:
-          if(s)bprintf("The Apprentice Witch");
-          else
-            bprintf("The Apprentice Wizard");
-          break;
-case 11:bprintf("The 370");
-break;
-case 12:bprintf("The Hilbert-Space");
-break;
-case 14:bprintf("The Completely Normal Naughty Spud");
-break;
-case 15:bprintf("The Wimbledon Weirdo");
-break;
-case 16:bprintf("The DangerMouse");
-break;
-case 17:bprintf("The Charred Wi");
-if(s) bprintf("tch");
-else bprintf("zard");
-break;
-case 18:bprintf("The Cuddly Toy");
-break;
-case 19:if(!hasfarted) bprintf("Of The Opera");
-else bprintf("Raspberry Blower Of Old London Town");
-break;
-case 20:bprintf("The 50Hz E.R.C.S");
-break;
-case 21:bprintf("who couldn't decide what to call himself");
-break;
-case 22:bprintf("The Summoner");
-break;
-case 10000:
-bprintf("The 159 IQ Mega-Creator");
-break;
-case 10033:
-case 10001:bprintf("The Arch-Wi");
-if(s)bprintf("tch");
-else bprintf("zard");
-break;
-case 10002:bprintf("The Wet Kipper");
-break;
-case 10003:bprintf("The Thingummy");
-break;
-case 68000:
-bprintf("The Wanderer");
-break;
-case -2:
-bprintf("\010");
-break;
-case -11:bprintf("The Broke Dwarf");break;
-case -12:bprintf("The Radioactive Dwarf");break;
-case -10:bprintf("The Heavy-Fan Dwarf");break;
-case -13:bprintf("The Upper Class Dwarven Smith");break;
-case -14:bprintf("The Singing Dwarf");break;
-case -30:bprintf("The Sorceror");break;
-case -31:bprintf("the Acolyte");break;
-       default:
-         bprintf("The Cardboard Box");
-          break;
-          }
-    }
 fpbn(name)
 char *name;
 {
@@ -400,7 +273,7 @@ const lispeople = (state: State): Promise<void> => getPlayers(state)
             if (state.debug_mode) {
                 bprintf(state, `{${player.playerId}}`);
             }
-            disl4(state, player.level, player.sex);
+            bprintf(state, player.title);
             if (player.sex) {
                 state.wd_her = player.name;
             } else {
@@ -626,30 +499,62 @@ export class DropItem extends Action {
 }
 
 class Who extends Action {
+    describePlayer(state: State, player: Player): string {
+        if (player.isDead) {
+            /* On  Non game mode */
+            return;
+        }
+        if (player.visibility > state.my_lev) {
+            return;
+        }
+        let result = `${player.name}${player.title}`;
+        if (player.visibility) {
+            result = `(${result})`;
+        }
+        return `${result}${player.isAbsent ? ' [Absent From Reality]' : ''}`;
+    }
+
     action(state: State): Promise<any> {
         const maxPlayerId = (state.my_lev > 9) ? 0 : state.maxu;
-        if (maxPlayerId === 0) {
-            bprintf(state, 'Players\n');
-        }
+        const players = [];
+        const mobiles = [];
         return getPlayers(state, maxPlayerId)
-            .then(players => players.forEach((player) => {
-                if (player.playerId === state.maxu) {
-                    bprintf(state, '----------\nMobiles\n');
-                }
-                if (!player.exists) {
+            .then(p => p.filter(player => player.exists))
+            .then(p => p.forEach((player) => {
+                const description = this.describePlayer(state, player);
+                if (!description) {
                     return;
                 }
-                return dispuser(state, player);
+                if (player.playerId < state.maxu) {
+                    players.push(description);
+                } else {
+                    mobiles.push(description);
+                }
             }))
             .then(() => ({
                 state,
+                players,
+                mobiles,
             }));
     }
 
     decorate(result: any): Promise<void> {
         const {
             state,
+            players,
+            mobiles
         } = result;
+        if (players.length) {
+            bprintf(state, 'Players\n');
+            players.forEach(player => bprintf(state, player))
+        }
+        if (mobiles.length) {
+            if (players.length) {
+                bprintf(state, '----------\n');
+            }
+            bprintf(state, 'Mobiles\n');
+            mobiles.forEach(player => bprintf(state, player))
+        }
         bprintf(state, '\n');
         return Promise.resolve();
     }

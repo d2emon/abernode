@@ -86,7 +86,7 @@ export interface PlayerFlags {
     flag8: boolean,
 }
 
-interface PlayerData {
+export interface PlayerData {
     name: string,
     locationId: number,
     eventId: number,
@@ -115,6 +115,7 @@ export default interface State {
     exittxt: string[],
     fighting: number,
     globme: string,
+    hasfarted: boolean,
     i_setup: boolean,
     in_fight: number,
     jumtb: number[],
