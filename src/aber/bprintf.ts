@@ -4,11 +4,17 @@ import {getPlayer} from "./support";
 import {brkword} from "./__dummies";
 import {findPlayer, findVisiblePlayer} from "./objsys";
 
-/*
-#include "files.h"
+// long pr_due=0;
 
-long pr_due=0;
-*/
+const quprnt = (state: State, message: string): Promise<void> => {
+    if ((message.length + state.sysbuf.length) > 4095) {
+        loseme(state);
+        return logger.write(`Buffer overflow on user ${state.globme}`)
+            .then(() => crapup(state, 'PANIC - Buffer overflow'))
+    }
+    state.sysbuf += message;
+    return Promise.resolve();
+};
 
 const bprintf = (state: State, message: string): Promise<void> => {
     /* Max 240 chars/msg */
@@ -17,7 +23,7 @@ const bprintf = (state: State, message: string): Promise<void> => {
             .then(() => crapup(state, 'Internal Error in BPRINTF'));
     }
     /* Now we have a string of chars expanded */
-    quprnt(state, message);
+    return quprnt(state, message);
 };
 
 /* The main loop */
@@ -270,16 +276,6 @@ const pbfr = (state: State): Promise<void> => {
 /*
 long iskb=1;
 */
-
-const quprnt = (state: State, message: string): Promise<void> => {
-    if ((message.length + state.sysbuf.length) > 4095) {
-        loseme(state);
-        return logger.write(`Buffer overflow on user ${state.globme}`)
-            .then(() => crapup(state, 'PANIC - Buffer overflow'))
-    }
-    state.sysbuf += message;
-    return Promise.resolve();
-};
 
 /*
 int pnotkb(str,ct,file)
