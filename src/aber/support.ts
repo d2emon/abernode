@@ -1,7 +1,7 @@
 import State, {
     ItemFlags, PlayerFlags
 } from './state';
-import ItemInterface, {
+import {
     HELD_BY,
     LOCATED_IN,
     WEARING_BY,
@@ -16,9 +16,12 @@ import ItemInterface, {
     IS_CONTAINER,
     CAN_BE_LIT,
     CAN_BE_EXTINGUISHED,
-    CHANGE_STATE_ON_TAKE, IS_LEVER, IS_SWITCH, CAN_BE_WORN, IS_FOOD,
+    CHANGE_STATE_ON_TAKE,
+    IS_LEVER,
+    IS_SWITCH,
+    CAN_BE_WORN,
+    IS_FOOD,
 } from './object';
-import {bprintf} from "./__dummies";
 
 const tscale = (state: State): number => 1;
 const damof = (state: State, playerId: number): number => 0;

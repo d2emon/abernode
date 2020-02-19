@@ -24,6 +24,8 @@ const seeplayer = (state: State, playerId: number): boolean => false;
 const SHIELD_BASE_ID = 112;
 const SHIELD_IDS = [113, 114];
 
+// Item checkers
+
 export const isCarriedBy = (item: Item, owner: Player, destroyed: boolean = false): boolean => {
     if (destroyed && item.isDestroyed) {
         return false;
@@ -60,6 +62,8 @@ export const isAvailable = (item: Item, player: Player, locationId: number, dest
     }
     return isCarriedBy(item, player, destroyed);
 };
+
+// Item finder
 
 export const byMask = (state: State, mask: { [flagId: number]: boolean }): Promise<boolean> => Promise.all([
     getPlayer(state, state.mynum),
@@ -132,38 +136,34 @@ const itemsCarriedBy = (state: State, player: Player): Promise<void> => itemsAt(
 // Search item
 
 const baseFindItem = (state: State, name: string): Promise<Item> => {
-    const byColor = (color: string): Promise<Item> => {
-        if (color === 'red') {
+    const byName = (name: string): Promise<Item> => {
+        if (name === 'red') {
             brkword(state);
             return getItem(state, 4);
-        } else if (color === 'blue') {
+        } else if (name === 'blue') {
             brkword(state);
             return getItem(state, 5);
-        } else if (color === 'green') {
+        } else if (name === 'green') {
             brkword(state);
             return getItem(state, 6);
         }
-        return undefined;
+        return getItems(state)
+           .then(items => items.find(item => item.name.toLowerCase() === name));
     };
 
-    return byColor(name)
-        .then(
-            (item) => item || getItems(state)
-                .then(items => items.find(item => item.name.toLowerCase() === name))
-                .then((item) => {
-                    if (item) {
-                        state.wd_it = name;
-                    }
-                    return item;
-                })
-        );
+    return byName(name)
+        .then((item) => {
+             if (item) {
+                 state.wd_it = name;
+             }
+             return item;
+        });
 };
 
-export const findAvailableItem = (state: State, name: string): Promise<Item> => baseFindItem(state, name.toLowerCase())
-    .then((item: Item) => Promise.all([
+export const findAvailableItem = (state: State, name: string): Promise<Item> => Promise.all([
         getPlayer(state, state.mynum),
-        Promise.resolve(item),
-    ]))
+        baseFindItem(state, name.toLowerCase()),
+    ])
     .then(([
         player,
         item,
