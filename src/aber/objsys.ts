@@ -286,18 +286,6 @@ export const listPeople = (state: State): Promise<string[]> => getPlayers(state)
     ))
     .then(promises => Promise.all(promises));
 
-/*
-usercom()
-{
-extern long my_lev;
-long a;
-a=my_lev;
-my_lev=0;
-whocom();
-my_lev=a;
-}
- */
-
 // Actions
 
 export class Inventory extends Action {
@@ -501,12 +489,16 @@ export class DropItem extends Action {
 }
 
 class Who extends Action {
+    getLevel(state: State): number {
+        return state.my_lev;
+    }
+
     describePlayer(state: State, player: Player): string {
         if (player.isDead) {
             /* On  Non game mode */
             return;
         }
-        if (player.visibility > state.my_lev) {
+        if (player.visibility > this.getLevel(state)) {
             return;
         }
         let result = `${player.name}${player.title}`;
@@ -517,7 +509,7 @@ class Who extends Action {
     }
 
     action(state: State): Promise<any> {
-        const maxPlayerId = (state.my_lev > 9) ? 0 : state.maxu;
+        const maxPlayerId = (this.getLevel(state) > 9) ? 0 : state.maxu;
         const players = [];
         const mobiles = [];
         return getPlayers(state, maxPlayerId)
@@ -559,5 +551,11 @@ class Who extends Action {
         }
         bprintf(state, '\n');
         return Promise.resolve();
+    }
+}
+
+class UserCom extends Who {
+    getLevel(state: State): number {
+        return 0;
     }
 }
