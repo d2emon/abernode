@@ -19,6 +19,7 @@ const calibme = (state: State): boolean => false;
 const dragget = (state: State): boolean => false;
 const showwthr = (state: State): boolean => false;
 const cancarry = (state: State, playerId: number): boolean => false;
+const seeplayer = (state: State, playerId: number): boolean => false;
 
 const SHIELD_BASE_ID = 112;
 const SHIELD_IDS = [113, 114];
@@ -227,6 +228,8 @@ export const dropItems = (state: State, player: Player, locationId?: number): Pr
 export const dropMyItems = (state: State) => getPlayer(state, state.mynum)
     .then(player => dropItems(state, player, state.curch));
 
+// Player finders
+
 export const findPlayer = (state: State, name: string): Promise<Player> => getPlayers(state)
     .then((players) => {
         const n1 = name.toLowerCase();
@@ -252,26 +255,36 @@ export const findVisiblePlayer = (state: State, name: string): Promise<Player> =
         return player;
     });
 
-const lispeople = (state: State): Promise<void> => getPlayers(state)
-    .then(players => players.forEach((player) => {
+//
+
+export const listPeople = (state: State): Promise<string[]> => getPlayers(state)
+    .then(players => players.filter((player) => {
         if (player.playerId === state.mynum) {
-            return;
+            return false;
         }
-        if (player.exists && (player.locationId === state.curch) && seeplayer(state, player.playerId)) {
-            bprintf(state, `${player.name} `);
-            if (state.debug_mode) {
-                bprintf(state, `{${player.playerId}}`);
-            }
-            bprintf(state, player.title);
+        if (!player.exists) {
+            return false;
+        }
+        if (player.locationId !== state.curch) {
+            return false;
+        }
+        if (!seeplayer(state, player.playerId)) {
+            return false;
+        }
+        return true;
+    }))
+    .then(players => players.map((player) => itemsAt(state, player.playerId, HELD_BY)
+        .then((items) => {
             if (player.sex) {
                 state.wd_her = player.name;
             } else {
                 state.wd_him = player.name;
             }
-            bprintf(state, ' is here carrying\n');
-            return itemsCarriedBy(state, player);
-        }
-    }));
+            const playerId = state.debug_mode ? `{${player.playerId}}` : '';
+            return `${player.name} ${playerId}${player.title} is here carrying\n${items}`;
+        })
+    ))
+    .then(promises => Promise.all(promises));
 
 /*
 usercom()

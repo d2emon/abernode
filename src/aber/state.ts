@@ -131,6 +131,8 @@ export default interface State {
     out_ms: string,
     stp: number,
     sysbuf: string,
+    wd_her: string,
+    wd_him: string,
     wd_it: string,
     wordbuf: string,
     wpnheld: number,

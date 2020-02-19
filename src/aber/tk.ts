@@ -2,7 +2,7 @@ import State from "./state";
 import {logger} from "./files";
 import {getPlayer, getPlayers, setPlayer} from "./support";
 import {bprintf} from "./__dummies";
-import {dropItems, dropMyItems, findPlayer, findVisiblePlayer, showItems} from "./objsys";
+import {dropItems, dropMyItems, findPlayer, findVisiblePlayer, listPeople, showItems} from "./objsys";
 
 /*
  *
@@ -620,14 +620,16 @@ const lookin = (state: State, roomId: number): Promise<void> => {
         })
         .then(() => {
             openworld(state);
-            if (!state.ail_blind) {
-                return showItems(state)
-                    .then(() => {
-                        if (state.curmode === 1) {
-                            lispeople(state);
-                        }
-                    })
+            if (state.ail_blind) {
+                return;
             }
+            return showItems(state)
+                .then(() => {
+                    if (state.curmode === 1) {
+                        return listPeople(state)
+                            .then(messages => messages.forEach(message => bprintf(state, message)));
+                    }
+                })
         })
         .then(() => {
             bprintf(state, '\n');
