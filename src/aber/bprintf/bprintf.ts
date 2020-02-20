@@ -1,20 +1,18 @@
 import State from '../state';
 import {logger} from '../files';
-import {Player} from "../support";
-import {brkword} from "../__dummies";
-import {findVisiblePlayer} from "../objsys";
+import {Player} from '../support';
+import {
+    clearMessages,
+    addMessage,
+    getSnooped,
+    stopSnoop,
+    startSnoop,
+} from './reducer';
+import {openSnoop} from "./snoop";
 
 const loseme = (state: State): void => undefined;
 const crapup = (state: State, message: string): void => undefined;
 const isdark = (state: State, locationId: number): boolean => false;
-const opensnoop = (fileName: string, mode: string): Promise<any> => Promise.resolve({});
-
-const clearMessages = (state: State): void => {
-    state.sysbuf = '';
-};
-const addMessage = (state: State, message: string): void => {
-    state.sysbuf += message;
-};
 
 export const resetMessages = (state: State): void => {
     try {
@@ -98,84 +96,7 @@ export const sendSoundPlayer = (text: string): string => `[P]${text}[/P]`;
 export const sendPlayerForVisible = (text: string): string => `[D]${text}[/D]`;
 export const sendKeyboard = (text: string): string => `[l]${text}[/l]`;
 
+//
 
-/*
-
-long snoopd= -1;
-
-FILE *opensnoop(user,per)
-char *per;
-char *user;
-    {
-    FILE *x;
-    extern FILE *openlock();
-    char z[256];
-    sprintf(z,"%s%s",SNOOP,user);
-    x=openlock(z,per);
-    return(x);
-    }
-
-long snoopt= -1;
-
-char sntn[32];
-*/
-
-const snoopcom = (state: State): Promise<void> => {
-    if (state.my_lev < 10) {
-        bprintf(state, 'Ho hum, the weather is nice isn\'t it\n');
-        return Promise.resolve();
-    }
-    if (state.snoopt !== -1) {
-        bprintf(state, `Stopped snooping on ${state.sntn}\n`);
-        state.snoopt = -1;
-        sendsys(state, state.sntn, state.globme, -400, 0, null);
-        return Promise.resolve();
-    }
-    if (brkword() === -1) {
-        return Promise.resolve();
-    }
-    return findVisiblePlayer(state, state.wordbuf)
-        .then((snooped) => {
-            if (!snooped) {
-                return bprintf(state, 'Who is that ?\n');
-            }
-            if (((state.my_lev < 10000) && snooped.isWizard) || !snooped.canBeSnooped) {
-                bprintf(state, 'Your magical vision is obscured\n');
-                state.snoopt = -1;
-                return;
-            }
-            state.sntn = snooped.name;
-            state.snoopt = snooped.playerId;
-            bprintf(state, `Started to snoop on ${snooped.name}\n`);
-            sendsys(state, state.sntn, state.globme, -401, 0, null);
-            return opensnoop(state.globme, 'w')
-                .then((fx) => fprint(fx, '').then(() => fcloselock(fx)));
-        });
-};
-
-/*
-void viewsnoop()
-    {
-    long x;
-    char z[128];
-    FILE *fx;
-    fx=opensnoop(globme,"r+");
-    if(snoopt==-1) return;
-    if(fx==0)return;
-    while((!feof(fx))&&(fgets(z,127,fx)))
-           printf("|%s",z);
-    ftruncate(fileno(fx),0);
-    fcloselock(fx);
-    x=snoopt;
-    snoopt= -1;
-    *//*
-    pbfr();
-    *//*
-    snoopt=x;
-    }
-void chksnp()
-{
-if(snoopt==-1) return;
-sendsys(sntn,globme,-400,0,"");
-}
-*/
+const chksnp = (state: State) => getSnooped(state)
+    .then(snooped => snooped && sendsys(state, snooped.name, state.globme, -400, 0, null));

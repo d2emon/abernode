@@ -912,12 +912,13 @@ const gamrcv = (state: State, block: { locationId: number, code: number }): Prom
                     console.log('***HALT');
                     return exit(0);
                 });
-        }
-        /*
-       case -400:
-          if(isme) snoopd= -1;
-          break;
-       */
+        },
+        '-400': () => {
+            if (isme) {
+                state.snoopd = -1;
+            }
+            return Promise.resolve();
+        },
         '-401': () => {
             if (!isme) {
                 return Promise.resolve();

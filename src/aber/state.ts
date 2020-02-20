@@ -109,9 +109,11 @@ export default interface State {
     wpnheld: number,
     // bprintf
     iskb: boolean,
+    log_fl?: any,
     pr_due: boolean,
     pr_qcr: boolean,
-    log_fl?: any,
+    snoopd: number,
+    snoopt: number,
     // objsys
     numobs: number; // NOBS
     ublock: PlayerData[],
@@ -138,8 +140,6 @@ export default interface State {
     objects: Item[],
     objinfo: ItemData[],
     out_ms: string,
-    snoopd: number,
-    snoopt: number,
     stp: number,
     sysbuf: string,
     wd_her: string,

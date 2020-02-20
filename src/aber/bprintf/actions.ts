@@ -1,5 +1,19 @@
-import Action from "../action";
-import State from "../state";
+import Action from '../action';
+import State from '../state';
+import {
+    getLogFile,
+    getSnooped,
+    setLogFile,
+    startSnoop,
+    stopSnoop,
+} from './reducer';
+import {Player} from '../support';
+import {
+    brkword,
+    sendsys,
+} from '../__dummies';
+import {findVisiblePlayer} from '../objsys';
+import {openSnoop} from './snoop';
 
 const fopen = (fileName: string, mode: string): Promise<any> => Promise.resolve({});
 const fprintf = (file: any, data: any): Promise<void> => Promise.resolve();
@@ -7,13 +21,6 @@ const fclose = (file: any): Promise<void> => Promise.resolve();
 
 const geteuid = (state: State): void => undefined;
 const getuid = (state: State): void => undefined;
-
-// Getters / Setters
-
-const getLogFile = (state: State): any => state.log_fl;
-const setLogFile = (state: State, logFile: any): void => {
-    state.log_fl = logFile;
-};
 
 // Actions
 
@@ -60,4 +67,61 @@ export class Log extends Action {
         }
     }
 
+}
+
+export class Snoop extends Action {
+    touchSnoopFile = (name: string) => openSnoop(name, 'w')
+        .then((snoopFile) => fprintf(snoopFile, '').then(() => fclose(snoopFile)));
+
+    stopSnoop(state: State, snooped: Player): Promise<any> {
+        stopSnoop(state);
+        sendsys(
+            state,
+            snooped.name,
+            state.globme,
+            -400,
+            0,
+            null,
+        );
+        return Promise.resolve({
+            messages: `Stopped snooping on ${snooped.name}\n`,
+        });
+    }
+
+    startSnoop(state: State): Promise<any> {
+        if (brkword(state) === -1) {
+            return Promise.resolve();
+        }
+        return findVisiblePlayer(state, state.wordbuf)
+            .then((snooped) => {
+                if (!snooped) {
+                    throw new Error('Who is that ?');
+                }
+                if (((state.my_lev < 10000) && snooped.isWizard) || !snooped.canBeSnooped) {
+                    stopSnoop(state);
+                    throw new Error('Your magical vision is obscured');
+                }
+                startSnoop(state, snooped);
+                const message = `Started to snoop on ${snooped.name}\n`;
+                sendsys(
+                    state,
+                    snooped.name,
+                    state.globme,
+                    -401,
+                    0,
+                    null,
+                );
+                return state.globme;
+            })
+            .then(this.touchSnoopFile);
+
+    }
+
+    action(state: State): Promise<any> {
+        if (state.my_lev < 10) {
+            throw new Error('Ho hum, the weather is nice isn\'t it');
+        }
+        return getSnooped(state)
+            .then(snooped => (snooped ? this.stopSnoop(state, snooped) : this.startSnoop(state)));
+    }
 }

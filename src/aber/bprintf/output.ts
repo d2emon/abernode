@@ -8,6 +8,17 @@ import {
     resetMessages,
     setName,
 } from './bprintf';
+import {
+    getMessages,
+    getIsKeyboard,
+    setIsKeyboard,
+    unsetIsKeyboard,
+    getLogFile,
+    getNeedLineBreak,
+    unsetNeedLineBreak,
+    setNeedPrompt, getSnooper, getSnooped,
+} from './reducer';
+import {openSnoop} from "./snoop";
 
 const fprintf = (file: any, data: any): Promise<void> => Promise.resolve();
 const fclose = (file: any): Promise<void> => Promise.resolve();
@@ -15,31 +26,8 @@ const fclose = (file: any): Promise<void> => Promise.resolve();
 const block_alarm = (state: State): void => undefined;
 const unblock_alarm = (state: State): void => undefined;
 const closeworld = (state: State): void => undefined;
-const viewsnoop = (state: State): void => undefined;
 const f_listfl = (fileName: string): string => '';
 const isdark = (state: State, locationId: number): boolean => false;
-const opensnoop = (fileName: string, mode: string): Promise<any> => Promise.resolve({});
-
-const getMessages = (state: State): string => state.sysbuf;
-
-const getIsKeyboard = (state: State): boolean => state.iskb;
-const setIsKeyboard = (state: State): void => {
-    state.iskb = true;
-};
-const unsetIsKeyboard = (state: State): void => {
-    state.iskb = false;
-};
-
-const setNeedPrompt = (state: State): void => {
-    state.pr_due = false;
-};
-
-const getNeedLineBreak = (state: State): boolean => state.pr_qcr;
-const unsetNeedLineBreak = (state: State): void => {
-    state.pr_qcr = false;
-};
-
-const getLogFile = (state: State): any => state.log_fl;
 
 const seePlayerName = (state: State, player: Player): boolean => {
     const canSee = canSeePlayer(state, player);
@@ -109,38 +97,46 @@ const decode = (state: State, text: string, file: any, isKeyboard: boolean = tru
     return fprintf(file, text);
 };
 
-export const showMessages = (state: State): Promise<void> => {
-    const decodeLog = (messages: string) => Promise.resolve(getLogFile(state))
-        .then(logFile => logFile && decode(state, messages, logFile, false));
-    const decodeSnoop = (messages: string) => getPlayer(state, state.snoopd)
-        .then((snooper) => snooper && opensnoop(snooper.name, 'a'))
-        .then((fln) => fln && decode(state, messages, fln, false).then(() => fclose(fln)))
-        .catch(() => null);
-    const decodeScreen = (messages: string) => {
-        if (messages) {
-            setNeedPrompt(state);
-            if (getNeedLineBreak(state)) {
-                messages = `\n${messages}`;
-            }
-        }
-        unsetNeedLineBreak(state);
-        return decode(state, messages, null, true);
-    };
+const withSnoopFile = (name: string, callback) => openSnoop(name, 'a')
+    .then((snoopFile) => callback(snoopFile).then(() => fclose(snoopFile)));
 
+const decodeLog = (state: State, messages: string) => Promise.resolve(getLogFile(state))
+    .then(logFile => logFile && decode(state, messages, logFile, false));
+const decodeSnoop = (state: State, messages: string) => getSnooper(state)
+    .then((snooper) => snooper && withSnoopFile(
+        snooper.name,
+        (snoopFile) => decode(state, messages, snoopFile, false)
+    ))
+    .catch(() => null);
+const decodeScreen = (state: State, messages: string) => {
+    if (messages) {
+        setNeedPrompt(state);
+        if (getNeedLineBreak(state)) {
+            messages = `\n${messages}`;
+        }
+    }
+    unsetNeedLineBreak(state);
+    return decode(state, messages, null, true);
+};
+
+export const showMessages = (state: State): Promise<void> => {
     block_alarm(state);
     closeworld(state);
     return Promise.resolve(getMessages(state))
         .then(messages => Promise.all([
-            decodeLog(messages),
-            decodeSnoop(messages),
-            decodeScreen(messages),
+            decodeLog(state, messages),
+            decodeSnoop(state, messages),
+            decodeScreen(state, messages),
         ]))
         /* clear buffer */
-        .then(() => resetMessages(state))
         .then(() => {
-            if (state.snoopt !== -1) {
+            resetMessages(state);
+            return getSnooped(state);
+        })
+        .then((snooped) => {
+            if (snooped) {
                 viewsnoop(state);
             }
-            unblock_alarm(state);
-        });
+        })
+        .then(() => unblock_alarm(state));
 };
