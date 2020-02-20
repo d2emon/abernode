@@ -2,6 +2,7 @@ import State from "./state";
 import {getPlayer} from "./support";
 import {bprintf} from "./__dummies";
 import {findItem} from "./objsys";
+import {showMessages} from "./bprintf/output";
 
 /*
 #include <errno.h>
@@ -143,47 +144,63 @@ long my_sco;
 long my_lev;
 long my_str;
 long my_sex;
-
-initme()
-{
-	PERSONA x;
-	char s[32];
-	extern char globme[];
-	errno=0;
-	if(findpers(globme,&x)!=-1)
-	{
-		decpers(&x,s,&my_str,&my_sco,&my_lev,&my_sex);
-		return;
-	}
-	if(errno!=0) crapup("Panic: Timeout event on user file\n");
-	x.p_score=0;
-	bprintf("Creating character....\n");
-	my_sco=0;
-	my_str=40;
-	my_lev=1;
-	moan1:bprintf("\nSex (M/F) : ");
-	pbfr();
-	keysetback();
-	getkbd(s,2);
-	keysetup();
-	lowercase(s);
-	switch(s[0])
-	{
-		case 'm':my_sex=0;
-		break;
-		case 'f':my_sex=1;
-		break;
-		default:bprintf("M or F");
-		goto moan1;
-	}
-	strcpy(x.p_name,globme);
-	x.p_strength=my_str;
-	x.p_level=my_lev;
-	x.p_sex=my_sex;
-	x.p_score=my_sco;
-	putpers(globme,&x);
-}
 */
+
+const initme = (state: State): Promise<void> => {
+    let errno = 0;
+    const x = findpers(state);
+    if (x !== -1) {
+        const [
+            name,
+            strength,
+            score,
+            level,
+            sex,
+        ] = decpers(x);
+        state.my_str = strength;
+        state.my_sco = score;
+        state.my_lev = level;
+        state.my_sex = sex;
+        return Promise.resolve();
+    }
+
+    if (errno) {
+        return crapup(state, 'Panic: Timeout event on user file');
+    }
+
+    const moan1 = (state: State) => {
+        bprintf(state, '\nSex (M/F) : ');
+        return showMessages(state)
+            .then(() => {
+                keysetback(state);
+                const s = getkbd(2).toLowerCase();
+                keysetup(state);
+                if (s === 'm') {
+                    state.my_sex = 0;
+                } else if (s === 'f') {
+                    state.my_sex = 1;
+                } else {
+                    bprintf(state, 'M or F');
+                    return moan1(state)
+                }
+            });
+    };
+
+    x.score = 0;
+    bprintf(state, 'Creating character....\n');
+    state.my_sco = 0;
+    state.my_str = 40;
+    state.my_lev = 1;
+    return moan1(state)
+        .then(() => putpers(state, state.globme, {
+            ...x,
+            name: state.globme,
+            strength: state.my_str,
+            level: state.my_lev,
+            sex: state.my_sex,
+            score: state.my_sco
+        }));
+};
 
 const saveme = (state: State): Promise<void> => getPlayer(state, state.mynum)
     .then((player) => {

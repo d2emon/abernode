@@ -1,7 +1,7 @@
 import State from "./state";
 import {createItem, getItem, getItems, getPlayer, getTitle, holdItem, setItem, setPlayer} from "./support";
 import {bprintf, brkword, sendsys} from "./__dummies";
-import {logger, RESET_DATA, ROOMS} from "./files";
+import {CREDITS, GWIZ, logger, RESET_DATA, ROOMS} from "./files";
 import {CONTAINED_IN, IS_DESTROYED} from "./object";
 import {
     isCarriedBy,
@@ -14,6 +14,16 @@ import {
     findVisiblePlayer, findPlayer
 } from "./objsys";
 import {hitPlayer, receiveDamage} from "./blood";
+import {
+    sendName,
+    sendPlayerForVisible,
+    sendSound,
+    sendSoundPlayer,
+    sendVisibleName,
+    sendVisiblePlayer,
+    showFile
+} from "./bprintf/bprintf";
+import {showMessages} from "./bprintf/output";
 
 /*
 #include "files.h"
@@ -608,9 +618,12 @@ const doaction = (state: State, actionId: number): Promise<void> => {
        case 168:
           rollcom();
           break;
-       case 169:
-          bprintf("\001f%s\001",CREDITS);
-          break;
+       */
+            169: () => new Promise((resolve) => {
+                bprintf(state, showFile(CREDITS));
+                resolve();
+            }),
+        /*
        case 170:
           brmode=!brmode;
           break;
@@ -626,7 +639,6 @@ const doaction = (state: State, actionId: number): Promise<void> => {
        case 173:
           bprintf("Your adventurers automatic monster detecting radar, and long range\n");
           bprintf("mapping kit, is, sadly, out of order.\n");break;
-       case 174:
        */
             174: () => new Promise((resolve) => {
                 if (!state.in_fight) {
@@ -644,7 +656,7 @@ const doaction = (state: State, actionId: number): Promise<void> => {
                             bprintf(state, 'The sword won\'t let you!!!!\n');
                             return resolve();
                         }
-                        const ar = `[c]${state.globme}[/c] drops everything in a frantic attempt to escape\n`;
+                        const ar = `${sendVisibleName(state.globme)} drops everything in a frantic attempt to escape\n`;
                         sendsys(state, state.globme, state.globme, -10000, state.curch, ar);
                         sendsys(state, state.globme, state.globme, -20000, state.curch, null);
                         state.my_sco -= state.my_sco / 33;
@@ -791,7 +803,7 @@ const dodirn = (state: State, n: number): Promise<void> => {
             player25,
         ]) => {
             if (isCarriedBy(runeSword, player, (state.my_lev < 10)) && (player25.locationId === state.curch) && player25.exists) {
-                bprintf(state, '[c]The Golem[/c] bars the doorway!');
+                bprintf(state, `${sendVisibleName('The Golem')} bars the doorway!`);
                 return;
             }
             n -= 2;
@@ -833,8 +845,8 @@ const dodirn = (state: State, n: number): Promise<void> => {
                         p = findPlayer(state, 'figure')
                             .then((figure) => {
                                 if ((figure.playerId !== state.mynum) && (figure.playerId !== -1) && (figure.locationId === state.curch) && !iswornby(state, 101, state.mynum) && !iswornby(state, 102, state.mynum) && !iswornby(state, 103, state.mynum)) {
-                                    bprintf(state, '[p]The Figure[/p] holds you back\n');
-                                    bprintf(state, '[p]The Figure[/p] says \'Only true sorcerors may pass\'\n');
+                                    bprintf(state, `${sendName('The Figure')} holds you back\n`);
+                                    bprintf(state, `${sendName('The Figure')} says \'Only true sorcerors may pass\'\n`);
                                     return false;
                                 }
                                 return true;
@@ -850,10 +862,10 @@ const dodirn = (state: State, n: number): Promise<void> => {
                             }
                             return getPlayer(state, state.mynum)
                                 .then((player) => {
-                                    const block = `[s name=\"${player.name}\"]${state.globme} has gone ${state.exittxt[n]} ${state.out_ms}.\n[/s]`;
+                                    const block = sendVisiblePlayer(player.name, `${player.name} has gone ${state.exittxt[n]} ${state.out_ms}.\n`);
                                     sendsys(state, state.globme, state.globme, -10000, state.curch, block);
                                     state.curch = newch;
-                                    const block1 = `[s name=\"${state.globme}\"]${state.globme} ${state.in_ms}.\n[/s]`;
+                                    const block1 = sendVisiblePlayer(player.name, `${player.name} ${state.in_ms}.\n`);
                                     sendsys(state, state.globme, state.globme, -10000, newch, block1);
                                     trapch(state, state.curch);
                                 });
@@ -935,70 +947,71 @@ const gamrcv = (state: State, block: { locationId: number, code: number }): Prom
             state.rdes = 1;
             state.vdes = payload.characterId;
             return receiveDamage(state, payload, isme);
-        }
+        },
+        '-10020': (payload) => {
+            if (!isme) {
+                return Promise.resolve();
+            }
+            const ades = block.locationId;
+            if (state.my_lev < 10) {
+                bprintf(state, `You drop everything you have as you are summoned by ${sendName(name2)}`);
+            } else {
+                bprintf(state, `${sendName(name2)} tried to summon you`);
+                return Promise.resolve();
+            }
+            state.tdes = 1;
+            return Promise.resolve();
+        },
+        '-10001': () => {
+            if (isme) {
+                if (state.my_lev > 10) {
+                    bprintf(state, `${sendName(name2)} cast a lightning bolt at you\n`);
+                    return Promise.resolve();
+                }
+                /* You are in the .... */
+                bprintf(state, 'A massive lightning bolt arcs down out of the sky to strike');
+                const zb1 = `[ ${sendName(state.globme)} has just been zapped by ${sendName(name2)} and terminated ]\n`;
+                sendsys(state, state.globme, state.globme, -10113, state.curch, zb1);
+                state.zapped = true;
+                delpers(state, state.globme);
+                const zb2 = sendVisiblePlayer(state.globme, `${state.globme} has just died.\\n\n`);
+                sendsys(state, state.globme, state.globme, -10000, state.curch, zb2);
+                loseme(state);
+                bprintf(state, `You have been utterly destroyed by ${name2}\n`);
+                crapup(state, 'Bye Bye.... Slain By Lightning');
+            } else if (block.locationId === state.curch) {
+                bprintf(state, `${sendVisibleName('A massive lightning bolt strikes ')}${sendPlayerForVisible(name2)}${sendVisibleName('\n')}`);
+                return Promise.resolve();
+            }
+        },
+        '-10002': () => {
+            if (isme) {
+                return Promise.resolve();
+            }
+            if ((block.locationId === state.curch) || (state.my_lev > 9)) {
+                bprintf(state, `${sendSoundPlayer(name2)}${sendSound(` shouts '${text}'\n`)}`);
+                return Promise.resolve();
+            } else {
+                bprintf(state, sendSound(`A voice shouts '${text}'\n`));
+                return Promise.resolve();
+            }
+        },
+        '-10003': () => {
+            if (isme) {
+                return Promise.resolve();
+            }
+            if (block.locationId === state.curch) {
+                bprintf(state, `${sendSoundPlayer(name2)}${sendSound(` says '${text}'\n`)}`);
+                return Promise.resolve();
+            }
+        },
+        '-10004': () => {
+            if (isme) {
+                bprintf(state, `${sendSoundPlayer(name2)}${sendSound(` tells you '${text}'\n`)}`);
+            }
+            return Promise.resolve();
+        },
         /*
-       case -10020:
-          if(isme==1)
-             {
-             ades=blok[0];
-             if(my_lev<10)
-                {
-                bprintf("You drop everything you have as you are summoned by \001p%s\001\n",nam2);
-                }
-             else
-                {
-                bprintf("\001p%s\001 tried to summon you\n",nam2);
-                return;
-                }
-             tdes=1;
-             }
-          break;
-       case -10001:
-          if(isme==1)
-             {
-             if (my_lev>10)
-                bprintf("\001p%s\001 cast a lightning bolt at you\n", nam2);
-             else
-                *//* You are in the .... *//*
-                {
-                bprintf("A massive lightning bolt arcs down out of the sky to strike");
-                sprintf(zb,"[ \001p%s\001 has just been zapped by \001p%s\001 and terminated ]\n",
-                    globme, nam2);
-                sendsys(globme,globme,-10113,curch,zb);
-                bprintf(" you between\nthe eyes\n");
-                zapped=1;
-                delpers(globme);
-                sprintf(zb,"\001s%s\001%s has just died.\n\001",globme,globme);
-                sendsys(globme,globme,-10000,curch,zb);
-                loseme();
-                bprintf("You have been utterly destroyed by %s\n",nam2);
-
-                crapup("Bye Bye.... Slain By Lightning");
-                }
-             }
-          else if (blok[0]==curch)
-             bprintf("\001cA massive lightning bolt strikes \001\001D%s\001\001c\n\001", nam1);
-          break;
-       case -10002:
-          if(isme!=1)
-             {
-             if (blok[0]==curch||my_lev>9)
-                 bprintf("\001P%s\001\001d shouts '%s'\n\001", nam2, text);
-             else
-                bprintf("\001dA voice shouts '%s'\n\001",text);
-             }
-          break;
-       case -10003:
-          if(isme!=1)
-             {
-             if (blok[0]==curch)
-                bprintf("\001P%s\001\001d says '%s'\n\001", nam2, text);
-             }
-          break;
-       case -10004:
-          if(isme)
-             bprintf("\001P%s\001\001d tells you '%s'\n\001",nam2,text);
-          break;
        case -10010:
           if(isme==1)
              {
@@ -1170,7 +1183,7 @@ const lightning = (state: State): Promise<void> => {
                         woundmn(state, player.playerId, 10000);
                         /* DIE */
                     }
-                    broad(state, '[d]You hear an ominous clap of thunder in the distance\n[/d]');
+                    broad(state, sendSound('You hear an ominous clap of thunder in the distance\n'));
                 });
         });
 };
@@ -1238,10 +1251,10 @@ const calibme = (state: State): Promise<void> => {
                 return getPlayer(state, state.mynum);
             })
             .then((player) => {
-                const sp = `[p]${state.globme}[/p] is now level ${level}\n`;
+                const sp = `${sendName(state.globme)} is now level ${level}\n`;
                 sendsys(state, state.globme, state.globme, -10113, player.locationId, sp);
                 if (level === 10) {
-                    bprintf(state, `[f]${GWIZ}[/f]`);
+                    bprintf(state, showFile(GWIZ));
                 }
             });
     }
@@ -1462,7 +1475,7 @@ const dogive = (state: State, itemId: number, playerId: number): Promise<void> =
         }
         return holdItem(state, item.itemId, player.playerId)
             .then(() => {
-                const z = `[p]${state.globme}[/p] gives you the ${item.name}\n`;
+                const z = `${sendName(state.globme)} gives you the ${item.name}\n`;
                 sendsys(state, player.name, state.globme, -10011, state.curch, z);
             });
     });
@@ -1512,7 +1525,7 @@ const stealcom = (state: State): Promise<void> => {
                     let e = 10 + state.my_lev - player.level;
                     e *= 5;
                     if (f < e) {
-                        const tb = `[p]${state.globme}[/p] steals the ${item.name} from you !\n`;
+                        const tb = `${sendName(state.globme)} steals the ${item.name} from you !\n`;
                         if (f & 1) {
                             sendsys(state, player.name, state.globme, -10011, state.curch, tb);
                             if (player.playerId > 15) {
@@ -1529,12 +1542,12 @@ const stealcom = (state: State): Promise<void> => {
 };
 
 const dosumm = (state: State, locationId: number): Promise<void> => {
-    const ms1 = `[s name="${state.globme}"]${state.globme} vanishes in a puff of smoke\n[/s]`;
+    const ms1 = sendVisiblePlayer(state.globme, `${state.globme} vanishes in a puff of smoke\n`);
     sendsys(state, state.globme, state.globme, -10000, state.curch, ms1);
     return dropMyItems(state)
         .then(() => {
             state.curch = locationId;
-            const ms2 = `[s name="${state.globme}"]${state.globme} appears in a puff of smoke\n[/s]`;
+            const ms2 = sendVisiblePlayer(state.globme, `${state.globme} appears in a puff of smoke\n`);
             sendsys(state, state.globme, state.globme, -10000, state.curch, ms2);
             trapch(state, state.curch);
         })
@@ -1564,29 +1577,31 @@ const rmedit = (state: State): Promise<void> => getPlayer(state, state.mynum)
         if (!editor.isEditor) {
             return bprintf(state, 'Dum de dum.....\n');
         }
-        const ms = `[s name="${state.globme}"]${state.globme} fades out of reality\n[/s]`;
+        const ms = sendVisiblePlayer(state.globme, `${state.globme} fades out of reality\n`);
         sendsys(state, state.globme, state.globme, -10113, 0, ms);
         /* Info */
         state.cms = -2; /* CODE NUMBER */
         update(state, state.globme);
-        pbfr(state);
-        closeworld(state);
-        if (chdir(state, ROOMS) === -1) {
-            bprintf(state, 'Warning: Can\'t CHDIR\n');
-        }
-        const ms2 = '/cs_d/aberstudent/yr2/hy8/.sunbin/emacs';
-        system(state, ms2);
-        state.cms = -1;
-        openworld(state);
-        return findPlayer(state, state.globme)
-            .then((me) => {
-                if (!me) {
-                    loseme(state);
-                    return crapup(state, 'You have been kicked off');
+        return showMessages(state)
+            .then(() => {
+                closeworld(state);
+                if (chdir(state, ROOMS) === -1) {
+                    bprintf(state, 'Warning: Can\'t CHDIR\n');
                 }
-                const ms3 = `[s name="${state.globme}"]${state.globme} re-enters the normal universe\n[/s]`;
-                sendsys(state, state.globme, state.globme, -10113, 0, ms3);
-                rte(state);
+                const ms2 = '/cs_d/aberstudent/yr2/hy8/.sunbin/emacs';
+                system(state, ms2);
+                state.cms = -1;
+                openworld(state);
+                return findPlayer(state, state.globme)
+                    .then((me) => {
+                        if (!me) {
+                            loseme(state);
+                            return crapup(state, 'You have been kicked off');
+                        }
+                        const ms3 = sendVisiblePlayer(state.globme, `${state.globme} re-enters the normal universe\n`);
+                        sendsys(state, state.globme, state.globme, -10113, 0, ms3);
+                        rte(state);
+                    });
             });
     });
 
@@ -1598,7 +1613,7 @@ const u_system = (state: State): Promise<void> => getPlayer(state, state.mynum)
 
         state.cms = -2; /* CODE NUMBER */
         update(state, state.globme);
-        const ms = `[s name="${state.globme}"]${state.globme} has dropped into BB\n[/s]`;
+        const ms = sendVisiblePlayer(state.globme, `${state.globme} has dropped into BB\n`);
         sendsys(state, state.globme, state.globme, -10113, 0, ms);
         closeworld(state);
 
@@ -1616,7 +1631,7 @@ const u_system = (state: State): Promise<void> => getPlayer(state, state.mynum)
                 rte(state);
                 openworld(state);
 
-                const ms3 = `[s name="${state.globme}"]${state.globme} has returned to AberMud\n[/s]`;
+                const ms = sendVisiblePlayer(state.globme, `${state.globme} has returned to AberMud\n`);
                 sendsys(state, state.globme, state.globme, -10113, 0, ms3);
             });
     });
@@ -1898,9 +1913,11 @@ const emptycom = (state: State): Promise<void> => {
                             bprintf(state, `You empty the ${item.name} from the ${container.name}\n`);
                             const x = `drop ${item.name}`;
                             gamecom(state, x);
-                            pbfr(state);
+                            return showMessages(state);
+                        })
+                        .then(() => {
                             openworld(state);
-                          });
+                        });
                 }));
         });
 };

@@ -1,5 +1,6 @@
 import State from './state';
 import {logger} from "./files";
+import {showMessages} from "./bprintf/output";
 
 /**
  * Two Phase Game System
@@ -29,20 +30,23 @@ const main = (state: State, programName: string, name: string): Promise<void> =>
 
 /*
 char privs[4];
+*/
 
-crapup(str)
-char *str;
-{
-extern long pr_due;
-static char *dashes =
-"-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-";
-pbfr();
-pr_due=0;  *//* So we dont get a prompt after the exit *//*
-keysetback();
-printf("\n%s\n\n%s\n\n%s\n", dashes, str, dashes);
-exit(0);
-}
+const dashes = '-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-';
+const crapup = (state: State, message: string): Promise<void> => showMessages(state)
+    .then(() => {
+        state.pr_due = false; /* So we dont get a prompt after the exit */
+        keysetback(state);
+        console.log();
+        console.log(dashes);
+        console.log();
+        console.log(message);
+        console.log();
+        console.log(dashes);
+        exit(0);
+    });
 
+/*
 listfl(name)
 char *name;
 {

@@ -7,6 +7,8 @@ import {getItem, getItems, getPlayer, getPlayers, setPlayer} from "./support";
 import {IS_LIT} from "./object";
 import {isCarriedBy, byMask, findAvailableItem, findPlayer} from "./objsys";
 import {hitPlayer} from "./blood";
+import {sendSound, sendSoundPlayer, sendVisibleName} from "./bprintf/bprintf";
+import {showMessages} from "./bprintf/output";
 
 /*
 #include "files.h"
@@ -116,10 +118,18 @@ const chkfight = (state: State, playerId: number): Promise<void> => Promise.all(
  singcom(  )
     {
     if( chkdumb(  ) ) return ;
-    sillycom( "\001P%s\001\001d sings in Gaelic\n\001" ) ;
+    sillycom( "" ) ;
     bprintf( "You sing\n" ) ;
     }
 */
+
+const singcom = (state: State): Promise<void> => {
+    if (chkdumb()) {
+        return Promise.resolve();
+    }
+    sillycom(`${sendSoundPlayer('%s')}${sendSound(' sings in Gaelic\n')}`);
+
+};
 
 const spraycom = (state: State): Promise<void> => {
     const [b, playerId] = vichere();
@@ -168,10 +178,8 @@ const dircom = (state: State): Promise<void> => {
                 bprintf(state, '\n');
             }
             if (item.itemId % 18 === 17) {
-                pbfr(state);
+                return showMessages(state);
             }
-
-
         }))
         .then(() => bprintf(state, '\n'));
 };
@@ -293,7 +301,7 @@ const helpchkr = (state: State): Promise<void> => getPlayer(state, state.mynum)
     .then(player => getPlayer(state, player.helping))
     .then((player) => {
         const nhelp = () => {
-            bprintf(state, `You can no longer help [c]${player.name}[/c]\n`);
+            bprintf(state, `You can no longer help ${sendVisibleName(player.name)}\n`);
             return setPlayer(state, state.mynum, { helping: -1 });
         };
 

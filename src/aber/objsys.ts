@@ -13,13 +13,13 @@ import {
 } from "./support";
 import {bprintf, brkword, sendsys} from "./__dummies";
 import {CONTAINED_IN, HELD_BY} from "./object";
+import {canSeePlayer, seePlayerName, sendPlayerForVisible, sendVisibleName, setName} from "./bprintf/bprintf";
 
 const iswornby = (state: State, item: Item, player: Player): boolean => false;
 const calibme = (state: State): boolean => false;
 const dragget = (state: State): boolean => false;
 const showwthr = (state: State): boolean => false;
 const cancarry = (state: State, playerId: number): boolean => false;
-const seeplayer = (state: State, playerId: number): boolean => false;
 
 const SHIELD_BASE_ID = 112;
 const SHIELD_IDS = [113, 114];
@@ -248,14 +248,12 @@ export const findPlayer = (state: State, name: string): Promise<Player> => getPl
     });
 
 export const findVisiblePlayer = (state: State, name: string): Promise<Player> => findPlayer(state, name)
-    .then((player) => {
-        if (!player || !seeplayer(state, player.playerId)) {
-            return undefined;
-        }
-        return player;
-    });
-
-//
+    .then((player) => (
+        player
+        ? seePlayerName(state, player)
+            .then(see => (see ? player : undefined))
+        : undefined
+    ));
 
 export const listPeople = (state: State): Promise<string[]> => getPlayers(state)
     .then(players => players.filter((player) => {
@@ -268,13 +266,11 @@ export const listPeople = (state: State): Promise<string[]> => getPlayers(state)
         if (player.locationId !== state.curch) {
             return false;
         }
-        if (!seeplayer(state, player.playerId)) {
-            return false;
-        }
-        return true;
+        return canSeePlayer(state, player);
     }))
     .then(players => players.map((player) => itemsAt(state, player.playerId, HELD_BY)
         .then((items) => {
+            setName(state, player);
             if (player.sex) {
                 state.wd_her = player.name;
             } else {
@@ -393,7 +389,7 @@ export class GetItem extends Action {
                             state.globme,
                             -10000,
                             state.curch,
-                            `[D]${state.globme}[/D][c] takes the ${item.name}\n[/c]`,
+                            `${sendPlayerForVisible(state.globme)}${sendVisibleName(` takes the ${item.name}\n`)}`,
                         );
                         return resolve();
                     })
@@ -439,7 +435,20 @@ export class DropItem extends Action {
                 if ((item.itemId === 32) && (state.my_lev < 10)) {
                     return Promise.reject(new Error('You can\'t let go of it!'));
                 }
-                return putItem(state, item.itemId, state.curch).then(() => item)
+                return Promise.all([
+                    putItem(state, item.itemId, state.curch),
+                    new Promise((resolve) => {
+                        sendsys(
+                            state,
+                            state.globme,
+                            state.globme,
+                            -10000,
+                            state.curch,
+                            `${sendPlayerForVisible(state.globme)}${sendVisibleName(` drops the ${item.name}\n`)}`,
+                        );
+                        return resolve();
+                    })
+                ]).then(() => item)
             })
             .then((item) => {
                 if (state.curch !== -183) {

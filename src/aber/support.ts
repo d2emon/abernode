@@ -268,6 +268,7 @@ export interface Player {
     value: number,
     isAbsent: boolean,
     title: string,
+    isBot: boolean,
 }
 const playerFromState = (state: State, playerId: number): Player => ({
     playerId,
@@ -301,6 +302,7 @@ const playerFromState = (state: State, playerId: number): Player => ({
         : 10 * damof(state, playerId),
     isAbsent: state.ublock[playerId].eventId === -2,
     title: getTitle(state.ublock[playerId].level, state.ublock[playerId].flags.sex ? 0 : 1, state.hasfarted),
+    isBot: (playerId > 15),
 });
 export const getPlayer = (state: State, playerId: number): Promise<Player> => Promise.resolve(
     playerFromState(state, playerId)

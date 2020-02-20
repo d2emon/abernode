@@ -7,6 +7,7 @@ import State from "./state";
 import {createItem, getItem, getPlayer, setPlayer, holdItem, Item, putItem} from "./support";
 import {dropItems, findItem, findVisiblePlayer, isCarriedBy} from "./objsys";
 import state from "./state";
+import {sendName, sendVisibleName, sendVisiblePlayer} from "./bprintf/bprintf";
 
 /*
 #include "files.h"
@@ -43,7 +44,7 @@ const sumcom = (state: State): Promise<void> => {
                     : item.locationId
             ))
             .then((locationId) => {
-                const ms = `[p name=\"${state.globme}\"] has summoned the ${item.name}[/p]\n`;
+                const ms = `${sendName(state.globme)} has summoned the ${item.name}\n`;
                 sendsys(state, state.globme, state.globme, -10000, locationId, ms);
                 bprintf(state, `The ${item.name} flies into your hand, was `);
                 desrm(state, item.locationId, item.carryFlag);
@@ -64,7 +65,7 @@ const sumcom = (state: State): Promise<void> => {
 
             return dropItems(state, player)
                 .then(() => {
-                    const seg = `[s name=\"${player.name}\"]${player.name} has arrived\n[/s]`;
+                    const seg = sendVisiblePlayer(player.name, `${player.name} has arrived\n`);
                     sendsys(state, null, null, -10000, state.curch, seg);
                     return setPlayer(state, player.playerId, {locationId: state.curch});
                 });
@@ -164,65 +165,49 @@ const sumcom = (state: State): Promise<void> => {
     extern char globme[];
     chpwd(globme);
     }
-
- goloccom()
-    {
-    extern long curch,my_lev;
-    extern char globme[];
-    char n1[128];
-    char bf[128];
-    extern char mout_ms[],min_ms[];
-    extern char wordbuf[];
-    long a;
-    FILE *b;
-    if(my_lev<10)
-       {
-       bprintf("huh ?\n");
-       return;
-       }
-    if(brkword()== -1)
-       {
-       bprintf("Go where ?\n");
-       return;
-       }
-    strcpy(n1,wordbuf);
-    if(brkword()== -1) strcpy(wordbuf,"");
-    a=roomnum(n1,wordbuf);
-    if((a>=0)||((b=openroom(a,"r"))==0))
-       {
-       bprintf("Unknown Room\n");
-       return;
-       }
-    fclose(b);
-    sprintf(bf,"\001s%%s\001%%s %s\n\001",mout_ms);
-    sillycom(bf);
-    curch=a;
-    trapch(curch);
-    sprintf(bf,"\001s%%s\001%%s %s\n\001",min_ms);
-    sillycom(bf);
-    }
-
-
-
-
- wizcom()
-    {
-    extern long my_lev;
-    extern char globme[],wordbuf[];
-    extern long curch;
-    extern long rd_qd;
-    char bf[128];
-    if(my_lev<10)
-       {
-       bprintf("Such advanced conversation is beyond you\n");
-       return;
-       }
-    getreinput(wordbuf);
-    sprintf(bf,"\001p%s\001 : %s\n",globme,wordbuf);
-    sendsys(globme,globme,-10113,curch,bf);
-    rd_qd=1;
-    }
 */
+
+const goloccom = (state: State): Promise<void> => {
+    if (state.my_lev < 10) {
+        bprintf(state, 'huh ?\n');
+        return Promise.resolve();
+    }
+    if (brkword(state) === -1) {
+        bprintf(state, 'Go where ?\n');
+        return Promise.resolve();
+    }
+    const n1 = state.wordbuf;
+    if (brkword(state) === -1) {
+        state.wordbuf = '';
+    }
+    const a = roomnum(n1, state.wordbuf);
+    return openroom(state, a, 'r')
+        .then((b) => {
+            if ((a >= 0) || !b) {
+                return bprintf(state, 'Unknown Room\n')
+            }
+            return fclose(b);
+        })
+        .then(() => {
+            const bf1 = sendVisiblePlayer('%s', `%s ${state.mout_ms}\n`);
+            sillycom(state, bf1);
+            state.curch = a;
+            trapch(state, state.curch);
+            const bf2 = sendVisiblePlayer('%s', `%s ${state.min_ms}\n`);
+            sillycom(state, bf2);
+        });
+};
+
+const wizcom = (state: State): Promise<void> => {
+    if (state.my_lev < 10) {
+        bprintf(state, 'Such advanced conversation is beyond you\n');
+        return Promise.resolve();
+    }
+    state.wordbuf = getreinput(state);
+    const bf = `${sendName(state.globme)} : ${state.wordbuf}\n`;
+    sendsys(state, state.globme, state.globme, -10113, state.curch, bf);
+    state.rd_wd = true;
+};
 
 const viscom = (state: State): Promise<void> => getPlayer(state, state.mynum)
     .then((player) => {
@@ -240,7 +225,7 @@ const viscom = (state: State): Promise<void> => getPlayer(state, state.mynum)
                 ];
                 sendsysy(state, null, null, -9900, 0, ar);
                 bprintf(state, 'Ok\n');
-                sillycom(state, `[s name="%%"]%% suddenely appears in a puff of smoke\n[/s]`)
+                sillycom(state, sendVisiblePlayer('%s', '%s suddenely appears in a puff of smoke\n'))
             });
 
 
@@ -270,7 +255,7 @@ const inviscom = (state: State): Promise<void> => getPlayer(state, state.mynum)
                 ];
                 sendsysy(state, null, null, -9900, 0, ar);
                 bprintf(state, 'Ok\n');
-                sillycom(state, `[c]%% vanishes!\n[/c]`)
+                sillycom(state, sendVisibleName('%s vanishes!\n'));
             });
 
 

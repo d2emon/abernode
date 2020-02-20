@@ -107,10 +107,17 @@ export default interface State {
     fighting: number,
     in_fight: number,
     wpnheld: number,
+    // bprintf
+    iskb: boolean,
+    pr_due: boolean,
+    pr_qcr: boolean,
+    log_fl?: any,
     // objsys
     numobs: number; // NOBS
     ublock: PlayerData[],
     //
+    ail_blind: boolean,
+    ail_deaf: boolean,
     argv_p: any,
     brmode: boolean,
     curch: number,
@@ -131,11 +138,16 @@ export default interface State {
     objects: Item[],
     objinfo: ItemData[],
     out_ms: string,
+    snoopd: number,
+    snoopt: number,
     stp: number,
     sysbuf: string,
     wd_her: string,
     wd_him: string,
     wd_it: string,
+    wd_them: string,
     wordbuf: string,
     zapped: boolean,
+    //
+    me: {},
 }

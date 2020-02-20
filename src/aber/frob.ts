@@ -2,6 +2,7 @@ import State from "./state";
 import {bprintf} from "./__dummies";
 import {getPlayer} from "./support";
 import {findVisiblePlayer} from "./objsys";
+import {showMessages} from "./bprintf/output";
 
 const frobnicate = (state: State): Promise<void> => {
     /*
@@ -28,19 +29,37 @@ const frobnicate = (state: State): Promise<void> => {
                 return bprintf(state, `You can\'t frobnicate ${player.name}!!!!\n`);
             }
             bprintf(state, 'New Level: ');
-            pbfr(state);
-            keysetback(state);
-            const bf1 = getkbd(state, 6);
-            bprintf(state, 'New Score: ');
-            pbfr(state);
-            const bf2 = getkbd(state, 8);
-            bprintf(state, 'New Strength: ');
-            pbfr(state);
-            const bf3 = getkbd(state, 8);
-            keysetup();
-            const ary = `${bf1}.${bf2}.${bf3}`;
-            openworld(state);
-            sendsys(state, player.name, player.name, -599, 0, ary);
-            bprintf(state, 'Ok....\n');
+            return showMessages(state)
+                .then(() => {
+                    keysetback(state);
+                    const bf1 = getkbd(state, 6);
+                    bprintf(state, 'New Score: ');
+                    return Promise.all([
+                        bf1,
+                        showMessages(state).then(() => getkbd(state, 8)),
+                    ]);
+                })
+                .then(([
+                    bf1,
+                    bf2,
+                ]) => {
+                    bprintf(state, 'New Strength: ');
+                    return Promise.all([
+                        bf1,
+                        bf2,
+                        showMessages(state).then(() => getkbd(state, 8)),
+                    ]);
+                })
+                .then(([
+                    bf1,
+                    bf2,
+                    bf3,
+                ]) => {
+                    keysetup();
+                    const ary = `${bf1}.${bf2}.${bf3}`;
+                    openworld(state);
+                    sendsys(state, player.name, player.name, -599, 0, ary);
+                    bprintf(state, 'Ok....\n');
+                });
         });
 };

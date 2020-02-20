@@ -3,6 +3,8 @@ import {logger} from "./files";
 import {getPlayer, getPlayers, setPlayer} from "./support";
 import {bprintf} from "./__dummies";
 import {dropItems, dropMyItems, findPlayer, findVisiblePlayer, listPeople, showItems} from "./objsys";
+import {resetMessages, sendKeyboard, sendVisiblePlayer} from "./bprintf/bprintf";
+import {showMessages} from "./bprintf/output";
 
 /*
  *
@@ -95,9 +97,11 @@ long gurum=0;
 long convflg=0;
 */
 
-const sendmsg = (state: State, name: string): Promise<boolean> => getPlayer(state, state.mynum)
-    .then((me) => {
-        pbfr(state);
+const sendmsg = (state: State, name: string): Promise<boolean> => Promise.all([
+    getPlayer(state, state.mynum),
+    showMessages(state),
+])
+    .then(([me]) => {
         if (state.tty === 4) {
             btmscr(state);
         }
@@ -125,71 +129,73 @@ const sendmsg = (state: State, name: string): Promise<boolean> => getPlayer(stat
             prmpt += ')';
         }
 
-        pbfr(state);
-
-        if (me.visibility > 9999) {
-            set_progname(state, '-csh');
-        } else if (me.visibility === 0) {
-            set_progname(state, `   --}----- ABERMUD -----{--     Playing as ${name}`);
-        }
-
-        sig_alon(state);
-        key_input(state, prmpt, 80);
-        sig_aloff(state);
-
-        let work = state.key_buff;
-
-        if (state.tty === 4) {
-            topscr(state);
-        }
-        state.sysbuf += `[l]${work}\n[/l]`;
-
-        openworld(state);
-        rte(state, name);
-        closeworld(state);
-
-        if (state.convflg && (work === '**')) {
-            state.convflg = 0;
-            return sendmsg(state, name);
-        }
-
-        if (work) {
-            if ((work !== '*') && (work[0] === '*')) {
-                work = work.substr(1);
-            } else if (state.convflg === 1) {
-                work = `say ${work}`;
-            } else if (state.convflg) {
-                work = `tss ${work}`;
-            }
-        }
-
-        if (state.curmode === 1) {
-            gamecom(state, work)
-        } else if ((work !== '.Q') && (work !== '.q') && work) {
-            special(state, work, name);
-        }
-
-        let p = Promise.resolve();
-        if (state.fighting > -1) {
-            p = getPlayer(state, state.fighting)
-                .then((enemy) => {
-                    if (!enemy.exists) {
-                        state.in_fight = 0;
-                        state.fighting = -1
-                    }
-                    if (enemy.locationId !== state.curch) {
-                        state.in_fight = 0;
-                        state.fighting = -1
-                    }
-                })
-        }
-        return p
+        return showMessages(state)
             .then(() => {
-                if (state.in_fight) {
-                    state.in_fight -= 1;
+                if (me.visibility > 9999) {
+                    set_progname(state, '-csh');
+                } else if (me.visibility === 0) {
+                    set_progname(state, `   --}----- ABERMUD -----{--     Playing as ${name}`);
                 }
-                return ((work === '.Q') || (work === '.q'))
-            });
+
+                sig_alon(state);
+                key_input(state, prmpt, 80);
+                sig_aloff(state);
+
+                let work = state.key_buff;
+
+                if (state.tty === 4) {
+                    topscr(state);
+                }
+                state.sysbuf += sendKeyboard(`${work}\n`);
+
+                openworld(state);
+                rte(state, name);
+                closeworld(state);
+
+                if (state.convflg && (work === '**')) {
+                    state.convflg = 0;
+                    return sendmsg(state, name);
+                }
+
+                if (work) {
+                    if ((work !== '*') && (work[0] === '*')) {
+                        work = work.substr(1);
+                    } else if (state.convflg === 1) {
+                        work = `say ${work}`;
+                    } else if (state.convflg) {
+                        work = `tss ${work}`;
+                    }
+                }
+
+                if (state.curmode === 1) {
+                    gamecom(state, work)
+                } else if ((work !== '.Q') && (work !== '.q') && work) {
+                    special(state, work, name);
+                }
+
+                let p = Promise.resolve();
+                if (state.fighting > -1) {
+                    p = getPlayer(state, state.fighting)
+                        .then((enemy) => {
+                            if (!enemy.exists) {
+                                state.in_fight = 0;
+                                state.fighting = -1
+                            }
+                            if (enemy.locationId !== state.curch) {
+                                state.in_fight = 0;
+                                state.fighting = -1
+                            }
+                        })
+                }
+                return p
+                    .then(() => {
+                        if (state.in_fight) {
+                            state.in_fight -= 1;
+                        }
+                        return ((work === '.Q') || (work === '.q'))
+                    });
+
+            })
     });
 
 /*
@@ -292,39 +298,41 @@ long findend(unit)
     sec_read(unit,bk,0,2);
     return(bk[1]);
     }
+*/
 
-
- talker(name)
- char *name;
-    {
-    extern long curch,cms;
-    extern long mynum;
-    extern long maxu;
-    extern long rd_qd;
-    FILE *fl;
-    char string[128];
-    extern char globme[];
-    makebfr();
-    	cms= -1;putmeon(name);
-    if(openworld()==NULL) crapup("Sorry AberMUD is currently unavailable");
-    if (mynum>=maxu) {printf("\nSorry AberMUD is full at the moment\n");return(0);}
-    strcpy(globme,name);
-    rte(name);
-    	closeworld();
-    cms= -1;
-    special(".g",name);
-    i_setup=1;
-    while(1)
-       {
-       pbfr();
-       sendmsg(name);
-       if(rd_qd) rte(name);
-       rd_qd=0;
-       closeworld();
-       pbfr();
-       }
+const talker = (state: State, name: string) => {
+    resetMessages(state);
+    state.cms = -1;
+    putmeon(state, name);
+    try {
+        openworld(state);
+    } catch (e) {
+        crapup(state, 'Sorry AberMUD is currently unavailable');
+        return () => false;
     }
+    if (state.mynum >= state.maxu) {
+        console.log('Sorry AberMUD is full at the moment');
+        return () => false;
+    }
+    state.globme = name;
+    rte(state, name);
+    closeworld(state);
+    state.cms = -1;
+    special(state, '.g', name);
+    state.i_setup = 1;
+    return () => showMessages(state)
+        .then(() => {
+            sendmsg(state, name);
+            if (state.rd_qd) {
+                rte(state, name);
+            }
+            rd_qd = 0;
+            closeworld(state);
+            return showMessages(state);
+        });
+};
 
+/*
 long rd_qd=0;
 
  cleanup(inpbk)
@@ -378,8 +386,8 @@ const special = (state: State, word: string, name: string): Promise<boolean> => 
                     helping: -1,
                 })
                     .then(() => {
-                        const xy = `[s name="${name}"]${name}  has entered the game\n[/s]`;
-                        const xx = `[s name="${name}"][ ${name}  has entered the game ]\n[/s]`;
+                        const xy = sendVisiblePlayer(name, `${name}  has entered the game\n`);
+                        const xx = sendVisiblePlayer(name, `[ ${name}  has entered the game ]\n`);
                         sendsys(state, name, name, -10113, state.curch, xx);
                         rte(state, name);
                         if (randperc(state) > 50) {

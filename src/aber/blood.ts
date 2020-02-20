@@ -20,6 +20,7 @@ import {
     isCarriedBy,
 } from './objsys';
 import Action from './action';
+import {sendName} from "./bprintf/bprintf";
 
 const openworld = (state: State): void => undefined;
 const closeworld = (state: State): void => undefined;
@@ -57,6 +58,7 @@ const damageByItem = (item?: Item): number => item ? item.damage : 4;
 
 const SCEPTRE_ID = 16;
 const RUNE_SWORD_ID = 32;
+const WRAITH_ID = 16;
 
 export const hitPlayer = (state: State, victim: Player, weapon?: Item): Promise<void> => getPlayer(state, state.mynum)
     .then((player) => {
@@ -110,7 +112,7 @@ export const hitPlayer = (state: State, victim: Player, weapon?: Item): Promise<
             .then((hit: boolean) => {
                 if (hit) {
                     const weaponDescription = weapon ? `with the ${weapon.name}` : '';
-                    bprintf(state, `You hit [p]${victim.name}[/p] ${weaponDescription}\n`);
+                    bprintf(state, `You hit ${sendName(victim.name)} ${weaponDescription}\n`);
 
                     const attack: Attack = {
                         characterId: state.mynum,
@@ -136,7 +138,7 @@ export const hitPlayer = (state: State, victim: Player, weapon?: Item): Promise<
                             return attack;
                         });
                 } else {
-                    bprintf(state, `You missed [p]${victim.name}[/p]\n`);
+                    bprintf(state, `You missed ${sendName(victim.name)}\n`);
                     return {
                         characterId: state.mynum,
                         damage: undefined,
@@ -145,7 +147,7 @@ export const hitPlayer = (state: State, victim: Player, weapon?: Item): Promise<
                 }
             })
             .then((attack) => {
-                if (victim.playerId < 16) {
+                if (!victim.isBot) {
                     return sendsys(
                         state,
                         victim.name,
@@ -194,7 +196,7 @@ export const receiveDamage = (state: State, attack: Attack, isMe: boolean): Prom
                     state.globme,
                     -10000,
                     state.curch,
-                    `[p]${state.globme}[/p] has just died.\n`,
+                    `${sendName(state.globme)} has just died.\n`,
                 );
                 sendsys(
                     state,
@@ -202,24 +204,24 @@ export const receiveDamage = (state: State, attack: Attack, isMe: boolean): Prom
                     state.globme,
                     -10113,
                     state.curch,
-                    `[ [p]${state.globme}[/p] has been slain by [p]${enemy.name}[/p] ]\n`,
+                    `[ ${sendName(state.globme)} has been slain by ${sendName(enemy.name)}[/p] ]\n`,
                 );
                 return crapup(state, 'Oh dear... you seem to be slightly dead');
             });
 
         const missed = () => {
             const weaponMessage = weapon ? ` with the ${weapon.name}` : '';
-            bprintf(state, `[p]${enemy.name}[/p] attacks you${weaponMessage}\n`);
+            bprintf(state, `${sendName(enemy.name)} attacks you${weaponMessage}\n`);
         };
 
         const wounded = () => {
             const weaponMessage = weapon ? ` with the ${weapon.name}` : '';
-            bprintf(state, `You are wounded by [p]${enemy.name}[/p]${weaponMessage}\n`);
+            bprintf(state, `You are wounded by ${sendName(enemy.name)}${weaponMessage}\n`);
 
             if (state.my_lev < 10) {
                 // Set Damage
                 state.my_str -= damage;
-                if (enemy.playerId === 16) {
+                if (enemy.playerId === WRAITH_ID) {
                     lifeDrain();
                 }
             }

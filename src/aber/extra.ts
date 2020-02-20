@@ -6,9 +6,11 @@ import {
 } from './__dummies';
 import State from "./state";
 import {createItem, getItem, getItems, getPlayer, holdItem, Item, setItem, setPlayer} from "./support";
-import {EXAMINES, HELP1} from "./files";
+import {EXAMINES, HELP1, HELP2, HELP3, LEVELS, WIZLIST} from "./files";
 import {CONTAINED_IN, HELD_BY, IS_DESTROYED, LOCATED_IN} from "./object";
 import {findAvailableItem, findItem, findVisiblePlayer, isCarriedBy} from './objsys';
+import {sendVisible, sendVisibleName, sendVisiblePlayer, showFile} from "./bprintf/bprintf";
+import {showMessages} from "./bprintf/output";
 
 /*
 #include "files.h"
@@ -43,45 +45,51 @@ const helpcom = (state: State): Promise<void> => {
                     return;
                 }
                 if (me.helping !== -1) {
-                    const b = `[c]${state.globme}[/c] has stopped helping you\n`;
+                    const b = `${sendVisibleName(state.globme)} has stopped helping you\n`;
                     sendsys(state, player.name, player.name, -10011, state.curch, b);
                     return getPlayer(state, player.helping)
                         .then(helper => bprintf(state, `Stopped helping ${helper.name}\n`));
                 }
                 return setPlayer(state, me.playerId, { helping: player.playerId })
                     .then(() => {
-                        const b = `[c]${state.globme}[/c] has offered to help you\n`;
+                        const b = `${sendVisibleName(state.globme)} has offered to help you\n`;
                         sendsys(state, player.name, player.name, -10011, state.curch, b);
                         bprintf(state, 'OK...\n');
                     });
             });
     }
     closeworld(state);
-    bprintf(state, `[f]${HELP1}[/f]\n`);
+    bprintf(state, `${showFile(HELP1)}\n`);
+    let p = Promise.resolve();
     if (state.my_lev > 9) {
         bprintf(state, 'Hit <Return> For More....\n');
-        pbfr(state);
-        while (getchar(state) !== '\n') {}
-        bprintf(state, `[f]${HELP2}[/f]\n`);
+        p = showMessages(state)
+            .then(() => {
+                while (getchar(state) !== '\n') {}
+                bprintf(state, `${showFile(HELP2)}\n`);
+            });
     }
-    bprintf(state, '\n');
-    if (state.my_lev > 9999) {
-        bprintf(state, 'Hit <Return> For More....\n');
-        pbfr(state);
-        while (getchar(state) !== '\n') {}
-        bprintf(state, `[f]${HELP3}[/f]\n`);
-    }
-    bprintf(state, '\n');
-    return Promise.resolve();
+    return p
+        .then(() => {
+            bprintf(state, '\n');
+            let p = Promise.resolve();
+            if (state.my_lev > 9999) {
+                bprintf(state, 'Hit <Return> For More....\n');
+                p = showMessages(state)
+                    .then(() => {
+                        while (getchar(state) !== '\n') {}
+                        bprintf(state, `${showFile(HELP3)}\n`);
+                    });
+            }
+            bprintf(state, '\n');
+        });
 };
 
-/*
- levcom()
-    {
-    closeworld();
-    bprintf("\001f%s\001",LEVELS);
-    }
-*/
+const levcom = (state: State): Promise<void> => {
+    closeworld(state);
+    bprintf(state, showFile(LEVELS));
+    return Promise.resolve();
+};
 
 const valuecom = (state: State): Promise<void> => {
     if (brkword(state) == -1) {
@@ -257,19 +265,17 @@ const statplyr = (state: State): Promise<void> => findVisiblePlayer(state, state
 
 const statplyr = (state: State): Promise<void> => findVisiblePlayer(state, state.wordbuf).then(() => {});
 
-/*
- wizlist()
- {
- extern long my_lev;
- if(my_lev<10)
- {
- bprintf("Huh ?\n");
- return;
- }
- closeworld();
- bprintf("\001f%s\001",WIZLIST);
- }
+const wizlist = (state: State): Promise<void> => {
+    if (state.my_lev < 10) {
+        bprintf(state, 'Huh ?\n');
+        return Promise.resolve();
+    }
+    closeworld(state);
+    bprintf(state, showFile(WIZLIST));
+    return Promise.resolve();
+};
 
+/*
  incom()
  {
  extern long my_lev,curch;
@@ -354,10 +360,10 @@ const jumpcom = (state: State): Promise<void> => {
                 loseme();
                 crapup(state, 'I suppose you could be scraped up - with a spatula');
             }
-            const ms1 = `[s name=\"${state.globme}\"]${state.globme} has just left\n[/s]`;
+            const ms1 = sendVisiblePlayer(state.globme, `${state.globme} has just left\n`);
             sendsys(state, state.globme, state.globme, -10000, state.curch, ms1);
             state.curch = b;
-            const ms2 = `[s name=\"${state.globme}\"]${state.globme} has just dropped in\n[/s]`;
+            const ms2 = sendVisiblePlayer(state.globme, `${state.globme} has just dropped in\n`);
             sendsys(state, state.globme, state.globme, -10000, state.curch, ms2);
             trapch(b);
         });
@@ -443,7 +449,7 @@ const desrm = (state: State, locationId: number, carryFlag: number): Promise<voi
     }
     if (carryFlag > 0) {
         return getPlayer(state, locationId)
-            .then((player) => bprintf(state, `Carried by [c]${player.name}[/c]\n`));
+            .then((player) => bprintf(state, `Carried by ${sendVisibleName(player.name)}\n`));
     }
     return openroom(locationId, 'r')
         .then((unit) => {
