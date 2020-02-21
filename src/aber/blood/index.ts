@@ -7,10 +7,7 @@ import {
     setPlayer,
 } from '../support';
 import {isCarriedBy} from '../objsys';
-import {
-    bprintf,
-    sendsys,
-} from '../__dummies';
+import {sendsys} from '../__dummies';
 import {
     getFight,
     resetFight,
@@ -18,6 +15,7 @@ import {
     setWeapon,
 } from './reducer';
 import {sendName} from '../bprintf';
+import {sendMessage} from '../bprintf/bprintf';
 
 const calibme = (state: State): void => undefined;
 const iswornby = (state: State, item: Item, player: Player): boolean => false;
@@ -35,29 +33,38 @@ export interface Attack {
 
 export const damageByItem = (item?: Item): number => item ? item.damage : 4;
 
+const badWeapon = (state: State, weapon: Item): Promise<undefined> => Promise.all([
+    sendMessage(state, `You belatedly realise you dont have the ${weapon.name},\n`),
+    sendMessage(state, 'and are forced to use your hands instead..\n'),
+])
+    .then(() => undefined);
+const swordVsSceptre = (state: State, victim: Player): Promise<void> => getItem(state, SCEPTRE_ID)
+    .then((sceptre) => {
+        if (isCarriedBy(sceptre, victim, (state.my_lev < 10))) {
+            throw new Error('The runesword flashes back away from its target, growling in anger!');
+        }
+    });
+
 export const hitPlayer = (state: State, victim: Player, weapon?: Item): Promise<void> => getPlayer(state, state.mynum)
     .then((player) => {
         if (!victim.exists) {
             return;
         }
         /* Chance to hit stuff */
+        let p = Promise.resolve(weapon);
         if (weapon && !isCarriedBy(weapon, player, (state.my_lev < 10))) {
-            bprintf(state, `You belatedly realise you dont have the ${weapon.name},\n`);
-            bprintf(state, 'and are forced to use your hands instead..\n');
-            weapon = undefined;
-        }
-        setWeapon(state, weapon);
-
-        let p = Promise.resolve();
-        if (weapon && (weapon.itemId === RUNE_SWORD_ID)) {
-            p = getItem(state, SCEPTRE_ID)
-                .then((sceptre) => {
-                    if (isCarriedBy(sceptre, victim, (state.my_lev < 10))) {
-                        throw new Error('The runesword flashes back away from its target, growling in anger!');
-                    }
-                })
+            p = badWeapon(state, weapon)
         }
         return p
+            .then((weapon) => {
+                setWeapon(state, weapon);
+                if (!weapon) {
+                    return;
+                }
+                if (weapon.itemId === RUNE_SWORD_ID) {
+                    return swordVsSceptre(state, victim);
+                }
+            })
             .then(() => {
                 if (damageByItem(weapon) === undefined) {
                     setWeapon(state, undefined);
@@ -85,19 +92,18 @@ export const hitPlayer = (state: State, victim: Player, weapon?: Item): Promise<
                 return randperc(state) < toHit;
             })
             .then((hit: boolean) => {
+                const attack: Attack = {
+                    characterId: state.mynum,
+                    damage: hit ? randperc(state) % damageByItem(weapon) : undefined,
+                    weaponId: weapon ? weapon.itemId : undefined,
+                };
+                const promises = [];
                 if (hit) {
                     const weaponDescription = weapon ? `with the ${weapon.name}` : '';
-                    bprintf(state, `You hit ${sendName(victim.name)} ${weaponDescription}\n`);
-
-                    const attack: Attack = {
-                        characterId: state.mynum,
-                        damage: randperc(state) % damageByItem(weapon),
-                        weaponId: weapon ? weapon.itemId : undefined,
-                    };
-                    const promises = [];
+                    promises.push(sendMessage(state, `You hit ${sendName(victim.name)} ${weaponDescription}\n`));
                     if (attack.damage > victim.strength) {
                         // Killed
-                        bprintf(state, 'Your last blow did the trick\n');
+                        promises.push(sendMessage(state, 'Your last blow did the trick\n'));
                         if (!victim.isDead) {
                             /* Bonus ? */
                             state.my_sco += victim.value;
@@ -106,20 +112,15 @@ export const hitPlayer = (state: State, victim: Player, weapon?: Item): Promise<
                         /* MARK ALREADY DEAD */
                         promises.push(setPlayer(state, victim.playerId, { isDead: true }));
                     }
-                    return Promise.all(promises)
-                        .then(() => {
-                            state.my_sco += attack.damage * 2;
-                            calibme(state);
-                            return attack;
-                        });
+                    promises.push(new Promise((resolve) => {
+                        state.my_sco += attack.damage * 2;
+                        calibme(state);
+                    }));
                 } else {
-                    bprintf(state, `You missed ${sendName(victim.name)}\n`);
-                    return {
-                        characterId: state.mynum,
-                        damage: undefined,
-                        weaponId: weapon ? weapon.itemId : undefined,
-                    };
+                    promises.push(sendMessage(state, `You missed ${sendName(victim.name)}\n`));
                 }
+                return Promise.all(promises)
+                    .then(() => attack);
             })
             .then((attack) => {
                 if (!victim.isBot) {
@@ -135,5 +136,5 @@ export const hitPlayer = (state: State, victim: Player, weapon?: Item): Promise<
                     return woundmn(state, victim, attack.damage || 0);
                 }
             })
-            .catch(e => bprintf(state, `${e}\n`));
+            .catch(e => sendMessage(state, `${e}\n`));
     });

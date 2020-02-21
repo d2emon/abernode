@@ -8,6 +8,7 @@ import {createItem, getItem, getPlayer, setPlayer, holdItem, Item, putItem} from
 import {dropItems, findItem, findVisiblePlayer, isCarriedBy} from "./objsys";
 import state from "./state";
 import {sendName, sendVisibleName, sendVisiblePlayer} from "./bprintf/bprintf";
+import {showLocation} from "./extra";
 
 /*
 #include "files.h"
@@ -46,8 +47,7 @@ const sumcom = (state: State): Promise<void> => {
             .then((locationId) => {
                 const ms = `${sendName(state.globme)} has summoned the ${item.name}\n`;
                 sendsys(state, state.globme, state.globme, -10000, locationId, ms);
-                bprintf(state, `The ${item.name} flies into your hand, was `);
-                desrm(state, item.locationId, item.carryFlag);
+                bprintf(state, `The ${item.name} flies into your hand, was ${showLocation(state, item.locationId, item.carryFlag)}`);
                 return holdItem(state, item.itemId, state.mynum);
             })
     };

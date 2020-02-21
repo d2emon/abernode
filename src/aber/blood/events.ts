@@ -3,15 +3,13 @@ import {
     getItem,
     getPlayer,
 } from '../support';
-import {
-    bprintf,
-    sendsys,
-} from '../__dummies';
+import {sendsys} from '../__dummies';
 import {logger} from '../files';
 import {dropMyItems} from '../objsys';
 import {sendName} from '../bprintf';
 import {setFight} from './reducer';
 import {Attack} from './index';
+import {sendMessage} from '../bprintf/bprintf';
 
 const openworld = (state: State): void => undefined;
 const closeworld = (state: State): void => undefined;
@@ -33,10 +31,10 @@ export const receiveDamage = (state: State, attack: Attack, isMe: boolean): Prom
     ]) => {
         const lifeDrain = () => {
             state.my_sco -= 100 * damage;
-            bprintf(state, 'You feel weaker, as the wraiths icy touch seems to drain your very life force\n');
             if (state.my_sco < 0) {
                 state.my_str = -1;
             }
+            return sendMessage(state, 'You feel weaker, as the wraiths icy touch seems to drain your very life force\n');
         };
 
         const killed = () => Promise.all([
@@ -69,26 +67,29 @@ export const receiveDamage = (state: State, attack: Attack, isMe: boolean): Prom
 
         const missed = () => {
             const weaponMessage = weapon ? ` with the ${weapon.name}` : '';
-            bprintf(state, `${sendName(enemy.name)} attacks you${weaponMessage}\n`);
+            return sendMessage(state, `${sendName(enemy.name)} attacks you${weaponMessage}\n`);
         };
 
         const wounded = () => {
             const weaponMessage = weapon ? ` with the ${weapon.name}` : '';
-            bprintf(state, `You are wounded by ${sendName(enemy.name)}${weaponMessage}\n`);
+            return sendMessage(state, `You are wounded by ${sendName(enemy.name)}${weaponMessage}\n`)
+                .then(() => {
+                    if (state.my_lev >= 10) {
+                        return;
+                    }
+                    // Set Damage
+                    state.my_str -= damage;
+                    if (enemy.playerId === WRAITH_ID) {
+                        return lifeDrain();
+                    }
+                })
+                .then(() => {
+                    if (state.my_str < 0) {
+                        return killed();
+                    }
 
-            if (state.my_lev < 10) {
-                // Set Damage
-                state.my_str -= damage;
-                if (enemy.playerId === WRAITH_ID) {
-                    lifeDrain();
-                }
-            }
-
-            if (state.my_str < 0) {
-                return killed();
-            }
-
-            state.me_cal = 1; /* Queue an update when ready */
+                    state.me_cal = 1; /* Queue an update when ready */
+                });
         };
 
         if (!isMe) {
