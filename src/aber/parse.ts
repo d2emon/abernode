@@ -13,7 +13,7 @@ import {
     dropMyItems,
     findVisiblePlayer, findPlayer
 } from "./objsys";
-import {hitPlayer, receiveDamage} from "./blood";
+import {hitPlayer, receiveDamage} from "./blood/blood";
 import {
     sendName,
     sendPlayerForVisible,

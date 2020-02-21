@@ -6,7 +6,7 @@ import State from "./state";
 import {getItem, getItems, getPlayer, getPlayers, setPlayer} from "./support";
 import {IS_LIT} from "./object";
 import {isCarriedBy, byMask, findAvailableItem, findPlayer} from "./objsys";
-import {hitPlayer} from "./blood";
+import {hitPlayer} from "./blood/blood";
 import {sendSound, sendSoundPlayer, sendVisibleName} from "./bprintf/bprintf";
 import {showMessages} from "./bprintf/output";
 
