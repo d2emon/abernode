@@ -4,14 +4,6 @@ import {
     getPlayer,
 } from '../support';
 
-export const clearMessages = (state: State): void => {
-    state.sysbuf = '';
-};
-export const addMessage = (state: State, message: string): void => {
-    state.sysbuf += message;
-};
-export const getMessages = (state: State): string => state.sysbuf;
-
 export const getLogFile = (state: State): any => state.log_fl;
 export const setLogFile = (state: State, logFile: any): void => {
     state.log_fl = logFile;

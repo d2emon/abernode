@@ -108,12 +108,14 @@ export default interface State {
     in_fight: number,
     wpnheld: number,
     // bprintf
+    messagesId: number,
     iskb: boolean,
     log_fl?: any,
     pr_due: boolean,
     pr_qcr: boolean,
     snoopd: number,
     snoopt: number,
+    sysbuf: string,
     // objsys
     numobs: number; // NOBS
     ublock: PlayerData[],
@@ -141,7 +143,6 @@ export default interface State {
     objinfo: ItemData[],
     out_ms: string,
     stp: number,
-    sysbuf: string,
     wd_her: string,
     wd_him: string,
     wd_it: string,

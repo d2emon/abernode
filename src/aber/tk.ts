@@ -5,6 +5,7 @@ import {bprintf} from "./__dummies";
 import {dropItems, dropMyItems, findPlayer, findVisiblePlayer, listPeople, showItems} from "./objsys";
 import {resetMessages, sendKeyboard, sendVisiblePlayer} from "./bprintf/bprintf";
 import {showMessages} from "./bprintf/output";
+import {checkSnoop} from "./bprintf/snoop";
 
 /*
  *
@@ -540,7 +541,7 @@ const loseme = (state: State, name: string): Promise<void> => getPlayer(state, s
                 if (!state.zapped) {
                     saveme(state);
                 }
-                chksnp(state);
+                return checkSnoop(state);
             });
     });
 

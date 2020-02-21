@@ -13,11 +13,8 @@ import {
     sendsys,
 } from '../__dummies';
 import {findVisiblePlayer} from '../objsys';
-import {openSnoop} from './snoop';
-
-const fopen = (fileName: string, mode: string): Promise<any> => Promise.resolve({});
-const fprintf = (file: any, data: any): Promise<void> => Promise.resolve();
-const fclose = (file: any): Promise<void> => Promise.resolve();
+import {touchSnoop} from './snoop';
+import LogService from '../services/log';
 
 const geteuid = (state: State): void => undefined;
 const getuid = (state: State): void => undefined;
@@ -25,34 +22,34 @@ const getuid = (state: State): void => undefined;
 // Actions
 
 export class Log extends Action {
-    openLog(state: State): Promise<void> {
-        return fopen('mud_log', 'a')
-            .then((logFile) => logFile || fopen('mud_log', 'w'))
-            .then((logFile) => {
-                setLogFile(state, logFile);
-                if (!logFile) {
-                    throw new Error('Cannot open log file mud_log')
-                }
-            });
+    private static canLog(state: State): boolean {
+        return getuid(state) === geteuid(state);
     }
 
-    closeLog(state: State): Promise<void> {
-        const logFile = getLogFile(state);
-        return fprintf(logFile, '\nEnd of log....\n\n')
-            .then(() => fclose(logFile))
-            .then(() => setLogFile(state, undefined));
-    }
+    private static startLog(state: State) {
+        return LogService.connectLog()
+            .catch(() => LogService.createLog())
+            .catch(() => Promise.reject(new Error('Cannot open log file mud_log')))
+            .then(() => setLogFile(state, true))
+            .then(() => ({ logFile: getLogFile(state) }))
+            .catch((e) => {
+                setLogFile(state, false);
+                throw e;
+            });
+    };
+
+    private static stopLog(state: State) {
+        return LogService.writeLog('\nEnd of log....\n\n')
+            .then(() => LogService.stopLog())
+            .then(() => setLogFile(state, undefined))
+            .then(() => ({ logFile: false }));
+    };
 
     action(state: State): Promise<any> {
-        if (getuid(state) !== geteuid(state)) {
+        if (!Log.canLog(state)) {
             throw new Error('Not allowed from this ID');
         }
-        if (getLogFile(state)) {
-            return this.closeLog(state)
-                .then(() => ({ logFile: undefined }));
-        }
-        return this.openLog(state)
-            .then(() => ({ logFile: getLogFile(state) }));
+        return getLogFile(state) ? Log.stopLog(state) : Log.startLog(state);
     }
 
     decorate(result: any): void {
@@ -66,14 +63,10 @@ export class Log extends Action {
             this.output('End of log\n');
         }
     }
-
 }
 
 export class Snoop extends Action {
-    touchSnoopFile = (name: string) => openSnoop(name, 'w')
-        .then((snoopFile) => fprintf(snoopFile, '').then(() => fclose(snoopFile)));
-
-    stopSnoop(state: State, snooped: Player): Promise<any> {
+    private static stopSnoop(state: State, snooped: Player): Promise<any> {
         stopSnoop(state);
         sendsys(
             state,
@@ -84,11 +77,12 @@ export class Snoop extends Action {
             null,
         );
         return Promise.resolve({
-            messages: `Stopped snooping on ${snooped.name}\n`,
+            name: snooped.name,
+            stopped: true,
         });
     }
 
-    startSnoop(state: State): Promise<any> {
+    private static startSnoop(state: State): Promise<any> {
         if (brkword(state) === -1) {
             return Promise.resolve();
         }
@@ -102,19 +96,23 @@ export class Snoop extends Action {
                     throw new Error('Your magical vision is obscured');
                 }
                 startSnoop(state, snooped);
-                const message = `Started to snoop on ${snooped.name}\n`;
-                sendsys(
-                    state,
-                    snooped.name,
-                    state.globme,
-                    -401,
-                    0,
-                    null,
-                );
-                return state.globme;
+                return Promise.all([
+                    Promise.resolve(snooped.name),
+                    Promise.resolve(sendsys(
+                        state,
+                        snooped.name,
+                        state.globme,
+                        -401,
+                        0,
+                        null,
+                    )),
+                    touchSnoop(state.globme),
+                ])
             })
-            .then(this.touchSnoopFile);
-
+            .then(([name]) => ({
+                name,
+                started: true,
+            }));
     }
 
     action(state: State): Promise<any> {
@@ -122,6 +120,19 @@ export class Snoop extends Action {
             throw new Error('Ho hum, the weather is nice isn\'t it');
         }
         return getSnooped(state)
-            .then(snooped => (snooped ? this.stopSnoop(state, snooped) : this.startSnoop(state)));
+            .then(snooped => (snooped ? Snoop.stopSnoop(state, snooped) : Snoop.startSnoop(state)));
+    }
+
+    decorate(result: any): void {
+        const {
+            name,
+            stopped,
+            started,
+        } = result;
+        if (stopped) {
+            this.output(`Stopped snooping on ${name}\n`)
+        } else if (started) {
+            this.output(`Started to snoop on ${name}\n`);
+        }
     }
 }

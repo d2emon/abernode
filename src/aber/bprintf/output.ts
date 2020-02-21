@@ -1,27 +1,26 @@
 import State from '../state';
-import {
-    Player,
-    getPlayer,
-} from '../support';
+import {Player} from '../support';
 import {
     canSeePlayer,
-    resetMessages,
     setName,
-} from './bprintf';
+} from './player';
 import {
-    getMessages,
     getIsKeyboard,
     setIsKeyboard,
     unsetIsKeyboard,
     getLogFile,
     getNeedLineBreak,
     unsetNeedLineBreak,
-    setNeedPrompt, getSnooper, getSnooped,
+    setNeedPrompt,
+    getSnooper,
+    getSnooped,
 } from './reducer';
-import {openSnoop} from "./snoop";
-
-const fprintf = (file: any, data: any): Promise<void> => Promise.resolve();
-const fclose = (file: any): Promise<void> => Promise.resolve();
+import {
+    viewSnoop,
+    writeSnoop,
+} from './snoop';
+import Messages from '../services/messages';
+import Log from '../services/log';
 
 const block_alarm = (state: State): void => undefined;
 const unblock_alarm = (state: State): void => undefined;
@@ -79,7 +78,7 @@ const replaceNotKeyboard = (state: State) => (match, message: string): string =>
 
 // The main loop
 
-const decode = (state: State, text: string, file: any, isKeyboard: boolean = true): Promise<void> => {
+const decode = (state: State, text: string, isKeyboard: boolean = true): string => {
     if (isKeyboard) {
         setIsKeyboard(state);
     } else {
@@ -94,49 +93,49 @@ const decode = (state: State, text: string, file: any, isKeyboard: boolean = tru
     text.replace(/\[P](.{0,24})\[\/P]/, replaceSoundPlayer(state));
     text.replace(/\[D](.{0,24})\[\/D]/, replaceSeePlayer(state));
     text.replace(/\[l](.{0,127})\[\/l]/, replaceNotKeyboard(state));
-    return fprintf(file, text);
+    return text;
 };
 
-const withSnoopFile = (name: string, callback) => openSnoop(name, 'a')
-    .then((snoopFile) => callback(snoopFile).then(() => fclose(snoopFile)));
-
 const decodeLog = (state: State, messages: string) => Promise.resolve(getLogFile(state))
-    .then(logFile => logFile && decode(state, messages, logFile, false));
+    .then((logFile) => {
+        if (!logFile) {
+            return
+        }
+        return Log.writeLog(decode(state, messages, false));
+    });
 const decodeSnoop = (state: State, messages: string) => getSnooper(state)
-    .then((snooper) => snooper && withSnoopFile(
-        snooper.name,
-        (snoopFile) => decode(state, messages, snoopFile, false)
-    ))
+    .then((snooper) => {
+        if (!snooper) {
+            return
+        }
+        return writeSnoop(snooper.name, decode(state, messages, false));
+    })
     .catch(() => null);
 const decodeScreen = (state: State, messages: string) => {
     if (messages) {
         setNeedPrompt(state);
         if (getNeedLineBreak(state)) {
-            messages = `\n${messages}`;
+            console.log('\n');
         }
     }
     unsetNeedLineBreak(state);
-    return decode(state, messages, null, true);
+    console.log(decode(state, messages, true));
+    return Promise.resolve();
 };
 
 export const showMessages = (state: State): Promise<void> => {
     block_alarm(state);
     closeworld(state);
-    return Promise.resolve(getMessages(state))
+    return Messages.getMessages(state.messagesId)
         .then(messages => Promise.all([
             decodeLog(state, messages),
             decodeSnoop(state, messages),
             decodeScreen(state, messages),
         ]))
-        /* clear buffer */
-        .then(() => {
-            resetMessages(state);
-            return getSnooped(state);
-        })
-        .then((snooped) => {
-            if (snooped) {
-                viewsnoop(state);
-            }
-        })
+        // Clear buffer
+        .then(() => Messages.clearMessages(state.messagesId))
+        // Show snooped
+        .then(() => getSnooped(state))
+        .then(snooped => snooped && viewSnoop(state, snooped))
         .then(() => unblock_alarm(state));
 };
