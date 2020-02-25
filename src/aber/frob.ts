@@ -1,65 +1,66 @@
-import State from "./state";
-import {bprintf} from "./__dummies";
-import {getPlayer} from "./support";
-import {findVisiblePlayer} from "./objsys";
-import {showMessages} from "./bprintf/output";
+import State from './state';
+import Action from './action';
+import {
+    brkword,
+    sendsys,
+} from './__dummies';
+import {findVisiblePlayer} from './objsys';
+import {showMessages} from './bprintf/output';
+import {sendMessage} from './bprintf/bprintf';
 
-const frobnicate = (state: State): Promise<void> => {
-    /*
-	extern char wordbuf[];
-	extern long my_lev;
-	int x;
-	char ary[128];
-	char bf1[8],bf2[8],bf3[8];
-	*/
+const keysetup = (state: State): void => undefined;
+const keysetback = (state: State): void => undefined;
+const openworld = (state: State): void => undefined;
+const getkbd = (state: State, maxLength: number): string => '';
+
+const getInput = (state: State, message: string, maxLength: number, show: boolean): Promise<string> => sendMessage(state, message)
+    .then(() => show && showMessages(state))
+    .then(() => getkbd(state, maxLength));
+
+export class Frobnicate extends Action {
+    action(state: State): Promise<any> {
     if (state.my_lev < 10000) {
-        bprintf(state, 'No way buster.\n');
-        return Promise.resolve();
+        throw new Error('No way buster.');
     }
-    if (brkword() === -1) {
-        bprintf(state, 'Frobnicate who ?\n');
-        return Promise.resolve();
+    if (brkword(state) === -1) {
+        throw new Error('Frobnicate who ?');
     }
     return findVisiblePlayer(state, state.wordbuf)
         .then((player) => {
-            if ((player.playerId > 15) && (state.my_lev !== 10033)) {
-                return bprintf(state, 'Can\'t frob mobiles old bean.\n');
+            if (player.isBot && (state.my_lev !== 10033)) {
+                throw new Error('Can\'t frob mobiles old bean.');
             }
             if (player.isGod && (state.my_lev !== 10033)) {
-                return bprintf(state, `You can\'t frobnicate ${player.name}!!!!\n`);
+                throw new Error(`You can\'t frobnicate ${player.name}!!!!`);
             }
-            bprintf(state, 'New Level: ');
             return showMessages(state)
                 .then(() => {
                     keysetback(state);
-                    const bf1 = getkbd(state, 6);
-                    bprintf(state, 'New Score: ');
                     return Promise.all([
-                        bf1,
-                        showMessages(state).then(() => getkbd(state, 8)),
+                        getInput(state, 'New Level: ', 6, false),
+                        getInput(state, 'New Score: ', 8, true),
+                        getInput(state, 'New Strength: ', 8, true),
                     ]);
                 })
-                .then(([
-                    bf1,
-                    bf2,
-                ]) => {
-                    bprintf(state, 'New Strength: ');
-                    return Promise.all([
-                        bf1,
-                        bf2,
-                        showMessages(state).then(() => getkbd(state, 8)),
-                    ]);
-                })
-                .then(([
-                    bf1,
-                    bf2,
-                    bf3,
-                ]) => {
-                    keysetup();
-                    const ary = `${bf1}.${bf2}.${bf3}`;
+                .then((values) => {
+                    keysetup(state);
                     openworld(state);
-                    sendsys(state, player.name, player.name, -599, 0, ary);
-                    bprintf(state, 'Ok....\n');
+                    sendsys(
+                        state,
+                        player.name,
+                        player.name,
+                        -599,
+                        0,
+                        values,
+                    );
+                    return true;
                 });
         });
-};
+    }
+
+    decorate(result: any): void {
+        if (result) {
+            this.output('Ok....\n');
+        }
+    }
+}

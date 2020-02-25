@@ -1,6 +1,5 @@
 import State from "../state";
 import {
-    bprintf,
     brkword,
     sendsys,
 } from "../__dummies";
