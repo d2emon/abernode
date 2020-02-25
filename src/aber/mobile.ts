@@ -9,6 +9,7 @@ import {isCarriedBy, byMask, findAvailableItem, findPlayer} from "./objsys";
 import {hitPlayer} from "./blood/blood";
 import {sendSound, sendSoundPlayer, sendVisibleName} from "./bprintf/bprintf";
 import {showMessages} from "./bprintf/output";
+import {endGame} from "./gamego/endGame";
 
 /*
 #include "files.h"
@@ -276,7 +277,7 @@ const pepdrop = (state: State): Promise<void> => {
                     bprintf(state, 'The dragon sneezes forth a massive ball of flame.....\n');
                     bprintf(state, 'Unfortunately you seem to have been fried\n');
                     loseme();
-                    crapup(state, 'Whoops.....   Frying tonight\n');
+                    return endGame(state, 'Whoops.....   Frying tonight');
                 });
         });
 };

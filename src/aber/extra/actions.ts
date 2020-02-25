@@ -36,6 +36,7 @@ import Action from "../action";
 import {IS_DESTROYED} from "../object";
 import {sendVisiblePlayer} from "../bprintf";
 import {showLocation} from "./index";
+import {endGame} from "../gamego/endGame";
 
 const fopen = (name: string, permissions: string): Promise<any> => Promise.resolve({});
 const fclose = (file: any): Promise<void> => Promise.resolve();
@@ -54,7 +55,6 @@ const getreinput = (state: State): string => '';
 const openroom = (state: State, locationId: number, permissions: string): Promise<any> => Promise.resolve({});
 const lodex = (state: State, file: any): void => undefined;
 const gamecom = (state: State, toPerform: string): void => undefined;
-const crapup = (state: State, message: string): void => undefined;
 
 const UMBRELLA_ID = 1;
 const CRYSTAL_BALL_ID = 7;
@@ -498,8 +498,7 @@ export class Jump extends Action {
         this.output('Wheeeeeeeeeeeeeeeee  <<<<SPLAT>>>>\n');
         this.output('You seem to be splattered all over the place\n');
         loseme(state);
-        crapup(state, 'I suppose you could be scraped up - with a spatula');
-        return Promise.resolve({});
+        return endGame(state, 'I suppose you could be scraped up - with a spatula');
     }
 
     private static withUmbrella(state: State, locationId: number): Promise<any> {

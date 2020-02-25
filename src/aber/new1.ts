@@ -39,6 +39,7 @@ import {
     sendVisibleName,
     sendVisiblePlayer
 } from "./bprintf/bprintf";
+import {endGame} from "./gamego/endGame";
 
 /*
 struct player_res
@@ -456,7 +457,7 @@ const pushcom = (state: State): Promise<void> => {
                 bprintf(state, 'The tripwire moves and a huge stone crashes down from above!\n');
                 broad(state, sendSound('You hear a thud and a squelch in the distance.\n'));
                 loseme(state);
-                return crapup(state, '             S   P    L      A         T           !');
+                return endGame(state, '             S   P    L      A         T           !');
             } else if (item.itemId === 162) {
                 bprintf(state, 'A trapdoor opens at your feet and you plumment downwards!\n');
                 state.curch = -140;
@@ -736,25 +737,25 @@ const starecom = (state: State): Promise<void> => {
         });
 };
 
-/*
- gropecom()
-    {
-    extern long mynum;
-    long a,b;
-    extern long isforce;
-    if(isforce){bprintf("You can't be forced to do that\n");return;}
-    b=vichere(&a);
-    if(b== -1) return;
-    if(a==mynum)
-       {
-       bprintf("With a sudden attack of morality the machine edits your persona\n");
-       loseme();
-       crapup("Bye....... LINE TERMINATED - MORALITY REASONS");
-       }
-    sillytp(a,"gropes you");
-    bprintf("<Well what sort of noise do you want here ?>\n");
+const gropecom = (state: State): Promise<void> => {
+    if (state.isforce) {
+        bprintf(state, 'You can\'t be forced to do that\n');
+        return Promise.resolve();
     }
+    const [b, victimId] = vichere(state);
+    if (b === -1) {
+        return Promise.resolve();
+    }
+    if (victimId === state.mynum) {
+        bprintf(state, 'With a sudden attack of morality the machine edits your persona\n');
+        loseme(state);
+        return endGame(state, 'Bye....... LINE TERMINATED - MORALITY REASONS')
+    }
+    return sillytp(state, victimId, 'gropes you')
+        .then(() => bprintf(state, '<Well what sort of noise do you want here ?>\n'));
+};
 
+/*
  squeezecom()
     {
     extern long mynum;
@@ -1207,7 +1208,7 @@ const wounded = (state: State, damage: number): Promise<void> => {
                     sendsys(state, state.globme, state.globme, -10000, state.curch, ms1);
                     const ms2 = `[ ${state.globme} has just died ]\n`;
                     sendsys(state, state.globme, state.globme, -10113, state.curch, ms2);
-                    crapup(state, 'Oh dear you just died\n');
+                    return endGame(state, 'Oh dear you just died');
                 });
         });
 };

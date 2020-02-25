@@ -21,9 +21,8 @@ import {
 } from './snoop';
 import Messages from '../services/messages';
 import Log from '../services/log';
+import {withoutAlarm} from '../gamego/reducer';
 
-const block_alarm = (state: State): void => undefined;
-const unblock_alarm = (state: State): void => undefined;
 const closeworld = (state: State): void => undefined;
 const f_listfl = (fileName: string): string => '';
 const isdark = (state: State, locationId: number): boolean => false;
@@ -123,8 +122,7 @@ const decodeScreen = (state: State, messages: string) => {
     return Promise.resolve();
 };
 
-export const showMessages = (state: State): Promise<void> => {
-    block_alarm(state);
+export const showMessages = (state: State): Promise<void> => withoutAlarm(state)(()=> {
     closeworld(state);
     return Messages.getMessages(state.messagesId)
         .then(messages => Promise.all([
@@ -136,6 +134,5 @@ export const showMessages = (state: State): Promise<void> => {
         .then(() => Messages.clearMessages(state.messagesId))
         // Show snooped
         .then(() => getSnooped(state))
-        .then(snooped => snooped && viewSnoop(state, snooped))
-        .then(() => unblock_alarm(state));
-};
+        .then(snooped => snooped && viewSnoop(state, snooped));
+});

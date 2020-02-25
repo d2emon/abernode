@@ -10,10 +10,10 @@ import {sendName} from '../bprintf';
 import {setFight} from './reducer';
 import {Attack} from './index';
 import {sendMessage} from '../bprintf/bprintf';
+import {endGame} from "../gamego/endGame";
 
 const openworld = (state: State): void => undefined;
 const closeworld = (state: State): void => undefined;
-const crapup = (state: State, message: string): void => undefined;
 const delpers = (state: State, name: string): void => undefined;
 const loseme = (state: State): void => undefined;
 
@@ -62,7 +62,7 @@ export const receiveDamage = (state: State, attack: Attack, isMe: boolean): Prom
                     state.curch,
                     `[ ${sendName(state.globme)} has been slain by ${sendName(enemy.name)}[/p] ]\n`,
                 );
-                return crapup(state, 'Oh dear... you seem to be slightly dead');
+                return endGame(state, 'Oh dear... you seem to be slightly dead');
             });
 
         const missed = () => {

@@ -3,6 +3,9 @@ import {getPlayer} from "./support";
 import {bprintf} from "./__dummies";
 import {findItem} from "./objsys";
 import {showMessages} from "./bprintf/output";
+import {endGame} from "./gamego/endGame";
+import {UAF_RAND} from "./files";
+import {getString} from "./gamego/input";
 
 /*
 #include <errno.h>
@@ -66,27 +69,22 @@ PERSONA *x;
 {
 	return(personactl(name,x,PCTL_GET));
 }
+*/
 
-delpers(name)
-char *name;
-{
-	FILE *i;
-	PERSONA x;
-l1:	i=(FILE *)personactl(name,&x,PCTL_FIND);
-	if(i==(FILE *)-1) return;
-	lowercase(name);
-	lowercase(x.p_name);
-	if(strcmp(x.p_name,name))
-	       crapup("Panic: Invalid Persona Delete");
-	strcpy(x.p_name,"");
-	x.p_level= -1;
-	fwrite(&x,sizeof(PERSONA),1,i);
-	fcloselock(i);
-	goto l1;
-}
+const delpers = (state: State, name: string): Promise<void> => personactl(name, PCTL_FIND)
+    .then(([i, x]) => {
+        if (i === -1) {
+            return;
+        }
+        if (name.toLowerCase() !== x.name.toLowerCase()) {
+            return endGame('Panic: Invalid Persona Delete')
+        }
+        x.name = '';
+        x.level = -1;
+        return fwrite(x, 1, i).then(() => fcloselock(i)).then(() => delpers(state, name));
+    });
 
-
-
+/*
 putpers(name,pers)
 char *name;
 PERSONA *pers;
@@ -115,19 +113,12 @@ PERSONA *pers;
 	fwrite(pers,sizeof(PERSONA),1,i);
 	fcloselock(i);
 }
+*/
 
-FILE *openuaf(perm)
-char *perm;
-{
-	FILE *i;
-	i=openlock(UAF_RAND,perm);
-	if(i==NULL)
-	{
-		crapup("Cannot access UAF\n");
-	}
-	return(i);
-}
+const openuaf = (state: State, perm: string): Promise<any> => openlock(UAF_RAND, perm)
+    .catch(() => endGame(state, 'Cannot access UAF'));
 
+/*
 decpers(pers,name,str,score,lev,sex)
 PERSONA *pers;
 char *name;
@@ -165,7 +156,7 @@ const initme = (state: State): Promise<void> => {
     }
 
     if (errno) {
-        return crapup(state, 'Panic: Timeout event on user file');
+        return endGame(state, 'Panic: Timeout event on user file');
     }
 
     const moan1 = (state: State) => {
@@ -173,11 +164,14 @@ const initme = (state: State): Promise<void> => {
         return showMessages(state)
             .then(() => {
                 keysetback(state);
-                const s = getkbd(2).toLowerCase();
+                return getString(2);
+            })
+            .then(sex => sex.toLowerCase())
+            .then((sex) => {
                 keysetup(state);
-                if (s === 'm') {
+                if (sex === 'm') {
                     state.my_sex = 0;
-                } else if (s === 'f') {
+                } else if (sex === 'f') {
                     state.my_sex = 1;
                 } else {
                     bprintf(state, 'M or F');

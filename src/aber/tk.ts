@@ -6,6 +6,8 @@ import {dropItems, dropMyItems, findPlayer, findVisiblePlayer, listPeople, showI
 import {resetMessages, sendKeyboard, sendVisiblePlayer} from "./bprintf/bprintf";
 import {showMessages} from "./bprintf/output";
 import {checkSnoop} from "./bprintf/snoop";
+import {endGame} from "./gamego/endGame";
+import {setAlarm, asyncUnsetAlarm, setProgramName} from "./gamego/reducer";
 
 /*
  *
@@ -133,14 +135,15 @@ const sendmsg = (state: State, name: string): Promise<boolean> => Promise.all([
         return showMessages(state)
             .then(() => {
                 if (me.visibility > 9999) {
-                    set_progname(state, '-csh');
+                    setProgramName(state, '-csh');
                 } else if (me.visibility === 0) {
-                    set_progname(state, `   --}----- ABERMUD -----{--     Playing as ${name}`);
+                    setProgramName(state, `   --}----- ABERMUD -----{--     Playing as ${name}`);
                 }
 
-                sig_alon(state);
+                setAlarm(state);
                 key_input(state, prmpt, 80);
-                sig_aloff(state);
+
+                asyncUnsetAlarm(state);
 
                 let work = state.key_buff;
 
@@ -199,25 +202,26 @@ const sendmsg = (state: State, name: string): Promise<boolean> => Promise.all([
             })
     });
 
-/*
- send2(block)
- long *block;
-    {
-    FILE * unit;
-    long number;
-    long inpbk[128];
-    extern char globme[];
-    extern char *echoback;
-    	unit=openworld();
-    if (unit<0) {loseme();crapup("\nAberMUD: FILE_ACCESS : Access failed\n");}
-    sec_read(unit,inpbk,0,64);
-    number=2*inpbk[1]-inpbk[0];inpbk[1]++;
-    sec_write(unit,block,number,128);
-    sec_write(unit,inpbk,0,64);
-    if (number>=199) cleanup(inpbk);
-    if(number>=199) longwthr();
+const send2 = (state: State, block: {}): Promise<void> => {
+    const unit = openworld(state)
+    if (!unit) {
+        loseme(state);
+        return endGame(state, 'AberMUD: FILE_ACCESS : Access failed');
     }
+    const inpbk = sec_read(state, unit, 0, 64);
+    const number = 2 * inpbk[1] - inpbk[0];
+    inpbk[1] += 1;
+    sec_write(state, unit, block, number, 128);
+    sec_write(state, unit, inpbk, 0, 64);
+    if (number >= 199) {
+        cleanup(state, inpbk);
+    }
+    if (number >= 199) {
+        longwthr(state);
+    }
+};
 
+/*
  readmsg(channel,block,num)
  long channel;
  long *block;
@@ -232,58 +236,32 @@ const sendmsg = (state: State, name: string): Promise<boolean> => Promise.all([
 FILE *fl_com;
 extern long findstart();
 extern long findend();
+*/
 
- rte(name)
- char *name;
-    {
-    extern long cms;
-    extern long vdes,tdes,rdes;
-    extern FILE *fl_com;
-    extern long debug_mode;
-    FILE *unit;
-    long too,ct,block[128];
-    unit=openworld();
-    fl_com=unit;
-    if (unit==NULL) crapup("AberMUD: FILE_ACCESS : Access failed\n");
-    if (cms== -1) cms=findend(unit);
-    too=findend(unit);
-    ct=cms;
-    while(ct<too)
-       {
-       readmsg(unit,block,ct);
-       mstoout(block,name);
-       ct++;
-       }
-    cms=ct;
-    update(name);
-    eorte();
-    rdes=0;tdes=0;vdes=0;
+const rte = (state: State, name: string): Promise<void> => {
+    const unit = openworld(state);
+    state.fl_com = unit;
+    if (!unit) {
+        return endGame(state, 'AberMUD: FILE_ACCESS : Access failed');
     }
+    if (state.cms === -1) {
+        state.cms = findend(state, unit);
+    }
+    const too = findend(state, unit);
+    let ct = state.cms;
+    for (ct = state.cms; ct < too; ct += 1) {
+        const block = readmsg(state, unit, ct);
+        mstoout(state, block, name);
+    }
+    state.cms = ct;
+    update(state, name);
+    eorte(state);
+    state.rdes = 0;
+    state.tdes = 0;
+    state.vdes = 0;
+};
 
-FILE *openlock(file,perm)
-char *file;
-char *perm;
-    {
-    FILE *unit;
-    long ct;
-    extern int errno;
-    extern char globme[];
-    ct=0;
-   unit=fopen(file,perm);
-   if(unit==NULL) return(unit);
-   *//* NOTE: Always open with R or r+ or w *//*
-intr:if(flock(fileno(unit),LOCK_EX)== -1)
-		if(errno==EINTR) goto intr; *//* INTERRUPTED SYSTEM CALL CATCH *//*
-    switch(errno)
-    {
-    	case ENOSPC:crapup("PANIC exit device full\n");
-*//*    	case ESTALE:;*//*
-    	case EHOSTDOWN:;
-    	case EHOSTUNREACH:crapup("PANIC exit access failure, NFS gone for a snooze");
-    }
-    return(unit);
-    }
-
+/*
 long findstart(unit)
  FILE *unit;
     {
@@ -308,8 +286,8 @@ const talker = (state: State, name: string) => {
     try {
         openworld(state);
     } catch (e) {
-        crapup(state, 'Sorry AberMUD is currently unavailable');
-        return () => false;
+        return () => endGame(state, 'Sorry AberMUD is currently unavailable')
+            .then(() => false);
     }
     if (state.mynum >= state.maxu) {
         console.log('Sorry AberMUD is full at the moment');
@@ -485,7 +463,7 @@ const putmeon = (state: State, name: string): Promise<void> => {
     return findVisiblePlayer(state, name)
         .then((player) => {
             if (player) {
-                return crapup(state, 'You are already on the system - you may only be on once at a time');
+                return endGame(state, 'You are already on the system - you may only be on once at a time');
             }
             return getPlayers(state, state.maxu)
                 .then((players) => {
@@ -523,12 +501,14 @@ const putmeon = (state: State, name: string): Promise<void> => {
 
 const loseme = (state: State, name: string): Promise<void> => getPlayer(state, state.mynum)
     .then((player) => {
-        sig_aloff(state);
-        /* No interruptions while you are busy dying */
-        /* ABOUT 2 MINUTES OR SO */
-        state.i_setup = false;
-        openworld(state);
-        return dropMyItems(state)
+        return asyncUnsetAlarm(state)
+            .then(() => {
+                /* No interruptions while you are busy dying */
+                /* ABOUT 2 MINUTES OR SO */
+                state.i_setup = false;
+                openworld(state);
+                return dropMyItems(state);
+            })
             .then(() => {
                 if (player.visibility < 10000) {
                     const bk = `${state.globme} has departed from AberMUDII\n`;
@@ -608,7 +588,7 @@ const lookin = (state: State, roomId: number): Promise<void> => {
                                     return bprintf(state, '<DEATH ROOM>\n');
                                 } else {
                                     loseme(state, state.globme);
-                                    return crapup(state, 'bye bye.....');
+                                    return endGame(state, 'bye bye.....');
                                 }
                             } else if (s === '#NOBR') {
                                 state.brmode = false;

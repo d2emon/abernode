@@ -24,6 +24,7 @@ import {
     showFile
 } from "./bprintf/bprintf";
 import {showMessages} from "./bprintf/output";
+import {endGame} from "./gamego/endGame";
 
 /*
 #include "files.h"
@@ -289,7 +290,7 @@ const doaction = (state: State, actionId: number): Promise<void> => {
                     state.curmode = 0;
                     state.curch = 0;
                     saveme(state);
-                    return crapup(state, 'Goodbye');
+                    return endGame(state, 'Goodbye');
                 })
         }),
         /*
@@ -886,11 +887,12 @@ long zapped;
 const gamrcv = (state: State, block: { locationId: number, code: number }): Promise<void> => {
     const actions = {
         '-9900': () => setPlayer(state, i[0], { visibility: i[1] }),
+        '-666': () => {
+            bprintf(state, 'Something Very Evil Has Just Happened...\n');
+            loseme(state);
+            return endGame(state, 'Bye Bye Cruel World....');
+        },
         /*
-       case -666:
-          bprintf("Something Very Evil Has Just Happened...\n");
-          loseme();
-          crapup("Bye Bye Cruel World....");
        case -599:
           if(isme)
              {
@@ -979,7 +981,7 @@ const gamrcv = (state: State, block: { locationId: number, code: number }): Prom
                 sendsys(state, state.globme, state.globme, -10000, state.curch, zb2);
                 loseme(state);
                 bprintf(state, `You have been utterly destroyed by ${name2}\n`);
-                crapup(state, 'Bye Bye.... Slain By Lightning');
+                return endGame(state, 'Bye Bye.... Slain By Lightning');
             } else if (block.locationId === state.curch) {
                 bprintf(state, `${sendVisibleName('A massive lightning bolt strikes ')}${sendPlayerForVisible(name2)}${sendVisibleName('\n')}`);
                 return Promise.resolve();
@@ -1012,16 +1014,16 @@ const gamrcv = (state: State, block: { locationId: number, code: number }): Prom
             }
             return Promise.resolve();
         },
+        '-10010': () => {
+            if (isme) {
+                loseme(state);
+                return endGame(state, 'You have been kicked off');
+            } else {
+                bprintf(state, `${name1} has been kicked off\\n`);
+                return Promise.resolve();
+            }
+        }
         /*
-       case -10010:
-          if(isme==1)
-             {
-             loseme();
-             crapup("You have been kicked off");
-             }
-          else
-             bprintf("%s has been kicked off\n",nam1);
-          break;
        case -10011:
           if(isme==1)
              {
@@ -1597,7 +1599,7 @@ const rmedit = (state: State): Promise<void> => getPlayer(state, state.mynum)
                     .then((me) => {
                         if (!me) {
                             loseme(state);
-                            return crapup(state, 'You have been kicked off');
+                            return endGame(state, 'You have been kicked off');
                         }
                         const ms3 = sendVisiblePlayer(state.globme, `${state.globme} re-enters the normal universe\n`);
                         sendsys(state, state.globme, state.globme, -10113, 0, ms3);
@@ -1627,7 +1629,7 @@ const u_system = (state: State): Promise<void> => getPlayer(state, state.mynum)
             .then((me) => {
                 if (!me) {
                     loseme(state);
-                    return crapup(state, 'You have been kicked off');
+                    return endGame(state, 'You have been kicked off');
                 }
                 rte(state);
                 openworld(state);

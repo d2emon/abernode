@@ -7,15 +7,14 @@ import {
 import {findVisiblePlayer} from './objsys';
 import {showMessages} from './bprintf/output';
 import {sendMessage} from './bprintf/bprintf';
+import {getString} from "./gamego/input";
 
 const keysetup = (state: State): void => undefined;
 const keysetback = (state: State): void => undefined;
 const openworld = (state: State): void => undefined;
-const getkbd = (state: State, maxLength: number): string => '';
 
-const getInput = (state: State, message: string, maxLength: number, show: boolean): Promise<string> => sendMessage(state, message)
-    .then(() => show && showMessages(state))
-    .then(() => getkbd(state, maxLength));
+const getInput = (state: State, message: string, show: boolean): Promise<void> => sendMessage(state, message)
+    .then(() => show && showMessages(state));
 
 export class Frobnicate extends Action {
     action(state: State): Promise<any> {
@@ -37,9 +36,12 @@ export class Frobnicate extends Action {
                 .then(() => {
                     keysetback(state);
                     return Promise.all([
-                        getInput(state, 'New Level: ', 6, false),
-                        getInput(state, 'New Score: ', 8, true),
-                        getInput(state, 'New Strength: ', 8, true),
+                        getInput(state, 'New Level: ', false)
+                            .then(() => getString(6)),
+                        getInput(state, 'New Score: ', true)
+                            .then(() => getString(8)),
+                        getInput(state, 'New Strength: ', true)
+                            .then(() => getString(8)),
                     ]);
                 })
                 .then((values) => {

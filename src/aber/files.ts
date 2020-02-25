@@ -1,4 +1,6 @@
 import State from "./state";
+import {endGame} from "./gamego/endGame";
+import state from "./state";
 
 export const UAF_RAND = '/cygdrive/c/Programs/Adv/AberMUD2/mud/uaf.rand';
 export const ROOMS = '/cygdrive/c/Programs/Adv/AberMUD2/mud/TEXT/ROOMS/';
@@ -31,6 +33,6 @@ export const logger = {
         resolve();
         // On Error
         // loseme(state)
-        // crapup(state, 'Log fault : Access Failure');
+        throw new Error('Log fault : Access Failure');
     }),
 };

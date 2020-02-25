@@ -119,10 +119,14 @@ export default interface State {
     // objsys
     numobs: number; // NOBS
     ublock: PlayerData[],
+    // gamego
+    programName: string,
+    alarm?: number,
+    sig_active: boolean,
+    interrupt: boolean,
     //
     ail_blind: boolean,
     ail_deaf: boolean,
-    argv_p: any,
     brmode: boolean,
     curch: number,
     debug_mode: boolean,
