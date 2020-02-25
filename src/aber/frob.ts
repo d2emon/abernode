@@ -9,8 +9,6 @@ import {showMessages} from './bprintf/output';
 import {sendMessage} from './bprintf/bprintf';
 import {getString} from "./gamego/input";
 
-const keysetup = (state: State): void => undefined;
-const keysetback = (state: State): void => undefined;
 const openworld = (state: State): void => undefined;
 
 const getInput = (state: State, message: string, show: boolean): Promise<void> => sendMessage(state, message)
@@ -33,19 +31,15 @@ export class Frobnicate extends Action {
                 throw new Error(`You can\'t frobnicate ${player.name}!!!!`);
             }
             return showMessages(state)
-                .then(() => {
-                    keysetback(state);
-                    return Promise.all([
-                        getInput(state, 'New Level: ', false)
-                            .then(() => getString(6)),
-                        getInput(state, 'New Score: ', true)
-                            .then(() => getString(8)),
-                        getInput(state, 'New Strength: ', true)
-                            .then(() => getString(8)),
-                    ]);
-                })
+                .then(() => Promise.all([
+                    getInput(state, 'New Level: ', false)
+                        .then(() => getString(6)),
+                    getInput(state, 'New Score: ', true)
+                        .then(() => getString(8)),
+                    getInput(state, 'New Strength: ', true)
+                        .then(() => getString(8)),
+                ]))
                 .then((values) => {
-                    keysetup(state);
                     openworld(state);
                     sendsys(
                         state,

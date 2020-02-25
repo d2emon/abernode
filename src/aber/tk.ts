@@ -3,11 +3,12 @@ import {logger} from "./files";
 import {getPlayer, getPlayers, setPlayer} from "./support";
 import {bprintf} from "./__dummies";
 import {dropItems, dropMyItems, findPlayer, findVisiblePlayer, listPeople, showItems} from "./objsys";
-import {resetMessages, sendKeyboard, sendVisiblePlayer} from "./bprintf/bprintf";
+import {resetMessages, sendKeyboard, sendMessage, sendVisiblePlayer} from "./bprintf/bprintf";
 import {showMessages} from "./bprintf/output";
 import {checkSnoop} from "./bprintf/snoop";
 import {endGame} from "./gamego/endGame";
-import {setAlarm, asyncUnsetAlarm, setProgramName} from "./gamego/reducer";
+import {setAlarm, asyncUnsetAlarm, setProgramName, withAlarm} from "./gamego/reducer";
+import {keyInput} from "./key";
 
 /*
  *
@@ -140,65 +141,63 @@ const sendmsg = (state: State, name: string): Promise<boolean> => Promise.all([
                     setProgramName(state, `   --}----- ABERMUD -----{--     Playing as ${name}`);
                 }
 
-                setAlarm(state);
-                key_input(state, prmpt, 80);
-
-                asyncUnsetAlarm(state);
-
-                let work = state.key_buff;
-
-                if (state.tty === 4) {
-                    topscr(state);
-                }
-                state.sysbuf += sendKeyboard(`${work}\n`);
-
-                openworld(state);
-                rte(state, name);
-                closeworld(state);
-
-                if (state.convflg && (work === '**')) {
-                    state.convflg = 0;
-                    return sendmsg(state, name);
-                }
-
-                if (work) {
-                    if ((work !== '*') && (work[0] === '*')) {
-                        work = work.substr(1);
-                    } else if (state.convflg === 1) {
-                        work = `say ${work}`;
-                    } else if (state.convflg) {
-                        work = `tss ${work}`;
-                    }
-                }
-
-                if (state.curmode === 1) {
-                    gamecom(state, work)
-                } else if ((work !== '.Q') && (work !== '.q') && work) {
-                    special(state, work, name);
-                }
-
-                let p = Promise.resolve();
-                if (state.fighting > -1) {
-                    p = getPlayer(state, state.fighting)
-                        .then((enemy) => {
-                            if (!enemy.exists) {
-                                state.in_fight = 0;
-                                state.fighting = -1
-                            }
-                            if (enemy.locationId !== state.curch) {
-                                state.in_fight = 0;
-                                state.fighting = -1
-                            }
-                        })
-                }
-                return p
-                    .then(() => {
-                        if (state.in_fight) {
-                            state.in_fight -= 1;
+                return sendMessage(state, prmpt)
+                    .then(() => showMessages(state))
+                    .then(() => withAlarm(state)(() => keyInput(state, prmpt, 80)))
+                    .then((work) => {
+                        if (state.tty === 4) {
+                            topscr(state);
                         }
-                        return ((work === '.Q') || (work === '.q'))
-                    });
+                        state.sysbuf += sendKeyboard(`${work}\n`);
 
+                        openworld(state);
+                        rte(state, name);
+                        closeworld(state);
+
+                        if (state.convflg && (work === '**')) {
+                            state.convflg = 0;
+                            return sendmsg(state, name);
+                        }
+
+                        if (work) {
+                            if ((work !== '*') && (work[0] === '*')) {
+                                work = work.substr(1);
+                            } else if (state.convflg === 1) {
+                                work = `say ${work}`;
+                            } else if (state.convflg) {
+                                work = `tss ${work}`;
+                            }
+                        }
+
+                        if (state.curmode === 1) {
+                            gamecom(state, work)
+                        } else if ((work !== '.Q') && (work !== '.q') && work) {
+                            special(state, work, name);
+                        }
+
+                        let p = Promise.resolve();
+                        if (state.fighting > -1) {
+                            p = getPlayer(state, state.fighting)
+                                .then((enemy) => {
+                                    if (!enemy.exists) {
+                                        state.in_fight = 0;
+                                        state.fighting = -1
+                                    }
+                                    if (enemy.locationId !== state.curch) {
+                                        state.in_fight = 0;
+                                        state.fighting = -1
+                                    }
+                                })
+                        }
+                        return p
+                            .then(() => {
+                                if (state.in_fight) {
+                                    state.in_fight -= 1;
+                                }
+                                return ((work === '.Q') || (work === '.q'))
+                            });
+
+                    })
             })
     });
 

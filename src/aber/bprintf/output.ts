@@ -9,9 +9,6 @@ import {
     setIsKeyboard,
     unsetIsKeyboard,
     getLogFile,
-    getNeedLineBreak,
-    unsetNeedLineBreak,
-    setNeedPrompt,
     getSnooper,
     getSnooped,
 } from './reducer';
@@ -22,6 +19,10 @@ import {
 import Messages from '../services/messages';
 import Log from '../services/log';
 import {withoutAlarm} from '../gamego/reducer';
+import {
+    checkLineBreak,
+    clearLineBreak,
+} from '../key';
 
 const closeworld = (state: State): void => undefined;
 const f_listfl = (fileName: string): string => '';
@@ -111,13 +112,11 @@ const decodeSnoop = (state: State, messages: string) => getSnooper(state)
     })
     .catch(() => null);
 const decodeScreen = (state: State, messages: string) => {
-    if (messages) {
-        setNeedPrompt(state);
-        if (getNeedLineBreak(state)) {
-            console.log('\n');
-        }
+    if (messages && checkLineBreak().needLineBreak) {
+        console.log('\n');
     }
-    unsetNeedLineBreak(state);
+    clearLineBreak();
+
     console.log(decode(state, messages, true));
     return Promise.resolve();
 };

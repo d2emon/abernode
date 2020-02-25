@@ -17,15 +17,6 @@ export const unsetIsKeyboard = (state: State): void => {
     state.iskb = false;
 };
 
-export const setNeedPrompt = (state: State): void => {
-    state.pr_due = false;
-};
-
-export const getNeedLineBreak = (state: State): boolean => state.pr_qcr;
-export const unsetNeedLineBreak = (state: State): void => {
-    state.pr_qcr = false;
-};
-
 export const getSnooper = (state: State): Promise<Player> => getPlayer(state, state.snoopd);
 
 export const getSnooped = (state: State): Promise<Player> => getPlayer(state, state.snoopt);

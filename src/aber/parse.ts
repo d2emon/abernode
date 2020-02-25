@@ -1556,24 +1556,21 @@ const dosumm = (state: State, locationId: number): Promise<void> => {
         })
 };
 
-/*
- tsscom()
-    {
-    char s[128];
-    extern long my_lev;
-    if(my_lev<10000)
-       {
-       bprintf("I don't know that verb\n");
-       return;
-       }
-    getreinput(s);
-    closeworld();
-    keysetback();
-    if(getuid()==geteuid()) system(s);
-    else bprintf("Not permitted on this ID\n");
-    keysetup();
+const tsscom = (state: State): Promise<void> => {
+    if (state.my_lev < 10000) {
+        bprintf(state, 'I don\'t know that verb\n');
+        return Promise.resolve();
     }
-*/
+    const s = getreinpout(state);
+    closeworld(state);
+    if (getuid(state) === geteuid(state)) {
+        system(state, s);
+        return Promise.resolve();
+    } else {
+        bprintf(state, 'Not permitted on this ID\n');
+        return Promise.resolve();
+    }
+};
 
 const rmedit = (state: State): Promise<void> => getPlayer(state, state.mynum)
     .then((editor) => {
@@ -1672,34 +1669,26 @@ const inumcom = (state: State): Promise<void> => {
     "   --{----- ABERMUD -----}--   ",x,0);  *//* GOTOSS eek! *//*
     bprintf("Eeek! someones pinched the executable!\n");
     }
+*/
 
- becom()
-    {
-    extern char globme[];
-    extern long my_lev;
-    char x[128];
-    char x2[128];
-    if(my_lev<10)
-       {
-       bprintf("Become what ?\n");
-       return;
-       }
-    getreinput(x2);
-    if(!strlen(x2))
-       {
-       bprintf("To become what ?, inebriated ?\n");
-       return;
-       }
-    sprintf(x,"%s has quit, via BECOME\n",globme);
-    sendsys("","",-10113,0,x);
-    keysetback();
-    loseme();
-    closeworld();
-    sprintf(x,"-n%s",x2);
-    execl(EXE2,"   --}----- ABERMUD ------   ",x,0);	*//* GOTOSS eek! *//*
-    bprintf("Eek! someone's just run off with mud!!!!\n");
+const becom = (state: State): Promise<void> => {
+    if (state.my_lev < 10) {
+        bprintf(state, 'Become what ?\n');
+        return Promise.resolve();
     }
+    const x2 = getreinput(state);
+    if (!x2) {
+        bprintf(state, 'To become what ?, inebriated ?\n');
+        return Promise.resolve();
+    }
+    sendsys(state, null, null, -10113, 0, `${state.globme} has quit, via BECOME\n`);
+    loseme(state);
+    closeworld(state);
+    return execl(state, '   --}----- ABERMUD ------   ', `-n${x2}`)
+        .catch(() => bprintf(state, 'Eek! someone\'s just run off with mud!!!!\n'));
+};
 
+/*
  systat()
     {
     extern long my_lev;

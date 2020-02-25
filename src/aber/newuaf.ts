@@ -162,13 +162,9 @@ const initme = (state: State): Promise<void> => {
     const moan1 = (state: State) => {
         bprintf(state, '\nSex (M/F) : ');
         return showMessages(state)
-            .then(() => {
-                keysetback(state);
-                return getString(2);
-            })
+            .then(() => getString(2))
             .then(sex => sex.toLowerCase())
             .then((sex) => {
-                keysetup(state);
                 if (sex === 'm') {
                     state.my_sex = 0;
                 } else if (sex === 'f') {

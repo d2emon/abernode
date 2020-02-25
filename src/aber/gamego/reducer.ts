@@ -1,10 +1,13 @@
-import State from "../state";
-import {endGame} from "./endGame";
+import State from '../state';
+import {endGame} from './endGame';
+import {
+    checkPrompt,
+    InputData,
+} from '../key';
+import {showMessages} from "../bprintf/output";
 
 const openworld = (state: State): void => undefined;
 const closeworld = (state: State): void => undefined;
-const key_reprint = (state: State): void => undefined;
-const keysetback = (state: State): void => undefined;
 const loseme = (state: State): void => undefined;
 const on_timing = (state: State): void => undefined;
 const rte = (state: State, name: string, interrupt: boolean = false): void => undefined;
@@ -19,40 +22,26 @@ const SIGQUIT = 'SIGQUIT';
 const SIGCONT = 'SIGCONT';
 const SIGALRM = 'SIGALRM';
 
-const onTimer = (state: State): Promise<void >=> {
-    if (!state.sig_active) {
-        return NO_ACTION();
-    }
-    return asyncUnsetAlarm(state)
-        .then(() => {
-            openworld(state);
+const timerEvent = (state: State) => withNoAlarm(state)(() => {
+    openworld(state);
 
-            rte(state, state.globme, true);
+    rte(state, state.globme, true);
 
-            on_timing(state);
-            closeworld(state);
-            key_reprint(state);
-        })
-        .then(() => setAlarm(state));
-};
+    on_timing(state);
+    closeworld(state);
+    return showMessages(state)
+        .then(checkPrompt)
+        .then((inputData: InputData) => inputData.toPrompt && console.log(`\n${inputData.prompt}${inputData.input}`));
+});
+const exitEvent = (state: State): Promise<void> => asyncUnsetAlarm(state).then(() => loseme(state));
 
-const onError = (state: State, { error }): Promise<void> => asyncUnsetAlarm(state)
-    .then(() => {
-        loseme(state);
-        keysetback(state);
-        return Promise.reject(error);
-    });
-
+const onTimer = (state: State): Promise<void> => state.sig_active ? timerEvent(state) : NO_ACTION();
+const onError = (state: State, { error }): Promise<void> => exitEvent(state).then(() => Promise.reject(error));
 const onExit = (state: State): Promise<void> => {
     console.log('^C\n');
-    if (state.in_fight) {
-        return NO_ACTION();
-    }
-    return asyncUnsetAlarm(state)
-        .then(() => {
-            loseme(state);
-            return endGame(state, 'Byeeeeeeeeee  ...........');
-        });
+    return state.in_fight
+        ? NO_ACTION()
+        : exitEvent(state).then(() => endGame(state, 'Byeeeeeeeeee  ...........'));
 };
 
 const signals: { [key: string]: (state: State, payload?: any) => Promise<void> } = {
@@ -91,7 +80,18 @@ export const asyncUnsetAlarm = (state: State): Promise<void> => Promise.resolve(
 
 export const withoutAlarm = (state: State) => (callback: () => Promise<void>): Promise<void> => Promise.resolve(blockAlarm())
     .then(callback)
-    .then(() => setAlarm(state));
+    .then(() => unblockAlarm(state));
+
+const withNoAlarm = (state: State) => (callback: () => Promise<any>): Promise<void> => asyncUnsetAlarm(state)
+    .then(callback)
+    .then(result => {
+        setAlarm(state);
+        return result;
+    });
+
+export const withAlarm = (state: State) => (callback: () => Promise<any>): Promise<void> => Promise.resolve(setAlarm(state))
+    .then(callback)
+    .then(result => asyncUnsetAlarm(state).then(() => result));
 
 export const setProgramName = (state: State, name: string): void => {
     state.programName = name;

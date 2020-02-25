@@ -10,7 +10,6 @@ const dashes = '-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
 export const endGame = (state: State, message: string): Promise<void> => showMessages(state)
     .then(() => {
         setNeedPrompt(state); /* So we dont get a prompt after the exit */
-        keysetback(state);
         console.log();
         console.log(dashes);
         console.log();
