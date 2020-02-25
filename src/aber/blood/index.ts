@@ -16,10 +16,10 @@ import {
 } from './reducer';
 import {sendName} from '../bprintf';
 import {sendMessage} from '../bprintf/bprintf';
+import {roll} from "../magic";
 
 const calibme = (state: State): void => undefined;
 const iswornby = (state: State, item: Item, player: Player): boolean => false;
-const randperc = (state: State): number => 0;
 const woundmn = (state: State, victim: Player, damage: number): void => undefined;
 
 const SCEPTRE_ID = 16;
@@ -89,16 +89,24 @@ export const hitPlayer = (state: State, victim: Player, weapon?: Item): Promise<
                 if (toHit < 0) {
                     toHit = 0;
                 }
-                return randperc(state) < toHit;
+                return Promise.all([
+                    roll(),
+                    Promise.resolve(toHit),
+                    roll(),
+                ]);
             })
-            .then((hit: boolean) => {
-                const attack: Attack = {
-                    characterId: state.mynum,
-                    damage: hit ? randperc(state) % damageByItem(weapon) : undefined,
-                    weaponId: weapon ? weapon.itemId : undefined,
-                };
+            .then(([
+                hitRoll,
+                toHit,
+                damageRoll,
+            ]) => ({
+                characterId: state.mynum,
+                damage: (hitRoll < toHit) ? (damageRoll % damageByItem(weapon)) : undefined,
+                weaponId: weapon ? weapon.itemId : undefined,
+            }))
+            .then((attack: Attack) => {
                 const promises = [];
-                if (hit) {
+                if (attack.damage) {
                     const weaponDescription = weapon ? `with the ${weapon.name}` : '';
                     promises.push(sendMessage(state, `You hit ${sendName(victim.name)} ${weaponDescription}\n`));
                     if (attack.damage > victim.strength) {

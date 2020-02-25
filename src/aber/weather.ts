@@ -3,6 +3,7 @@ import {getItem, getItems, getPlayer, Item, setItem, setPlayer} from "./support"
 import {bprintf, brkword} from "./__dummies";
 import {findAvailableItem, findVisiblePlayer, isCarriedBy, isLocatedIn} from "./objsys";
 import {sendSound, sendSoundPlayer, sendVisibleName, sendVisiblePlayer} from "./bprintf/bprintf";
+import {roll} from "./magic";
 
 /*
 #include "files.h"
@@ -85,25 +86,17 @@ const adjwthr = (state: State, weatherId: number): Promise<void> => getItem(stat
             });
     });
 
-/*
- longwthr()
-    {
-    long a;
-    a=randperc();
-    if(a<50)
-       {
-       adjwthr(1);
-       return;
-       }
-    if(a>90)
-       {
-       adjwthr(2);
-       return;
-       }
-    adjwthr(0);
-    return;
-    }
- */
+const longwthr = (state: State): Promise<void> => roll()
+    .then((a) => {
+        if (a < 50) {
+            return 1;
+        } else if (a > 90) {
+            return 2;
+        } else {
+            return 0;
+        }
+    })
+    .then(weatherId => adjwthr(state, weatherId));
 
 const whtrrcv = (state: State, weatherId: number): Promise<void> => {
     if (!outdoors(state)) {
@@ -265,25 +258,27 @@ const posecom = (state: State): Promise<void> => {
         return Promise.resolve();
     }
     srnd(time(state));
-    const a = randperc(state) % 5;
-    bprintf(state, `POSE :${a}\n`);
-    if (a === 0) {
-        return Promise.resolve()
-    } else if (a === 1) {
-        sillycom(state, sendVisiblePlayer('%s', '%s throws out one arm and sends a huge bolt of fire high\ninto the sky\n'));
-        broad(state, sendVisibleName('A massive ball of fire explodes high up in the sky\n'));
-        return Promise.resolve()
-    } else if (a === 2) {
-        sillycom(state, sendVisiblePlayer('%s', '%s turns casually into a hamster before resuming normal shape\n'));
-        return Promise.resolve()
-    } else if (a === 3) {
-        sillycom(state, sendVisiblePlayer('%s', '%s starts sizzling with magical energy\n'));
-        return Promise.resolve()
-    } else if (a === 4) {
-        sillycom(state, sendVisiblePlayer('%s', '%s begins to crackle with magical fire\n'));
-        return Promise.resolve()
-    }
-    return Promise.resolve();
+    return roll()
+        .then((poseRoll) => {
+            const a = poseRoll % 5;
+            bprintf(state, `POSE :${a}\n`);
+            if (a === 0) {
+                return Promise.resolve()
+            } else if (a === 1) {
+                sillycom(state, sendVisiblePlayer('%s', '%s throws out one arm and sends a huge bolt of fire high\ninto the sky\n'));
+                broad(state, sendVisibleName('A massive ball of fire explodes high up in the sky\n'));
+                return Promise.resolve()
+            } else if (a === 2) {
+                sillycom(state, sendVisiblePlayer('%s', '%s turns casually into a hamster before resuming normal shape\n'));
+                return Promise.resolve()
+            } else if (a === 3) {
+                sillycom(state, sendVisiblePlayer('%s', '%s starts sizzling with magical energy\n'));
+                return Promise.resolve()
+            } else if (a === 4) {
+                sillycom(state, sendVisiblePlayer('%s', '%s begins to crackle with magical fire\n'));
+                return Promise.resolve()
+            }
+        });
 };
 
 const emotecom = (state: State): Promise<void> => {

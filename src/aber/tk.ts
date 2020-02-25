@@ -9,6 +9,7 @@ import {checkSnoop} from "./bprintf/snoop";
 import {endGame} from "./gamego/endGame";
 import {setAlarm, asyncUnsetAlarm, setProgramName, withAlarm} from "./gamego/reducer";
 import {keyInput} from "./key";
+import {roll} from "./magic";
 
 /*
  *
@@ -143,7 +144,7 @@ const sendmsg = (state: State, name: string): Promise<boolean> => Promise.all([
 
                 return sendMessage(state, prmpt)
                     .then(() => showMessages(state))
-                    .then(() => withAlarm(state)(() => keyInput(state, prmpt, 80)))
+                    .then(() => withAlarm(state)(() => keyInput(prmpt, 80)))
                     .then((work) => {
                         if (state.tty === 4) {
                             topscr(state);
@@ -363,12 +364,13 @@ const special = (state: State, word: string, name: string): Promise<boolean> => 
                     weaponId: -1,
                     helping: -1,
                 })
-                    .then(() => {
+                    .then(roll)
+                    .then((locationRoll) => {
                         const xy = sendVisiblePlayer(name, `${name}  has entered the game\n`);
                         const xx = sendVisiblePlayer(name, `[ ${name}  has entered the game ]\n`);
                         sendsys(state, name, name, -10113, state.curch, xx);
                         rte(state, name);
-                        if (randperc(state) > 50) {
+                        if (locationRoll > 50) {
                             trapch(state, state.curch);
                         } else {
                             state.curch = -183;

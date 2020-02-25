@@ -40,6 +40,7 @@ import {
     sendVisiblePlayer
 } from "./bprintf/bprintf";
 import {endGame} from "./gamego/endGame";
+import {roll} from "./magic";
 
 /*
 struct player_res
@@ -898,10 +899,12 @@ const vicf2 = (state: State, mode: number): Promise<number[]> => {
             121,
             163,
         ].map(itemId => getItem(state, itemId))),
+        roll(),
     ])
         .then(([
             player,
             items,
+            successRoll,
         ]) => {
             let i = 5;
             items.forEach((item) => {
@@ -909,7 +912,7 @@ const vicf2 = (state: State, mode: number): Promise<number[]> => {
                     i += 1;
                 }
             })
-            if ((state.my_lev < 10) && (randperc(state) > i * state.my_lev)) {
+            if ((state.my_lev < 10) && (successRoll > i * state.my_lev)) {
                 bprintf(state, 'You fumble the magic\n');
                 if (mode === 1) {
                     bprintf(state, 'The spell reflects back\n');
@@ -1243,24 +1246,29 @@ const mhitplayer = (state: State, enemyId: number, playerId: number): Promise<vo
         if ((enemy.playerId < 0) || (enemy.playerId > 47)) {
             return;
         }
-        const a = randperc(state);
-        let b  = 3 * (15 - state.my_lev) + 20;
-        if (iswornby(state, 89, state.mynum) || iswornby(state, 113, state.mynum) || iswornby(state, 114, state.mynum)) {
-            b -= 10;
-        }
-        if (a < b) {
-            const x = {
-                characterId: enemy.playerId,
-                damage: randperc(state) % damof(state, enemy.playerId),
-            };
-            sendsys(state, state.globme, enemy.name, -10021, enemy.locationId, x);
-        } else {
-            const x = {
-                characterId: enemy.playerId,
-                damage: -1,
-            };
-            sendsys(state, state.globme, enemy.name, -10021, enemy.locationId, x);
-        }
+        return roll()
+            .then((a) => {
+                let b  = 3 * (15 - state.my_lev) + 20;
+                if (iswornby(state, 89, state.mynum) || iswornby(state, 113, state.mynum) || iswornby(state, 114, state.mynum)) {
+                    b -= 10;
+                }
+                if (a < b) {
+                    return roll()
+                        .then((damageRoll) => {
+                            const x = {
+                                characterId: enemy.playerId,
+                                damage: damageRoll % damof(state, enemy.playerId),
+                            };
+                            sendsys(state, state.globme, enemy.name, -10021, enemy.locationId, x);
+                        });
+                } else {
+                    const x = {
+                        characterId: enemy.playerId,
+                        damage: -1,
+                    };
+                    sendsys(state, state.globme, enemy.name, -10021, enemy.locationId, x);
+                }
+            });
     });
 
 const resetplayers = (state: State): Promise<void> => getPlayers(state)

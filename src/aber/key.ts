@@ -1,5 +1,3 @@
-import State from './state';
-
 const getInput = (): Promise<string> => Promise.resolve('');
 
 export interface InputData {
@@ -52,7 +50,7 @@ const stopInput = (input: string): Promise<void> => new Promise((resolve) => {
     return resolve();
 });
 
-export const keyInput = (state: State, prompt: string, maxLength: number): Promise<string> => startInput(prompt)
+export const keyInput = (prompt: string, maxLength: number): Promise<string> => startInput(prompt)
     .then(getInput)
     .then(input => input.substr(0, maxLength))
     .then(stopInput)

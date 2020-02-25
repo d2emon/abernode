@@ -37,6 +37,7 @@ import {IS_DESTROYED} from "../object";
 import {sendVisiblePlayer} from "../bprintf";
 import {showLocation} from "./index";
 import {endGame} from "../gamego/endGame";
+import {roll} from "../magic";
 
 const fopen = (name: string, permissions: string): Promise<any> => Promise.resolve({});
 const fclose = (file: any): Promise<void> => Promise.resolve();
@@ -45,7 +46,6 @@ const getstr = (file: any): Promise<string[]> => Promise.resolve([]);
 const loseme = (state: State): void => undefined;
 const closeworld = (state: State): void => undefined;
 const openworld = (state: State): void => undefined;
-const randperc = (state: State): number => 0;
 const getchar = (state: State): Promise<string> => Promise.resolve('\n');
 const showname = (state: State, locationId: number): void => undefined;
 const trapch = (state: State, locationId: number): void => undefined;
@@ -312,7 +312,9 @@ export class Examine extends Action {
     }
 
     private static examineCrystalBall(state: State, item: Item): Promise<any> {
-        return setItem(state, item.itemId, { state: randperc(state) % 3 + 1 })
+        return roll()
+            .then(result => (result % 3 + 1))
+            .then(itemState => setItem(state, item.itemId, { state: itemState }))
             .then(() => getItem(state, item.itemId))
             .then((item) => {
                 if (item.state === 1) {
@@ -587,20 +589,25 @@ export class Where extends Action {
             .then(([
                 me,
                 items,
+            ]) => Promise.all([
+                Promise.resolve(
+                    (items.some(item => isCarriedBy(item, me, (state.my_lev < 10))))
+                        ? 100
+                        : 10 * state.my_lev
+                ),
+                roll(),
+            ])
+            .then(([
+                chance,
+                successRoll,
             ]) => {
-                return (items.some(item => isCarriedBy(item, me, (state.my_lev < 10))))
-                    ? 100
-                    : 10 * state.my_lev;
-            })
-            .then((chance) => {
+                if (successRoll > chance) {
+                    throw new Error('Your spell fails...');
+                }
                 if (state.my_lev < 10) {
                     state.my_str -= 2;
                 }
-                const roll: number = randperc(state);
                 closeworld(state);
-                if (roll > chance) {
-                    throw new Error('Your spell fails...');
-                }
                 if (brkword(state) === -1) {
                     throw new Error('What is that ?');
                 }

@@ -10,17 +10,10 @@ import {hitPlayer} from "./blood/blood";
 import {sendSound, sendSoundPlayer, sendVisibleName} from "./bprintf/bprintf";
 import {showMessages} from "./bprintf/output";
 import {endGame} from "./gamego/endGame";
+import {roll} from "./magic";
 
-/*
-#include "files.h"
-
-extern FILE *openlock();
-
-on_timing()
-{
-	if(randperc()>80) onlook();
-}
-*/
+const on_timing = (state: State): Promise<void> => roll()
+    .then(result => (result > 80) && onlook(state));
 
 const onlook = (state: State): Promise<void> => Promise.all([
     getPlayer(state, state.mynum),
@@ -83,18 +76,23 @@ const chkfight = (state: State, playerId: number): Promise<void> => Promise.all(
             /* Im invis */
             return;
         }
-        if (randperc(state) > 40) {
-            return;
-        }
         return Promise.all([
+            roll(),
             byMask(state, { [IS_LIT]: true }),
             findPlayer(state, 'yeti'),
         ])
-            .then(([found, yeti]) => {
-                if ((player.playerId === yeti.playerId) && found) {
+            .then(([
+                successRoll,
+                found,
+                yeti,
+            ]) => {
+                if (successRoll > 40) {
                     return;
+                } else if ((player.playerId === yeti.playerId) && found) {
+                    return;
+                } else {
+                    mhitplayer(state, player.playerId, me.playerId);
                 }
-                mhitplayer(state, player.playerId, me.playerId);
             })
     });
 
@@ -235,12 +233,18 @@ const dorune = (state: State): Promise<void> => {
             }
             if (player.locationId === state.curch) {
                 hitRune = true;
-                if (randperc(state) < 9 * state.my_lev) {
-                    return;
-                }
-                return findPlayer(state, player.name)
-                    .then((player1) => {
+                return Promise.all([
+                    findPlayer(state, player.name),
+                    roll(),
+                ])
+                    .then(([
+                        player1,
+                        successRoll,
+                    ]) => {
                         if (!player1) {
+                            return;
+                        }
+                        if (successRoll < 9 * state.my_lev) {
                             return;
                         }
                         bprintf(state, 'The runesword twists in your hands lashing out savagely\n');

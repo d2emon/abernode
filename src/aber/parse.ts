@@ -25,6 +25,7 @@ import {
 } from "./bprintf/bprintf";
 import {showMessages} from "./bprintf/output";
 import {endGame} from "./gamego/endGame";
+import {roll} from "./magic";
 
 /*
 #include "files.h"
@@ -1113,8 +1114,9 @@ const eorte = (state: State): Promise<void> => {
             });
     }
     return p
-        .then(() => {
-            if (iswornby(state, 18, state.mynum) || (randperc() < 10)) {
+        .then(() => roll())
+        .then((xpRoll) => {
+            if (iswornby(state, 18, state.mynum) || (xpRoll < 10)) {
                 state.my_str += 1;
                 if (state.i_setup) {
                     calibme(state);
@@ -1524,21 +1526,23 @@ const stealcom = (state: State): Promise<void> => {
 
                     const t = time(state);
                     srand(state, t);
-                    const f = randperc(state);
-                    let e = 10 + state.my_lev - player.level;
-                    e *= 5;
-                    if (f < e) {
-                        const tb = `${sendName(state.globme)} steals the ${item.name} from you !\n`;
-                        if (f & 1) {
-                            sendsys(state, player.name, state.globme, -10011, state.curch, tb);
-                            if (player.playerId > 15) {
-                                woundmn(state, player.playerId, 0);
+                    return roll()
+                        .then((f) => {
+                            let e = 10 + state.my_lev - player.level;
+                            e *= 5;
+                            if (f < e) {
+                                const tb = `${sendName(state.globme)} steals the ${item.name} from you !\n`;
+                                if (f & 1) {
+                                    sendsys(state, player.name, state.globme, -10011, state.curch, tb);
+                                    if (player.playerId > 15) {
+                                        woundmn(state, player.playerId, 0);
+                                    }
+                                }
+                                return holdItem(state, item.itemId, state.mynum);
+                            } else {
+                                return bprintf(state, 'Your attempt fails\n');
                             }
-                        }
-                        return holdItem(state, item.itemId, state.mynum);
-                    } else {
-                        return bprintf(state, 'Your attempt fails\n');
-                    }
+                        });
                 });
 
         })
