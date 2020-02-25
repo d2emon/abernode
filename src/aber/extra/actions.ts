@@ -638,60 +638,52 @@ export class Where extends Action {
 }
 
 export class EditWorld extends Action {
-    private static getNumber(state: State, minValue: number, maxValue: number): number {
-        /*
-long getnarg(bt,to)
-long bt,to;
-{
-	extern char wordbuf[];
-	long x;
-	if(brkword()==-1)
-	{
-		bprintf("Missing numeric argument\n");
-		return(-1);
-	}
-	x=numarg(wordbuf);
-	if(x<bt) {bprintf("Invalid range\n");return(-1);}
-	if((to)&&(x>to)) {bprintf("Invalid range\n");return(-1);}
-	return(x);
-}
-
-         */
-        return 0;
+    private static getNumber(state: State, minValue: number = 0, maxValue?: number): number {
+        if (brkword(state) === -1) {
+            throw new Error('Missing numeric argument');
+        }
+        const value = Number(state.wordbuf);
+        if (value < minValue) {
+            throw new Error('Invalid range');
+        }
+        if (maxValue && (value > maxValue)) {
+            throw new Error('Invalid range');
+        }
+        return value;
     }
 
     private static editPlayer (state: State): Promise<any> {
         const playerId = EditWorld.getNumber(state, 0, 47);
         if (playerId === -1) {
-            return Promise.resolve();
+            return Promise.resolve(false);
         }
         const key = EditWorld.getNumber(state, 0, 15);
         if (key === -1) {
-            return Promise.resolve();
+            return Promise.resolve(false);
         }
-        const value = EditWorld.getNumber(state, 0, 0);
+        const value = EditWorld.getNumber(state);
         if (value === -1) {
-            return Promise.resolve();
+            return Promise.resolve(false);
         }
         return setPlayer(state, playerId, { [key]: value })
-            .then(() => 'Tis done\n');
+            .then(() => true);
     }
 
     private static editItem (state: State): Promise<any> {
         const itemId = EditWorld.getNumber(state, 0, state.numobs - 1);
         if (itemId === -1) {
-            return Promise.resolve();
+            return Promise.resolve(false);
         }
         const key = EditWorld.getNumber(state, 0, 3);
         if (key === -1) {
-            return Promise.resolve();
+            return Promise.resolve(false);
         }
-        const value = EditWorld.getNumber(state, 0, 0);
+        const value = EditWorld.getNumber(state);
         if (value === -1) {
-            return Promise.resolve();
+            return Promise.resolve(false);
         }
         return setItem(state, itemId, { [key]: value })
-            .then(() => 'Tis done\n');
+            .then(() => true);
     }
 
     action(state: State): Promise<any> {
@@ -711,5 +703,11 @@ long bt,to;
                     throw new Error('Must Specify Player or Object');
                 }
             });
+    }
+
+    decorate(result: any): void {
+        if (result) {
+            this.output('Tis done\n');
+        }
     }
 }

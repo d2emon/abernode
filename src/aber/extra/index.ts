@@ -1,13 +1,13 @@
-import State from "../state";
+import State from '../state';
 import {
     CONTAINED_IN,
     LOCATED_IN,
-} from "../object";
+} from '../object';
 import {
     getItem,
     getPlayer,
-} from "../support";
-import {sendVisibleName} from "../bprintf";
+} from '../support';
+import {sendVisibleName} from '../bprintf';
 
 const openroom = (state: State, locationId: number, permissions: string): Promise<any> => Promise.resolve({});
 const showname = (state: State, locationId: number): string => '';
