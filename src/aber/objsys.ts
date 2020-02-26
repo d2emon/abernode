@@ -14,10 +14,10 @@ import {
 import {bprintf, brkword, sendsys} from "./__dummies";
 import {CONTAINED_IN, HELD_BY} from "./object";
 import {canSeePlayer, seePlayerName, sendPlayerForVisible, sendVisibleName, setName} from "./bprintf/bprintf";
+import {getDragon} from "./mobile";
 
 const iswornby = (state: State, item: Item, player: Player): boolean => false;
 const calibme = (state: State): boolean => false;
-const dragget = (state: State): boolean => false;
 const showwthr = (state: State): boolean => false;
 const cancarry = (state: State, playerId: number): boolean => false;
 
@@ -340,6 +340,34 @@ export class GetItem extends Action {
 
     }
 
+    private static checkDragon(state: State): Promise<boolean> {
+        return getDragon(state)
+            .then((isDragon) => {
+                if (isDragon) {
+                    return Promise.reject();
+                }
+                return true;
+            })
+    }
+
+    private static checkCarry(state: State): Promise<boolean> {
+        if (!cancarry(state, state.mynum)) {
+            return Promise.reject(new Error('You can\'t carry any more'));
+        }
+        return Promise.resolve(true);
+    }
+
+    private checkCanGet(state: State, item: Item): Promise<Item> {
+        if (item.flannel) {
+            throw new Error('You can\'t take that!');
+        }
+        return Promise.all([
+            GetItem.checkDragon(state),
+            GetItem.checkCarry(state),
+        ])
+            .then(() => (item.itemId === 32) ? this.getRuneSword(state, item) : item);
+    }
+
     action(state: State): Promise<any> {
         if (brkword(state) === -1) {
             return Promise.reject(new Error('Get what ?'));
@@ -364,21 +392,7 @@ export class GetItem extends Action {
                 }
                 return (!container && (item.itemId === SHIELD_BASE_ID)) ? this.getShield(state) : item;
             })
-            .then((item) => {
-                if (item.flannel) {
-                    return Promise.reject(new Error('You can\'t take that!'));
-                }
-                if (dragget(state)) {
-                    return Promise.reject();
-                }
-                if (!cancarry(state, state.mynum)) {
-                    return Promise.reject(new Error('You can\'t carry any more'));
-                }
-                if (item.itemId === 32) {
-                    return this.getRuneSword(state, item);
-                }
-                return item;
-            })
+            .then(item => this.checkCanGet(state, item))
             .then((item) => {
                 const results = [
                     holdItem(state, item.itemId, state.mynum),

@@ -10,6 +10,7 @@ import {endGame} from "./gamego/endGame";
 import {setAlarm, asyncUnsetAlarm, setProgramName, withAlarm} from "./gamego/reducer";
 import {keyInput} from "./key";
 import {roll} from "./magic";
+import {onLook} from "./mobile";
 
 /*
  *
@@ -571,7 +572,7 @@ const lookin = (state: State, roomId: number): Promise<void> => {
                         .then(() => {
                             bprintf(state, 'It is dark\n');
                             openworld(state);
-                            onlook(state);
+                            return onLook(state);
                         })
                 }
                 return getstr(un1)
@@ -623,7 +624,7 @@ const lookin = (state: State, roomId: number): Promise<void> => {
         })
         .then(() => {
             bprintf(state, '\n');
-            onlook(state);
+            return onLook(state);
         });
 };
 

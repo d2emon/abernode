@@ -19,9 +19,50 @@ import {
     damageByItem,
     hitPlayer,
 } from './index';
+import {RESET_N} from "../files";
 
 const calibme = (state: State): void => undefined;
-const sys_reset = (state: State): void => undefined;
+const rescom = (state: State): Promise<any> => Promise.resolve({});
+const tscale = (state: State): number => 0;
+const time = (state: State): number => 0;
+
+const openlock = (filename: string, permissions: string): Promise<any> => Promise.resolve({});
+const fscanf = (file: any, template: string): Promise<any> => Promise.resolve(0);
+const fclose = (file: any): Promise<void> => Promise.resolve();
+
+const sysReset = (state: State): Promise<void> => {
+    const doReset = (level: number): Promise<void> => {
+        state.my_lev = 10;
+        return rescom(state)
+            .then(() => {
+                state.my_lev = level;
+            });
+    };
+
+    if (tscale(state) !== 2) {
+        throw new Error('There are other people on.... So it wont work!');
+    }
+    return openlock(RESET_N, 'ruf')
+        .then(fl => Promise.all([
+            Promise.resolve(fl),
+            fscanf(fl, '%ld'),
+        ]))
+        .then(([fl, u]) => fclose(fl).then(() => u))
+        .then((u) => {
+            const t = time(state);
+            if (t < u) {
+                return false;
+            }
+            return (t - u) >= 3600;
+        })
+        .catch(() => true)
+        .then((canReset) => {
+            if (!canReset) {
+                throw new Error('Sorry at least an hour must pass between resets');
+            }
+            return doReset(state.my_lev);
+        });
+};
 
 export class Weapon extends Action {
     action(state: State): Promise<any> {
@@ -90,8 +131,7 @@ export class Kill extends Action {
             throw new Error('What is that ?');
         }
         if (item.itemId === 171) {
-            sys_reset(state);
-            return;
+            return sysReset(state);
         }
         throw new Error('You can\'t do that');
     }

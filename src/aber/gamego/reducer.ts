@@ -5,11 +5,11 @@ import {
     InputData,
 } from '../key';
 import {showMessages} from "../bprintf/output";
+import {onTime} from "../mobile";
 
 const openworld = (state: State): void => undefined;
 const closeworld = (state: State): void => undefined;
 const loseme = (state: State): void => undefined;
-const on_timing = (state: State): void => undefined;
 const rte = (state: State, name: string, interrupt: boolean = false): void => undefined;
 
 const NO_ACTION = (): Promise<void> => Promise.resolve();
@@ -27,9 +27,11 @@ const timerEvent = (state: State) => withNoAlarm(state)(() => {
 
     rte(state, state.globme, true);
 
-    on_timing(state);
-    closeworld(state);
-    return showMessages(state)
+    return onTime(state)
+        .then(() => {
+            closeworld(state);
+            return showMessages(state);
+        })
         .then(checkPrompt)
         .then((inputData: InputData) => inputData.toPrompt && console.log(`\n${inputData.prompt}${inputData.input}`));
 });

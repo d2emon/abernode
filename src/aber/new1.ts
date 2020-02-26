@@ -41,6 +41,7 @@ import {
 } from "./bprintf/bprintf";
 import {endGame} from "./gamego/endGame";
 import {roll} from "./magic";
+import {getDragon} from "./mobile";
 
 /*
 struct player_res
@@ -356,25 +357,27 @@ const putcom = (state: State): Promise<void> => {
             if (item.flannel) {
                 return bprintf(state, 'You can\'t take that !\n');
             }
-            if (dragget(state)) {
-                return;
-            }
-            if (item.itemId === 32) {
-                return bprintf(state, 'You can\'t let go of it!\n');
-            }
-
-            return putItemIn(state, item.itemId, container.itemId)
-                .then(() => {
-                    bprintf(state, 'Ok.\n');
-                    const ar = `${sendPlayerForVisible(state.globme)}${sendVisibleName(` puts the ${item.name} in the ${container.name}.\\n`)}`;
-                    sendsys(state, state.globme, state.globme, -10000, state.curch, ar);
-                    if (item.changeStateOnTake) {
-                        setItem(state, item.itemId, { state: 0 });
+            return getDragon(state)
+                .then((result) => {
+                    if (result) {
+                        return;
                     }
-                    if (state.curch === -1081) {
-                        setItem(state, 20, { state: 1 });
-                        bprintf(state, 'The door clicks shut....\n');
+                    if (item.itemId === 32) {
+                        return bprintf(state, 'You can\'t let go of it!\n');
                     }
+                    return putItemIn(state, item.itemId, container.itemId)
+                        .then(() => {
+                            bprintf(state, 'Ok.\n');
+                            const ar = `${sendPlayerForVisible(state.globme)}${sendVisibleName(` puts the ${item.name} in the ${container.name}.\\n`)}`;
+                            sendsys(state, state.globme, state.globme, -10000, state.curch, ar);
+                            if (item.changeStateOnTake) {
+                                setItem(state, item.itemId, { state: 0 });
+                            }
+                            if (state.curch === -1081) {
+                                setItem(state, 20, { state: 1 });
+                                bprintf(state, 'The door clicks shut....\n');
+                            }
+                        });
                 });
         });
 };
