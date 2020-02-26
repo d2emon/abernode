@@ -1,7 +1,18 @@
 import State from '../state';
 import {roll} from '../magic';
-import {getItem, getPlayer, getPlayers, Item, Player, setPlayer} from "../support";
-import {byMask, findPlayer, isCarriedBy} from "../objsys";
+import {
+    Item,
+    Player,
+    getItem,
+    getPlayer,
+    getPlayers,
+    setPlayer,
+} from "../support";
+import {
+    byMask,
+    findPlayer,
+    isCarriedBy,
+} from "../objsys";
 import {IS_LIT} from "../object";
 import {sendMessage} from "../bprintf/bprintf";
 import {sendVisibleName} from '../bprintf';

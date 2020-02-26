@@ -79,6 +79,8 @@ export interface Item {
     value: number,
     connectedItemId?: number,
     damage?: number,
+    isOpen: boolean,
+    isLocked: boolean,
 }
 
 const itemFromState = (state: State, itemId: number): Item => ({
@@ -124,6 +126,8 @@ const itemFromState = (state: State, itemId: number): Item => ({
     damage: state.objinfo[itemId].flags[IS_WEAPON]
         ? state.objinfo[itemId].payload.damage
         : undefined,
+    isOpen: state.objinfo[itemId].state === ((itemId === 1) ? 1 : 0),
+    isLocked: state.objinfo[itemId].state === 2,
 });
 export const getItem = (state: State, itemId: number): Promise<Item> => Promise.resolve(
     itemFromState(state, itemId)

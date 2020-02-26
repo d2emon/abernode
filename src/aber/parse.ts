@@ -26,6 +26,9 @@ import {
 import {showMessages} from "./bprintf/output";
 import {endGame} from "./gamego/endGame";
 import {roll} from "./magic";
+import {getAvailableItem} from "./new1";
+
+const debug2 = (state: State): Promise<void> => Promise.resolve(bprintf(state, 'No debugger available\n'));
 
 /*
 #include "files.h"
@@ -1743,36 +1746,28 @@ const becom = (state: State): Promise<void> => {
        broad(y);
        }
     }
-
- rollcom()
-    {
-    auto long  a,b;
-    b=ohereandget(&a);
-    if(b== -1) return;
-    switch(a)
-       {
-       case 122:;
-       case 123:
-          gamecom("push pillar");
-          break;
-       default:
-          bprintf("You can't roll that\n");
-       }
-    }
-
-long brmode=0;
-
- debugcom()
-    {
-    extern long my_lev;
-    if(my_lev<10000)
-       {
-       bprintf("I don't know that verb\n");
-       return;
-       }
-    debug2();
-    }
 */
+
+const rollcom = (state: State): Promise<void> => getAvailableItem(state)
+    .then((item) => {
+        if ((item.itemId === 122) || (item.itemId === 123)) {
+            return gamecom(state, 'push pillar');
+        } else {
+            return bprintf(state, 'You can\'t roll that\n');
+        }
+    })
+
+/*
+long brmode=0;
+*/
+
+const debugcom = (state: State): Promise<void> => {
+    if (state.my_lev < 10000) {
+        bprintf(state, 'I don\'t know that verb\n');
+        return Promise.resolve();
+    }
+    return debug2(state);
+};
 
 const bugcom = (state: State): Promise<void> => {
     const x = getreinput(state);
@@ -1893,12 +1888,8 @@ const digcom = (state: State): Promise<void> => getItem(state, 186)
     });
 
 const emptycom = (state: State): Promise<void> => {
-    const [b, containerId] = ohereandget(state);
-    return  getItem(state, containerId)
+    return  getAvailableItem(state)
         .then((container) => {
-            if (b === -1) {
-                return Promise.resolve();
-            }
             return getItems(state)
                 .then(items => items.filter((item) => {
                     return isContainedIn(item, container, (state.my_lev < 10));

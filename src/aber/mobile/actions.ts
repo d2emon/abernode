@@ -1,15 +1,21 @@
 import Action from '../action';
 import State from '../state';
-import {brkword, sendsys} from "../__dummies";
-import {sendSound, sendSoundPlayer} from "../bprintf";
+import {
+    brkword,
+    sendsys,
+} from "../__dummies";
+import {
+    sendSound,
+    sendSoundPlayer,
+} from "../bprintf";
 import {findAvailableItem} from "../objsys";
 import {getItems} from "../support";
 import {showMessages} from "../bprintf/output";
+import {getAvailablePlayer} from "../new1";
 
 const chkdumb = (state: State): boolean => false;
 const rescom = (state: State): Promise<any> => Promise.resolve({});
 const sillycom = (state: State, message: string): Promise<any> => Promise.resolve({});
-const vichere = (state: State): number[] => [0, 0];
 const findzone = (state: State, locationId: number): number[] => [0, 0];
 
 export class Crash extends Action {
@@ -48,19 +54,18 @@ export class Sing extends Action {
 
 export class Spray extends Action {
     action(state: State): Promise<any> {
-        const [b, playerId] = vichere(state);
-        if (b === -1) {
-            throw new Error();
-        }
-        if (brkword(state) === -1) {
-            throw new Error('With what ?');
-        }
-        if (state.wordbuf === 'with') {
-            if (brkword(state) === -1) {
-                throw new Error('With what ?');
-            }
-        }
-        return findAvailableItem(state, state.wordbuf)
+        return getAvailablePlayer(state)
+            .then((player) => {
+                if (brkword(state) === -1) {
+                    throw new Error('With what ?');
+                }
+                if (state.wordbuf === 'with') {
+                    if (brkword(state) === -1) {
+                        throw new Error('With what ?');
+                    }
+                }
+                return findAvailableItem(state, state.wordbuf);
+            })
             .then((item) => {
                 if (!item) {
                     throw new Error('With what ?');
@@ -108,18 +113,5 @@ export class Direction extends Action {
             }
         });
         this.output('\n');
-    }
-}
-
-export class Sing extends Action {
-    action(state: State): Promise<any> {
-        if (chkdumb(state)) {
-            throw new Error();
-        }
-        return sillycom(state, `${sendSoundPlayer('%s')}${sendSound(' sings in Gaelic\n')}`);
-    }
-
-    decorate(result: any): void {
-        this.output('You sing\n');
     }
 }
