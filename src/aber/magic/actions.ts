@@ -1,14 +1,31 @@
 import State from '../state';
 import Action from '../action';
-import {getItem, getPlayer, holdItem, Item, Player, setPlayer} from "../support";
-import {brkword, sendsys} from "../__dummies";
+import {
+    brkword,
+    sendsys,
+} from '../__dummies';
 import {
     sendName,
     sendVisiblePlayer,
     sendVisibleName,
-} from "../bprintf";
-import {showLocation} from "../extra";
-import {dropItems, findItem, findVisiblePlayer, isCarriedBy} from "../objsys";
+} from '../bprintf';
+import {showLocation} from '../extra';
+import {
+    dropItems,
+    findItem,
+    findVisiblePlayer,
+    isCarriedBy,
+} from '../objsys';
+import {
+    Item,
+    Player,
+    createItem,
+    getItem,
+    getPlayer,
+    holdItem,
+    putItem,
+    setPlayer,
+} from '../support';
 import {roll} from "./index";
 
 const iswornby = (state: State, item: Item, player: Player): boolean => false;
@@ -332,5 +349,37 @@ export class Invisible extends Action {
 
     decorate(result: any): void {
         this.output('Ok\n');
+    }
+}
+
+export class Ressurect extends Action {
+    action(state: State): Promise<any> {
+        if (state.my_lev < 10) {
+            throw new Error('Huh ?');
+        }
+        if (brkword(state) === -1) {
+            throw new Error('Yes but what ?');
+        }
+        return findItem(state, state.wordbuf)
+            .then((item) => {
+                if (!item) {
+                    throw new Error('You can only ressurect objects');
+                }
+                if (!item.isDestroyed) {
+                    throw new Error('That already exists');
+                }
+                return createItem(state, item.itemId);
+            })
+            .then((item) => {
+                sendsys(
+                    state,
+                    null,
+                    null,
+                    -10000,
+                    state.curch,
+                    `The ${item.name} suddenly appears`,
+                );
+                return putItem(state, item.itemId, state.curch);
+            });
     }
 }
