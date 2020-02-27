@@ -8,26 +8,134 @@ import {
     sendVisibleName,
     sendVisiblePlayer,
 } from "../bprintf";
-import {getAvailableItem, getAvailablePlayer} from "./index";
+import {getAvailableItem} from "./index";
 import {brkword, sendsys} from "../__dummies";
 import {getHelper, getItem, getPlayer, Item, Player, putItem, putItemIn, setItem, setPlayer} from "../support";
-import {byMask, findAvailableItem, findPlayer, itemDescription} from "../objsys";
+import {byMask, findAvailableItem, findPlayer, findVisiblePlayer, isCarriedBy, itemDescription} from "../objsys";
 import {CAN_BE_EXTINGUISHED, CAN_BE_LIT, IS_DESTROYED, IS_KEY, IS_LIT} from "../object";
 import {getDragon} from "../mobile";
 import {endGame} from "../gamego/endGame";
 import {sendMessage} from "../bprintf/bprintf";
+import {roll} from "../magic";
+import {
+    sendChangeSex,
+    sendCripple,
+    sendCure,
+    sendDumb,
+    sendFireball,
+    sendForce,
+    sendMissile,
+    sendShock, sendSocial
+} from "./receivers";
+import {checkDumb} from "./reducer";
 
 const broad = (state: State, message: string): void => undefined;
 const sillycom = (state: State, message: string): Promise<any> => Promise.resolve({});
-const sillytp = (state: State, playerId: number, message: string): Promise<any> => Promise.resolve({});
-const chkdumb = (state: State): boolean => false;
 const getreinput = (state: State): string => '';
 const loseme = (state: State): void => undefined;
+const openworld = (state: State): void => undefined;
 const teletrap = (state: State, locationId: number): void => undefined;
 const trapch = (state: State, locationId: number): void => undefined;
-const victim = (state: State): number[] => [0, 0];
-const vichfb = (state: State): number[] => [0, 0];
 const woundmn = (state: State, playerId: number, damage: number): void => undefined;
+
+/* This one isnt for magic */
+
+const getTargetPlayer = (state: State): Promise<Player> => {
+    if (brkword(state) === -1) {
+        throw new Error('Who ?');
+    }
+    openworld(state);
+    if (state.wordbuf === 'at') {
+        /* STARE AT etc */
+        return getTargetPlayer(state);
+    }
+    return findVisiblePlayer(state, state.wordbuf)
+        .then((player) => {
+            if (!player) {
+                throw new Error('Who ?');
+            }
+            return player;
+        })
+};
+
+export const getAvailablePlayer = (state: State): Promise<Player> => getTargetPlayer(state)
+    .then((player) => {
+        if (player.locationId !== state.curch) {
+            throw new Error('They are not here');
+        }
+        return player;
+    });
+
+const spellFails = (state: State, reflect: boolean) => sendMessage(state, 'You fumble the magic\n')
+    .then(() => {
+        if (!reflect) {
+            return undefined;
+        }
+        return sendMessage(state, 'The spell reflects back\n')
+            .then(() => getPlayer(state, state.mynum));
+    });
+
+const spellSuccess = (state: State) => (
+    (state.my_lev < 10)
+        ? sendMessage(state, 'The spell succeeds!!\n')
+        : Promise.resolve()
+);
+
+const getSpellTarget = (state: State, reflect: boolean = true): Promise<Player> => getTargetPlayer(state)
+    .then((player) => {
+        if (state.my_str < 10) {
+            throw new Error('You are too weak to cast magic');
+        }
+        if (state.my_lev < 10) {
+            state.my_str -= 2;
+        }
+        return Promise.all([
+            Promise.resolve(player),
+            Promise.all([
+                111,
+                121,
+                163,
+            ].map(itemId => getItem(state, itemId))),
+            roll(),
+        ]);
+    })
+    .then(([
+        player,
+        items,
+        successRoll,
+    ]) => {
+        const bonus = items.filter(item => isCarriedBy(item, player, (state.my_lev < 10))).length;
+        const chance = (bonus + 5) * state.my_lev;
+        if ((state.my_lev < 10) && (successRoll > chance)) {
+            return spellFails(state, reflect);
+        } else {
+            return spellSuccess(state)
+                .then(() => player);
+        }
+    })
+    .then((target) => {
+        if (!target) {
+            throw new Error();
+        }
+        return target;
+    });
+
+const getTouchSpellTarget = (state: State): Promise<Player> => getSpellTarget(state, false)
+    .then((player) => {
+        if (player.locationId !== state.curch) {
+            throw new Error('They are not here');
+        }
+        return player;
+    });
+
+const socialInteraction = (state: State, player: Player, message: string, visible: boolean = false, output: string = ''): Promise<any> => sendSocial(
+    state,
+    player,
+    visible
+        ? sendVisiblePlayer(state.globme, `${state.globme} ${message}\n`)
+        : `${sendName(state.globme)} ${message}\n`,
+)
+    .then(() => output);
 
 export class Bounce extends Action {
     action(state: State): Promise<any> {
@@ -41,10 +149,10 @@ export class Bounce extends Action {
 
 export class Sigh extends Action {
     action(state: State): Promise<any> {
-        if (chkdumb(state)) {
-            throw new Error();
-        }
-        return sillycom(state, `${sendSoundPlayer('%s')}${sendSound(' sighs loudly\n')}`);
+        return Promise.all([
+            checkDumb(state),
+            sillycom(state, `${sendSoundPlayer('%s')}${sendSound(' sighs loudly\n')}`),
+        ]);
     }
 
     decorate(result: any): void {
@@ -54,10 +162,10 @@ export class Sigh extends Action {
 
 export class Scream extends Action {
     action(state: State): Promise<any> {
-        if (chkdumb(state)) {
-            throw new Error();
-        }
-        return sillycom(state, `${sendSoundPlayer('%s')}${sendSound(' screams loudly\n')}`);
+        return Promise.all([
+            checkDumb(state),
+            sillycom(state, `${sendSoundPlayer('%s')}${sendSound(' screams loudly\n')}`),
+        ]);
     }
 
     decorate(result: any): void {
@@ -687,74 +795,29 @@ export class Push extends Action {
 
 export class Cripple extends Action {
     action(state: State): Promise<any> {
-        const [b, playerId] = victim(state);
-        if (b === -1) {
-            throw new Error();
-        }
-        return getPlayer(state, playerId)
-            .then(player => sendsys(
-                state,
-                player.name,
-                state.globme,
-                -10101,
-                state.curch,
-                null,
-             ));
+        return getSpellTarget(state)
+            .then(player => sendCripple(state, player));
     }
 }
 
 export class Cure extends Action {
     action(state: State): Promise<any> {
-        const [b, playerId] = vichfb(state);
-        if (b === -1) {
-            throw new Error();
-        }
-        return getPlayer(state, playerId)
-            .then(player => sendsys(
-                state,
-                player.name,
-                state.globme,
-                -10100,
-                state.curch,
-                null,
-             ));
+        return getTouchSpellTarget(state)
+            .then(player => sendCure(state, player));
     }
 }
 
 export class Dumb extends Action {
     action(state: State): Promise<any> {
-        const [b, playerId] = victim(state);
-        if (b === -1) {
-            throw new Error();
-        }
-        return getPlayer(state, playerId)
-            .then(player => sendsys(
-                state,
-                player.name,
-                state.globme,
-                -10102,
-                state.curch,
-                null,
-             ));
+        return getSpellTarget(state)
+            .then(player => sendDumb(state, player));
     }
 }
 
 export class Force extends Action {
     action(state: State): Promise<any> {
-        const [b, playerId] = victim(state);
-        if (b === -1) {
-            throw new Error();
-        }
-        const payload = getreinput(state);
-        return getPlayer(state, playerId)
-            .then(player => sendsys(
-                state,
-                player.name,
-                state.globme,
-                -10103,
-                state.curch,
-                payload,
-             ));
+        return getSpellTarget(state)
+            .then(player => sendForce(state, player, getreinput(state)));
     }
 }
 
@@ -772,27 +835,25 @@ export class Missile extends Action {
     }
 
     action(state: State): Promise<any> {
-        const [b, playerId] = vichfb(state);
-        return getPlayer(state, playerId)
+        return getTouchSpellTarget(state)
             .then((player) => {
-                if (b === -1) {
-                    throw new Error();
-                }
                 const damage = state.my_lev * 2;
-                sendsys(
-                    state,
-                    player.name,
-                    state.globme,
-                    -10106,
-                    state.curch,
-                    damage,
-                );
-                if (player.strength < damage) {
-                    return Missile.killVictim(state, player)
-                        .then(() => player.isBot && woundmn(state, player.playerId, damage))
-                        .then(() => 'Your last spell did the trick\n');
+                const promises = [sendMissile(state, player, damage)];
+                const result = (player.strength < damage);
+                if (result) {
+                    promises.push(Missile.killVictim(state, player));
+                    if (player.isBot) {
+                        woundmn(state, player.playerId, damage);
+                    }
                 }
+                return Promise.all(promises).then(() => result);
             })
+    }
+
+    decorate(result: any): void {
+        if (result) {
+            this.output('Your last spell did the trick\n')
+        }
     }
 }
 
@@ -804,25 +865,13 @@ export class Change extends Action {
         if (state.wordbuf !== 'sex') {
             throw new Error('I don\'t know how to change that\n');
         }
-
-        const [b, playerId] = victim(state);
-        if (b === -1) {
-            throw new Error();
-        }
-        return getPlayer(state, playerId)
+        return getSpellTarget(state)
             .then((player) => {
-                sendsys(
-                    state,
-                    player.name,
-                    state.globme,
-                    -10107,
-                    state.curch,
-                    null,
-                );
-                if (!player.isBot) {
-                    return;
+                const promises = [sendChangeSex(state, player)];
+                if (player.isBot) {
+                    promises.push(setPlayer(state, player.playerId, { sex: 1 - player.sex }));
                 }
-                return setPlayer(state, player.playerId, { sex: 1 - player.sex });
+                return Promise.all(promises);
             })
     }
 }
@@ -841,12 +890,8 @@ export class Fireball extends Action {
     }
 
     action(state: State): Promise<any> {
-        const [b, playerId] = vichfb(state);
-        return getPlayer(state, playerId)
+        return getTouchSpellTarget(state)
             .then((player) => {
-                if (b === -1) {
-                    throw new Error();
-                }
                 if (player.playerId === state.mynum) {
                     throw new Error('Seems rather dangerous to me....');
                 }
@@ -860,20 +905,22 @@ export class Fireball extends Action {
                 yeti,
             ]) => {
                 const damage = ((player.playerId === yeti.playerId) ? 6 : 2) * state.my_lev;
-                sendsys(
-                    state,
-                    player.name,
-                    state.globme,
-                    -10109,
-                    state.curch,
-                    damage,
-                );
-                if (player.strength < damage) {
-                    return Fireball.killVictim(state, player)
-                        .then(() => player.isBot && woundmn(state, player.playerId, damage))
-                        .then(() => 'Your last spell did the trick\n');
+                const promises = [sendFireball(state, player, damage)];
+                const result = (player.strength < damage);
+                if (result) {
+                    promises.push(Fireball.killVictim(state, player));
+                    if (player.isBot) {
+                        woundmn(state, player.playerId, damage);
+                    }
                 }
+                return Promise.all(promises).then(() => result);
             })
+    }
+
+    decorate(result: any): void {
+        if (result) {
+            this.output('Your last spell did the trick\n')
+        }
     }
 }
 
@@ -891,30 +938,28 @@ export class Shock extends Action {
     }
 
     action(state: State): Promise<any> {
-        const [b, playerId] = vichfb(state);
-        return getPlayer(state, playerId)
+        return getTouchSpellTarget(state)
             .then((player) => {
-                if (b === -1) {
-                    throw new Error();
-                }
                 if (player.playerId === state.mynum) {
                     throw new Error('You are supposed to be killing other people not yourself\n');
                 }
                 const damage = state.my_lev * 2;
-                sendsys(
-                    state,
-                    player.name,
-                    state.globme,
-                    -10110,
-                    state.curch,
-                    damage,
-                );
-                if (player.strength < damage) {
-                    return Shock.killVictim(state, player)
-                        .then(() => player.isBot && woundmn(state, player.playerId, damage))
-                        .then(() => 'Your last spell did the trick\n');
+                const promises = [sendShock(state, player, damage)];
+                const result = (player.strength < damage);
+                if (result) {
+                    promises.push(Shock.killVictim(state, player));
+                    if (player.isBot) {
+                        woundmn(state, player.playerId, damage);
+                    }
                 }
+                return Promise.all(promises).then(() => result);
             })
+    }
+
+    decorate(result: any): void {
+        if (result) {
+            this.output('Your last spell did the trick\n')
+        }
     }
 }
 
@@ -925,8 +970,13 @@ export class Stare extends Action {
                 if (player.playerId === state.mynum) {
                     throw new Error('That is pretty neat if you can do it!');
                 }
-                return sillytp(state, player.playerId, 'stares deep into your eyes\n')
-                    .then(() => `You stare at ${sendName(player.name)}\n`);
+                return socialInteraction(
+                    state,
+                    player,
+                    'stares deep into your eyes\n',
+                    true,
+                    `You stare at ${sendName(player.name)}\n`,
+                 );
             });
     }
 }
@@ -946,10 +996,13 @@ export class Grope extends Action {
                                 .then(() => null);
                         });
                 }
-                return sillytp(state, player.playerId, 'gropes you')
-                    .then(() => '<Well what sort of noise do you want here ?>\n');
-
-            })
+                return socialInteraction(
+                    state,
+                    player, 'gropes you',
+                    false,
+                    '<Well what sort of noise do you want here ?>\n',
+                );
+            });
     }
 }
 
@@ -963,8 +1016,13 @@ export class Squeeze extends Action {
                 if (!player) {
                     throw new Error()
                 }
-                return sillytp(state, player.playerId, 'gives you a squeeze\n')
-                    .then(() => 'You give them a squeeze\n');
+                return socialInteraction(
+                    state,
+                    player,
+                    'gives you a squeeze\n',
+                    false,
+                    'You give them a squeeze\n',
+                );
             });
     }
 }
@@ -976,8 +1034,13 @@ export class Kiss extends Action {
                 if (player.playerId === state.mynum) {
                     return 'Weird!\n';
                 }
-                return sillytp(state, player.playerId, 'kisses you\n')
-                    .then(() => 'Slurp!\n');
+                return socialInteraction(
+                    state,
+                    player,
+                    'kisses you\n',
+                    false,
+                    'Slurp!\n',
+                );
             });
     }
 }
@@ -989,7 +1052,7 @@ export class Cuddle extends Action {
                 if (player.playerId === state.mynum) {
                     return 'You aren\'t that lonely are you ?\n';
                 }
-                return sillytp(state, player.playerId, 'cuddles you\n');
+                return socialInteraction(state, player, 'cuddles you\n');
             });
     }
 }
@@ -1001,7 +1064,7 @@ export class Hug extends Action {
                 if (player.playerId === state.mynum) {
                     return 'Ohhh flowerr!\n';
                 }
-                return sillytp(state, player.playerId, 'hugs you\n');
+                return socialInteraction(state, player, 'hugs you\n');
             });
     }
 }
@@ -1013,7 +1076,7 @@ export class Slap extends Action {
                 if (player.playerId === state.mynum) {
                     return 'You slap yourself\n';
                 }
-                return sillytp(state, player.playerId, 'slaps you\n');
+                return socialInteraction(state, player, 'slaps you\n');
             });
     }
 }
@@ -1025,7 +1088,7 @@ export class Tickle extends Action {
                 if (player.playerId === state.mynum) {
                     return 'You tickle yourself\n';
                 }
-                return sillytp(state, player.playerId, 'tickles you\n');
+                return socialInteraction(state, player, 'tickles you\n');
             });
     }
 }

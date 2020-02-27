@@ -124,9 +124,12 @@ export default interface State {
     alarm?: number,
     sig_active: boolean,
     interrupt: boolean,
-    //
+    // new1
     ail_blind: boolean,
+    ail_crip: boolean,
     ail_deaf: boolean,
+    ail_dumb: boolean,
+    //
     brmode: boolean,
     curch: number,
     debug_mode: boolean,

@@ -27,6 +27,7 @@ import {
     setPlayer,
 } from '../support';
 import {roll} from "./index";
+import {sendWizards} from "../new1/receivers";
 
 const iswornby = (state: State, item: Item, player: Player): boolean => false;
 const roomnum = (state: State, roomId: string, zoneId: string): number => 0;
@@ -266,16 +267,8 @@ export class Wizards extends Action {
             throw new Error('Such advanced conversation is beyond you');
         }
         state.wordbuf = getreinput(state);
-        sendsys(
-            state,
-            state.globme,
-            state.globme,
-            -10113,
-            state.curch,
-            `${sendName(state.globme)} : ${state.wordbuf}\n`,
-        );
         state.rd_qd = true;
-        return Promise.resolve();
+        return sendWizards(state, `${sendName(state.globme)} : ${state.wordbuf}\n`);
     }
 }
 

@@ -11,6 +11,8 @@ import {setAlarm, asyncUnsetAlarm, setProgramName, withAlarm} from "./gamego/red
 import {keyInput} from "./key";
 import {roll} from "./magic";
 import {onLook} from "./mobile";
+import {cureBlind, getBlind} from "./new1/reducer";
+import {sendWizards} from "./new1/receivers";
 
 /*
  *
@@ -365,11 +367,10 @@ const special = (state: State, word: string, name: string): Promise<boolean> => 
                     weaponId: -1,
                     helping: -1,
                 })
+                    .then(() => sendWizards(state, sendVisiblePlayer(name, `[ ${name}  has entered the game ]\n`)))
                     .then(roll)
                     .then((locationRoll) => {
                         const xy = sendVisiblePlayer(name, `${name}  has entered the game\n`);
-                        const xx = sendVisiblePlayer(name, `[ ${name}  has entered the game ]\n`);
-                        sendsys(state, name, name, -10113, state.curch, xx);
                         rte(state, name);
                         if (locationRoll > 50) {
                             trapch(state, state.curch);
@@ -509,14 +510,14 @@ const loseme = (state: State, name: string): Promise<void> => getPlayer(state, s
                 /* ABOUT 2 MINUTES OR SO */
                 state.i_setup = false;
                 openworld(state);
-                return dropMyItems(state);
-            })
-            .then(() => {
+                const promises = [
+                    dropMyItems(state),
+                    setPlayer(state, player.playerId, { exists: false }),
+                ];
                 if (player.visibility < 10000) {
-                    const bk = `${state.globme} has departed from AberMUDII\n`;
-                    sendsys(state, state.globme, state.globme, -10113, 0, bk);
+                    promises.push(sendWizards(state, `${state.globme} has departed from AberMUDII\n`));
                 }
-                return setPlayer(state, player.playerId, { exists: false })
+                return Promise.all(promises)
             })
             .then(() => {
                 closeworld(state);
@@ -556,7 +557,7 @@ const revise = (state: State, cutoff: number): Promise<void> => {
 const lookin = (state: State, roomId: number): Promise<void> => {
     /* Lords ???? */
     closeworld(state);
-    if (state.ail_blind) {
+    if (getBlind(state)) {
         bprintf(state, 'You are blind... you can\'t see a thing!\n');
     }
     if (state.my_lev > 9) {
@@ -579,10 +580,10 @@ const lookin = (state: State, roomId: number): Promise<void> => {
                     .then((content) => {
                         content.forEach((s) => {
                             if (s === '#DIE') {
-                                if (state.ail_blind) {
+                                if (getBlind(state)) {
                                     return rewind(state, un1)
                                         .then(() => {
-                                            state.ail_blind = false;
+                                            cureBlind(state);
                                             return xx1();
                                         });
                                 }
@@ -595,7 +596,7 @@ const lookin = (state: State, roomId: number): Promise<void> => {
                             } else if (s === '#NOBR') {
                                 state.brmode = false;
                             } else {
-                                if (!state.ail_blind && !xxx) {
+                                if (!getBlind(state) && !xxx) {
                                     bprintf(state, `${s}\n`);
                                 }
                                 xxx = state.brmode
@@ -611,7 +612,7 @@ const lookin = (state: State, roomId: number): Promise<void> => {
         })
         .then(() => {
             openworld(state);
-            if (state.ail_blind) {
+            if (getBlind(state)) {
                 return;
             }
             return showItems(state)

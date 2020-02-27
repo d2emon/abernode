@@ -4,7 +4,7 @@ import {brkword} from '../__dummies';
 import {
     getPlayer,
     Item,
-    Player,
+    Player, scale,
 } from '../support';
 import {
     findAvailableItem,
@@ -23,7 +23,6 @@ import {RESET_N} from "../files";
 
 const calibme = (state: State): void => undefined;
 const rescom = (state: State): Promise<any> => Promise.resolve({});
-const tscale = (state: State): number => 0;
 const time = (state: State): number => 0;
 
 const openlock = (filename: string, permissions: string): Promise<any> => Promise.resolve({});
@@ -39,7 +38,7 @@ const sysReset = (state: State): Promise<void> => {
             });
     };
 
-    if (tscale(state) !== 2) {
+    if (scale(state) !== 2) {
         throw new Error('There are other people on.... So it wont work!');
     }
     return openlock(RESET_N, 'ruf')

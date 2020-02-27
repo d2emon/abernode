@@ -1,315 +1,28 @@
 import {
     bprintf,
-    brkword,
     sendsys,
 } from '../__dummies';
 import State from "../state";
 import {
-    Item,
     getItem,
     putItem,
     holdItem,
     wearItem,
-    setItem,
     getItems,
     getPlayer,
     setPlayer,
     getPlayers,
 } from "../support";
 import {
-    IS_DESTROYED,
-} from "../object";
-import {logger} from "../files";
-import {
     isCarriedBy,
     dropItems,
-    dropMyItems,
 } from "../objsys";
 import {
-    sendName,
     sendVisiblePlayer
 } from "../bprintf";
-import {endGame} from "../gamego/endGame";
 import {roll} from "../magic";
-import {getAvailableItem} from "./index";
-
-
-const vichfb = (state: State, playerId: number): Promise<number> => getPlayer(state, vicfb(state, playerId))
-    .then((player) => {
-        if (player.playerId === -1) {
-            return -1;
-        }
-        if (player.locationId !== state.curch) {
-            bprintf(state, 'They are not here\n');
-            return -1;
-        }
-        return player.playerId;
-    });
-
-const sillytp = (state: State, playerId: number, message: string): Promise<void> => getPlayer(state, playerId)
-    .then((player) => {
-        const bk = (message.substr(0, 4) === 'star')
-            ? sendVisiblePlayer(state.globme, `${state.globme} ${message}\n`)
-            : `${sendName(state.globme)} ${message}\n`;
-        sendsys(state, player.name, state.globme, -10111, state.curch, bk);
-    });
-
-/*
-long ail_dumb=0;
-long  ail_crip=0;
-long  ail_blind=0;
-long  ail_deaf=0;
-*/
-
-const new1rcv = (state: State, isMe: boolean, locationId: number, receiver: string, sender: string, code: number, payload: any): Promise<void> => {
-    const actions = {
-        /*
-       case -10100:
-          if(isme==1) {
-             bprintf("All your ailments have been cured\n");
-             ail_dumb=0;
-             ail_crip=0;
-             ail_blind=0;ail_deaf=0;
-             }
-          break;
-          */
-        '-10101': () => new Promise((resolve) => {
-            if (!isMe) {
-                return resolve();
-            }
-            if (state.my_lev < 10) {
-                bprintf(state, 'You have been magically crippled\n');
-                state.ail_crip = true;
-            } else {
-                bprintf(state, `${sendName(sender)} tried to cripple you\n`)
-            }
-            return resolve();
-        }),
-        '-10102': () => new Promise((resolve) => {
-            if (!isMe) {
-                return resolve();
-            }
-            if (state.my_lev < 10) {
-                bprintf(state, 'You have been struck magically dumb\n');
-                state.ail_dumb = true;
-            } else {
-                bprintf(state, `${sendName(sender)} tried to dumb you\n`)
-            }
-            return resolve();
-        }),
-        '-10103': () => new Promise((resolve) => {
-            if (!isMe) {
-                return resolve();
-            }
-            if (state.my_lev < 10) {
-                bprintf(state, `${sendName(sender)} has forced you to ${payload}\n`);
-                addforce(state, payload);
-            } else {
-                bprintf(state, `${sendName(sender)} tried to force you to ${payload}\n`);
-            }
-            return resolve();
-        }),
-        '-10104': () => new Promise((resolve) => {
-            if (!isMe) {
-                bprintf(state, `${sendName(sender)} shouts '${payload}'\n`);
-            }
-            return resolve();
-        }),
-        '-10105': () => new Promise((resolve) => {
-            if (!isMe) {
-                return resolve();
-            }
-            if (state.my_lev < 10) {
-                bprintf(state, 'You have been struck magically blind\n');
-                state.ail_blind = true;
-            } else {
-                bprintf(state, `${sendName(sender)} tried to blind you\n`);
-            }
-            return resolve();
-        }),
-        '-10106': () => new Promise((resolve) => {
-            if (iam(sender)) {
-                return resolve();
-            }
-            if (state.curch !== locationId) {
-                return resolve();
-            }
-            bprintf(state, `Bolts of fire leap from the fingers of ${sendName(sender)}\n`);
-            if (isMe) {
-                bprintf(state, 'You are struck!\n');
-                wounded(state, Number(payload));
-            } else {
-                bprintf(state, `${sendName(receiver)} is struck\n`);
-            }
-            return resolve();
-        }),
-        /*
-       case -10107:
-          if(isme==1)
-             {
-             bprintf("Your sex has been magically changed!\n");
-             my_sex=1-my_sex;
-             bprintf("You are now ");
-             if(my_sex)bprintf("Female\n");
-             else
-                bprintf("Male\n");
-             calibme();
-             }
-          break;
-          */
-        '-10109': () => new Promise((resolve) => {
-            if (iam(sender)) {
-                return resolve();
-            }
-            if (state.curch !== locationId) {
-                return resolve();
-            }
-            bprintf(state, `${sendName(sender)} casts a fireball\n`);
-            if (isMe) {
-                bprintf(state, 'You are struck!\n');
-                wounded(state, Number(payload));
-            } else {
-                bprintf(state, `${sendName(receiver)} is struck\n`);
-            }
-            return resolve();
-        }),
-        '-10110': () => new Promise((resolve) => {
-            if (iam(sender)) {
-                return resolve();
-            }
-            if (isMe) {
-                bprintf(state, `${sendName(sender)} touches you giving you a sudden electric shock!\n`);
-                wounded(state, Number(payload));
-            }
-            return resolve();
-        }),
-        /*
-       case -10111:
-          if(isme==1)bprintf("%s\n",text);
-          break;
-       case -10113:
-          if(my_lev>9)bprintf("%s",text);
-          break;
-         */
-        '-10120': () => new Promise((resolve) => {
-            if (!isMe) {
-                return resolve();
-            }
-            if (state.my_lev < 10) {
-                bprintf(state, 'You have been magically deafened\n');
-                state.ail_deaf = true;
-            } else {
-                bprintf(state, `${sendName(sender)} tried to deafen you\n`);
-            }
-            return resolve();
-        }),
-    };
-    const action = actions[code] || (() => Promise.resolve());
-    return action();
-};
-
-const destroy = (state: State, itemId: Item): Promise<void> => setItem(state, itemId, {
-    flags: { [IS_DESTROYED]: true }
-});
-
-const tscale = (state: State): Promise<number> => getPlayers(state, state.maxu)
-    .then(players => players.filter(player => player.exists))
-    .then((players) => {
-       if (players.length === 1) {
-           return 2;
-       } else if (players.length === 2) {
-           return 3;
-       } else if (players.length === 3) {
-           return 3;
-       } else if (players.length === 4) {
-           return 4;
-       } else if (players.length === 5) {
-           return 4;
-       } else if (players.length === 6) {
-           return 5;
-       } else if (players.length === 7) {
-           return 6;
-       } else {
-           return 7;
-       }
-    });
-
-/*
- chkdumb()
-    {
-    extern long ail_dumb;
-    if(!ail_dumb) return(0);
-    bprintf("You are dumb...\n");
-    return(1);
-    }
-
- chkcrip()
-    {
-    extern long ail_crip;
-    if(!ail_crip) return(0);
-    bprintf("You are crippled\n");
-    return(1);
-    }
-
- chkblind()
-    {
-    extern long ail_blind;
-    if(!ail_blind) return(0);
-    bprintf("You are blind, you cannot see\n");
-    return(1);
-    }
-
- chkdeaf()
-    {
-    extern long ail_deaf;
-    if(!ail_deaf) return(0);
-    return(1);
-    }
-*/
-
-const wounded = (state: State, damage: number): Promise<void> => {
-    if (state.my_lev > 9) {
-        return Promise.resolve();
-    }
-    state.my_str -= damage;
-    state.me_cal = 1;
-    if (state.my_lev >= 0) {
-        return Promise.resolve();
-    }
-    closeworld(state);
-    logger.write(`${state.globme} slain magically`)
-        .then(() => {
-            delpers(state, state.globme);
-            state.zapped = true;
-            openworld(state);
-            return dropMyItems(state)
-                .then(() => {
-                    loseme(state);
-                    const ms1 = `${state.globme} has just died\n`;
-                    sendsys(state, state.globme, state.globme, -10000, state.curch, ms1);
-                    const ms2 = `[ ${state.globme} has just died ]\n`;
-                    sendsys(state, state.globme, state.globme, -10113, state.curch, ms2);
-                    return endGame(state, 'Oh dear you just died');
-                });
-        });
-};
-
-const woundmn = (state: State, playerId: number, damage: number): Promise<void> => getPlayer(state, playerId)
-    .then((player) => {
-        const strength = player.strength - damage;
-        return setPlayer(state, player.playerId, { strength })
-            .then(() => {
-                if (strength >= 0) {
-                    return mhitplayer(state, player.playerId, state.mynum);
-                }
-                return dropItems(state, player)
-                    .then(() => {
-                        const ms = `[ ${player.name} has just died ]\n`;
-                        sendsys(state, state.globme, state.globme, -10113, player.locationId, ms);
-                        return setPlayer(state, player.playerId, { exists: false });
-                    });
-            });
-    });
+import {getAvailableItem, getSpellTarget} from "./index";
+import {sendBlind, sendDeaf, sendWizards} from "./receivers";
 
 const mhitplayer = (state: State, enemyId: number, playerId: number): Promise<void> => getPlayer(state, enemyId)
     .then((enemy) => {
@@ -510,21 +223,13 @@ const canwear = (state: State, itemId: number): Promise<boolean> => getItem(stat
     */
 
 const deafcom = (state: State): Promise<void> => {
-    const [b, playerId] = victim();
-    if (b === -1) {
-        return Promise.resolve();
-    }
-    return getPlayer(state, playerId)
-        .then((player) => sendsys(state, player.name, state.globme, -10120, state.curch, null));
+    return getSpellTarget(state)
+        .then(player => sendDeaf(state, player));
 };
 
 const blindcom = (state: State): Promise<void> => {
-    const [b, playerId] = victim();
-    if (b === -1) {
-        return Promise.resolve();
-    }
-    return getPlayer(state, playerId)
-        .then((player) => sendsys(state, player.name, state.globme, -10105, state.curch, null));
+    return getSpellTarget(state)
+        .then((player) => sendBlind(state, player));
 };
 
 const teletrap = (state: State, locationId: number): Promise<void> => {

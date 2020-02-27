@@ -11,6 +11,7 @@ import {setFight} from './reducer';
 import {Attack} from './index';
 import {sendMessage} from '../bprintf/bprintf';
 import {endGame} from "../gamego/endGame";
+import {sendWizards} from "../new1/receivers";
 
 const openworld = (state: State): void => undefined;
 const closeworld = (state: State): void => undefined;
@@ -54,15 +55,10 @@ export const receiveDamage = (state: State, attack: Attack, isMe: boolean): Prom
                     state.curch,
                     `${sendName(state.globme)} has just died.\n`,
                 );
-                sendsys(
-                    state,
-                    state.globme,
-                    state.globme,
-                    -10113,
-                    state.curch,
-                    `[ ${sendName(state.globme)} has been slain by ${sendName(enemy.name)}[/p] ]\n`,
-                );
-                return endGame(state, 'Oh dear... you seem to be slightly dead');
+                return Promise.all([
+                    sendWizards(state, `[ ${sendName(state.globme)} has been slain by ${sendName(enemy.name)}[/p] ]\n`),
+                    endGame(state, 'Oh dear... you seem to be slightly dead'),
+                ]);
             });
 
         const missed = () => {

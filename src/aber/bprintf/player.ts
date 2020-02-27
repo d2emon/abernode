@@ -1,5 +1,6 @@
 import State from "../state";
 import {Player} from "../support";
+import {getBlind} from "../new1/reducer";
 
 const isdark = (state: State, locationId: number): boolean => false;
 
@@ -38,7 +39,7 @@ export const canSeePlayer = (state: State, player: Player): boolean => {
     if (player.visibility > state.my_lev) {
         return false;
     }
-    if (state.ail_blind) {
+    if (getBlind(state)) {
         /* Cant see */
         return false;
     }

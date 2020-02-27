@@ -4,6 +4,7 @@ import {bprintf, brkword} from "./__dummies";
 import {findAvailableItem, findVisiblePlayer, isCarriedBy, isLocatedIn} from "./objsys";
 import {sendSound, sendSoundPlayer, sendVisibleName, sendVisiblePlayer} from "./bprintf/bprintf";
 import {roll} from "./magic";
+import {checkDumb} from "./new1/reducer";
 
 /*
 #include "files.h"
@@ -173,50 +174,41 @@ const showwthr = (state: State): Promise<void> => {
     }
 */
 
-const laughcom = (state: State): Promise<void> => {
-    if (chkdumb(state)) {
-        return Promise.resolve();
-    }
-    sillycom(state, `${sendSoundPlayer('%s')}${sendSound(' falls over laughing\n')}`);
-    bprintf(state, 'You start to laugh\n');
-};
+const laughcom = (state: State): Promise<void> => checkDumb(state)
+    .then(() => {
+        sillycom(state, `${sendSoundPlayer('%s')}${sendSound(' falls over laughing\n')}`);
+        bprintf(state, 'You start to laugh\n');
+    });
 
-const purrcom = (state: State): Promise<void> => {
-    if (chkdumb(state)) {
-        return Promise.resolve();
-    }
-    sillycom(state, `${sendSoundPlayer('%s')}${sendSound(' starts purring\n')}`);
-    bprintf(state, 'MMMMEMEEEEEEEOOOOOOOWWWWWWW!!\n');
-};
+const purrcom = (state: State): Promise<void> => checkDumb(state)
+    .then(() => {
+        sillycom(state, `${sendSoundPlayer('%s')}${sendSound(' starts purring\n')}`);
+        bprintf(state, 'MMMMEMEEEEEEEOOOOOOOWWWWWWW!!\n');
+    });
 
-const crycom = (state: State): Promise<void> => {
-    if (chkdumb(state)) {
-        return Promise.resolve();
-    }
-    sillycom(state, sendVisiblePlayer('%s', '%s bursts into tears\n'));
-    bprintf(state, 'You burst into tears\n');
-};
+const crycom = (state: State): Promise<void> => checkDumb(state)
+    .then(() => {
+        sillycom(state, sendVisiblePlayer('%s', '%s bursts into tears\n'));
+        bprintf(state, 'You burst into tears\n');
+    });
 
-const sulkcom = (state: State): Promise<void> => {
-    sillycom(state, sendVisiblePlayer('%s', '%s sulks\n'));
-    bprintf(state, 'You sulk....\n');
-};
+const sulkcom = (state: State): Promise<void> => checkDumb(state)
+    .then(() => {
+        sillycom(state, sendVisiblePlayer('%s', '%s sulks\n'));
+        bprintf(state, 'You sulk....\n');
+    });
 
-const burpcom = (state: State): Promise<void> => {
-    if (chkdumb(state)) {
-        return Promise.resolve();
-    }
-    sillycom(state, `${sendSoundPlayer('%s')}${sendSound(' burps loudly\n')}`);
-    bprintf(state, 'You burp rudely\n');
-};
+const burpcom = (state: State): Promise<void> => checkDumb(state)
+    .then(() => {
+        sillycom(state, `${sendSoundPlayer('%s')}${sendSound(' burps loudly\n')}`);
+        bprintf(state, 'You burp rudely\n');
+    });
 
-const hiccupcom = (state: State): Promise<void> => {
-    if (chkdumb(state)) {
-        return Promise.resolve();
-    }
-    sillycom(state, `${sendSoundPlayer('%s')}${sendSound(' hiccups\n')}`);
-    bprintf(state, 'You hiccup\n');
-};
+const hiccupcom = (state: State): Promise<void> => checkDumb(state)
+    .then(() => {
+        sillycom(state, `${sendSoundPlayer('%s')}${sendSound(' hiccups\n')}`);
+        bprintf(state, 'You hiccup\n');
+    });
 
 /*
 long hasfarted=0;
@@ -244,13 +236,11 @@ const winkcom = (state: State): Promise<void> => {
     bprintf(state, 'You wink\n');
 };
 
-const sniggercom = (state: State): Promise<void> => {
-    if (chkdumb(state)) {
-        return Promise.resolve();
-    }
-    sillycom(state, `${sendSoundPlayer('%s')}${sendSound(' sniggers\n')}`);
-    bprintf(state, 'You snigger\n');
-};
+const sniggercom = (state: State): Promise<void> => checkDumb(state)
+    .then(() => {
+        sillycom(state, `${sendSoundPlayer('%s')}${sendSound(' sniggers\n')}`);
+        bprintf(state, 'You snigger\n');
+    });
 
 const posecom = (state: State): Promise<void> => {
     if (state.my_lev < 10) {

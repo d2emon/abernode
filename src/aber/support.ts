@@ -23,8 +23,31 @@ import {
     IS_FOOD,
 } from './object';
 
-const tscale = (state: State): number => 1;
 const damof = (state: State, playerId: number): number => 0;
+
+export const scale = (state: State): number => {
+    const players = state.ublock.filter(
+        (player, playerId) => ((playerId > state.maxu) && !!player.name)
+    ).length;
+    if (players === 1) {
+        return 2;
+    } else if (players === 2) {
+        return 3;
+    } else if (players === 3) {
+        return 3;
+    } else if (players === 4) {
+        return 4;
+    } else if (players === 5) {
+        return 4;
+    } else if (players === 6) {
+        return 5;
+    } else if (players === 7) {
+        return 6;
+    } else {
+        return 7;
+    }
+};
+
 
 /**
  * Some more basic functions
@@ -119,7 +142,7 @@ const itemFromState = (state: State, itemId: number): Item => ({
     isWeapon: state.objinfo[itemId].flags[IS_WEAPON],
 
     description: state.objects[itemId].descriptions[state.objinfo[itemId].state],
-    value: (tscale(state) * state.objects[itemId].baseValue) / 5,
+    value: (scale(state) * state.objects[itemId].baseValue) / 5,
     connectedItemId: state.objinfo[itemId].flags[HAS_CONNECTED]
         ? ((itemId % 2) ? itemId - 1 : itemId + 1)
         : undefined,

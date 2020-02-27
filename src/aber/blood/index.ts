@@ -17,10 +17,10 @@ import {
 import {sendName} from '../bprintf';
 import {sendMessage} from '../bprintf/bprintf';
 import {roll} from "../magic";
+import {receiveDamage} from "../new1";
 
 const calibme = (state: State): void => undefined;
 const iswornby = (state: State, item: Item, player: Player): boolean => false;
-const woundmn = (state: State, victim: Player, damage: number): void => undefined;
 
 const SCEPTRE_ID = 16;
 const RUNE_SWORD_ID = 32;
@@ -141,7 +141,7 @@ export const hitPlayer = (state: State, victim: Player, weapon?: Item): Promise<
                         attack,
                     );
                 } else {
-                    return woundmn(state, victim, attack.damage || 0);
+                    return receiveDamage(state, victim, attack.damage || 0);
                 }
             })
             .catch(e => sendMessage(state, `${e}\n`));

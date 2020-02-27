@@ -23,6 +23,7 @@ import {
     checkLineBreak,
     clearLineBreak,
 } from '../key';
+import {getBlind, getDeaf} from "../new1/reducer";
 
 const closeworld = (state: State): void => undefined;
 const f_listfl = (fileName: string): string => '';
@@ -46,34 +47,24 @@ const replaceFile = (state: State) => (match, fileName: string): string => {
     result += f_listfl(fileName);
     return result
 };
-const replaceSound = (state: State) => (match, message: string): string => (state.ail_deaf ? message : '');
+const replaceSound = (state: State) => (match, message: string): string => (getDeaf(state) ? message : '');
 const replaceVisiblePlayer = (state: State) => (match, player: Player, message: string): string => (
-    seePlayerName(state, player)
-        ? message
-        : ''
+    seePlayerName(state, player) ? message : ''
 );
 const replaceName = (state: State) => (match, player: Player): string => (
-    seePlayerName(state, player)
-        ? player.name
-        : 'Someone'
+    seePlayerName(state, player) ? player.name : 'Someone'
 );
 const replaceDark = (state: State) => (match, message: string): string => (
-    (!isdark(state, state.curch) && !state.ail_blind) ? message : ''
+    (isdark(state, state.curch) || getBlind(state)) ? '' : message
 );
 const replaceSoundPlayer = (state: State) => (match, player: Player): string => (
-    state.ail_deaf
-        ? ''
-        : replaceName(state)(match, player)
+    getDeaf(state) ? '' : replaceName(state)(match, player)
 );
 const replaceSeePlayer = (state: State) => (match, player: Player): string => (
-    state.ail_blind
-        ? ''
-        : replaceName(state)(match, player)
+    getBlind(state) ? '' : replaceName(state)(match, player)
 );
 const replaceNotKeyboard = (state: State) => (match, message: string): string => (
-    getIsKeyboard(state)
-        ? ''
-        : message
+    getIsKeyboard(state) ? '' : message
 );
 
 // The main loop

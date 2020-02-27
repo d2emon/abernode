@@ -27,6 +27,9 @@ import {showMessages} from "./bprintf/output";
 import {endGame} from "./gamego/endGame";
 import {roll} from "./magic";
 import {getAvailableItem} from "./new1";
+import {checkCrippled, checkDumb, getDumb} from "./new1/reducer";
+import {newReceive, sendShout, sendWizards} from "./new1/receivers";
+import state from "./state";
 
 const debug2 = (state: State): Promise<void> => Promise.resolve(bprintf(state, 'No debugger available\n'));
 
@@ -282,13 +285,14 @@ const doaction = (state: State, actionId: number): Promise<void> => {
             const xx1 = `${state.globme} has left the game\n`;
             bprintf(state, 'Ok');
             sendsys(state, state.globme, state.globme, -10000, state.curch, xx1);
-            const xx2 = `[ Quitting Game : ${state.globme} ]\n`;
-            sendsys(state, state.globme, state.globme, -10113, state.curch, xx2);
-            return dropMyItems(state)
-                .then(() => setPlayer(state, state.mynum, {
+            return Promise.all([
+                sendWizards(state, `[ Quitting Game : ${state.globme} ]\n`),
+                dropMyItems(state),
+                setPlayer(state, state.mynum, {
                     exists: false,
                     isDead: true,
-                }))
+                }),
+            ])
                 .then(() => {
                     closeworld(state);
                     state.curmode = 0;
@@ -812,10 +816,8 @@ const dodirn = (state: State, n: number): Promise<void> => {
                 return;
             }
             n -= 2;
-            if (chkcrip(state)) {
-                return;
-            }
-            return Promise.resolve(state.ex_dat[n])
+            return checkCrippled(state)
+                .then(() => state.ex_dat[n])
                 .then((newch) => {
                     if ((newch > 999) && (newch < 2000)) {
                         const drnum = newch - 1000;
@@ -977,15 +979,16 @@ const gamrcv = (state: State, block: { locationId: number, code: number }): Prom
                 }
                 /* You are in the .... */
                 bprintf(state, 'A massive lightning bolt arcs down out of the sky to strike');
-                const zb1 = `[ ${sendName(state.globme)} has just been zapped by ${sendName(name2)} and terminated ]\n`;
-                sendsys(state, state.globme, state.globme, -10113, state.curch, zb1);
-                state.zapped = true;
-                delpers(state, state.globme);
-                const zb2 = sendVisiblePlayer(state.globme, `${state.globme} has just died.\\n\n`);
-                sendsys(state, state.globme, state.globme, -10000, state.curch, zb2);
-                loseme(state);
-                bprintf(state, `You have been utterly destroyed by ${name2}\n`);
-                return endGame(state, 'Bye Bye.... Slain By Lightning');
+                return sendWizards(state, `[ ${sendName(state.globme)} has just been zapped by ${sendName(name2)} and terminated ]\n`)
+                    .then(() => {
+                        state.zapped = true;
+                        delpers(state, state.globme);
+                        const zb2 = sendVisiblePlayer(state.globme, `${state.globme} has just died.\\n\n`);
+                        sendsys(state, state.globme, state.globme, -10000, state.curch, zb2);
+                        loseme(state);
+                        bprintf(state, `You have been utterly destroyed by ${name2}\n`);
+                        return endGame(state, 'Bye Bye.... Slain By Lightning');
+                    });
             } else if (block.locationId === state.curch) {
                 bprintf(state, `${sendVisibleName('A massive lightning bolt strikes ')}${sendPlayerForVisible(name2)}${sendVisibleName('\n')}`);
                 return Promise.resolve();
@@ -1046,7 +1049,7 @@ const gamrcv = (state: State, block: { locationId: number, code: number }): Prom
                 state.fighting = -1;
                 return;
             } else if (block.code < -10099) {
-                return new1rcv(state, isme, block.locationId, name1, name2, block.code, text);
+                return newReceive(state, isme, block.locationId, name1, name2, block.code, text);
             } else {
                 const action = actions[block.code] || (() => undefined);
                 return action(text);
@@ -1060,19 +1063,6 @@ long last_io_interrupt=0;
 */
 
 const eorte = (state: State): Promise<void> => {
-    /*
-    extern long mynum,me_ivct;
-    extern long me_drunk;
-    extern long ail_dumb;
-    extern long curch,tdes,rdes,vdes,ades;
-    extern long me_cal;
-    extern long wpnheld;
-    extern long my_str;
-    extern long i_setup;
-    extern long interrupt;
-    extern long fighting,in_fight;
-    long ctm;
-    */
     const ctm = time();
     if (ctm - state.last_io_interrupt > 2) {
         state.interrupt = true;
@@ -1128,7 +1118,7 @@ const eorte = (state: State): Promise<void> => {
             forchk(state);
             if (state.me_drunk > 0) {
                 state.me_drunk -= 1;
-                if (!state.ail_dumb) {
+                if (!getDumb(state)) {
                     gamecom(state, 'hiccup');
                 }
             }
@@ -1259,11 +1249,12 @@ const calibme = (state: State): Promise<void> => {
                 return getPlayer(state, state.mynum);
             })
             .then((player) => {
-                const sp = `${sendName(state.globme)} is now level ${level}\n`;
-                sendsys(state, state.globme, state.globme, -10113, player.locationId, sp);
-                if (level === 10) {
-                    bprintf(state, showFile(GWIZ));
-                }
+                return sendWizards(state, `${sendName(state.globme)} is now level ${level}\n`)
+                    .then(() => {
+                        if (level === 10) {
+                            bprintf(state, showFile(GWIZ));
+                        }
+                    });
             });
     }
     return setPlayer(state, state.mynum, {
@@ -1327,51 +1318,42 @@ const playcom = (state: State): Promise<void> => {
     while(strbuf[stp]==' ') stp++;
     while(strbuf[stp]) addchar(blob,strbuf[stp++]);
     }
-
- shoutcom()
-    {
-    extern long curch,my_lev;
-    extern char globme[];
-    auto char blob[200];
-    if(chkdumb()) return;
-    getreinput(blob);
-    if(my_lev>9)
-       sendsys(globme,globme,-10104,curch,blob);
-    else
-       sendsys(globme,globme,-10002,curch,blob);
-    bprintf("Ok\n");
-    }
-
- saycom()
-    {
-    extern long curch;
-    extern char globme[];
-    auto char blob[200];
-    if(chkdumb()) return;
-    getreinput(blob);
-    sendsys(globme,globme,-10003,curch,blob);
-    bprintf("You say '%s'\n",blob);
-    }
 */
 
-const tellcom = (state: State): Promise<void> => {
-    if (chckdumb(state)) {
-        return Promise.resolve();
-    }
-    if (brkword(state) === -1) {
-        bprintf(state, 'Tell who ?\n');
-        return Promise.resolve();
-    }
-    return findVisiblePlayer(state, state.wordbuf)
-        .then((player) => {
-            if (player.playerId === -1) {
-                return bprintf(state, 'No one with that name is playing\n');
-            }
-            const blob = getreinput();
-            sendsys(state, player.name, state.globme, -10004, state.curch, blob);
-            return;
-        });
-};
+const shoutcom = (state: State): Promise<void> => checkDumb(state)
+    .then(() => {
+        const blob = getreinput(state);
+        if (state.my_lev > 9) {
+            return sendShout(state, blob);
+        } else {
+            return sendsys(state, state.globme, state.globme, -10002, state.curch, blob);
+        }
+    })
+    .then(() => bprintf(state, 'Ok\n'));
+
+const saycom = (state: State): Promise<void> => checkDumb(state)
+    .then(() => {
+        const blob = getreinput(state);
+        sendsys(state, state.globme, state.globme, -10003, state.curch, blob);
+        return bprintf(state, `You say '${blob}'\n`)
+    });
+
+const tellcom = (state: State): Promise<void> => checkDumb(state)
+    .then(() => {
+        if (brkword(state) === -1) {
+            bprintf(state, 'Tell who ?\n');
+            return Promise.resolve();
+        }
+        return findVisiblePlayer(state, state.wordbuf)
+            .then((player) => {
+                if (player.playerId === -1) {
+                    return bprintf(state, 'No one with that name is playing\n');
+                }
+                const blob = getreinput();
+                sendsys(state, player.name, state.globme, -10004, state.curch, blob);
+                return;
+            });
+    });
 
 const scorecom = (state: State): Promise<void> => {
     if (state.my_lev === 1) {
@@ -1584,12 +1566,13 @@ const rmedit = (state: State): Promise<void> => getPlayer(state, state.mynum)
         if (!editor.isEditor) {
             return bprintf(state, 'Dum de dum.....\n');
         }
-        const ms = sendVisiblePlayer(state.globme, `${state.globme} fades out of reality\n`);
-        sendsys(state, state.globme, state.globme, -10113, 0, ms);
-        /* Info */
-        state.cms = -2; /* CODE NUMBER */
-        update(state, state.globme);
-        return showMessages(state)
+        return sendWizards(state, sendVisiblePlayer(state.globme, `${state.globme} fades out of reality\n`))
+            .then(() => {
+                /* Info */
+                state.cms = -2; /* CODE NUMBER */
+                update(state, state.globme);
+                return showMessages(state);
+            })
             .then(() => {
                 closeworld(state);
                 if (chdir(state, ROOMS) === -1) {
@@ -1605,10 +1588,9 @@ const rmedit = (state: State): Promise<void> => getPlayer(state, state.mynum)
                             loseme(state);
                             return endGame(state, 'You have been kicked off');
                         }
-                        const ms3 = sendVisiblePlayer(state.globme, `${state.globme} re-enters the normal universe\n`);
-                        sendsys(state, state.globme, state.globme, -10113, 0, ms3);
-                        rte(state);
-                    });
+                        return sendWizards(state, sendVisiblePlayer(state.globme, `${state.globme} re-enters the normal universe\n`));
+                    })
+                    .then(() => rte(state));
             });
     });
 
@@ -1620,16 +1602,17 @@ const u_system = (state: State): Promise<void> => getPlayer(state, state.mynum)
 
         state.cms = -2; /* CODE NUMBER */
         update(state, state.globme);
-        const ms = sendVisiblePlayer(state.globme, `${state.globme} has dropped into BB\n`);
-        sendsys(state, state.globme, state.globme, -10113, 0, ms);
-        closeworld(state);
+        return sendWizards(state, sendVisiblePlayer(state.globme, `${state.globme} has dropped into BB\n`))
+            .then(() => {
+                closeworld(state);
 
-        system(state, '/cs_d/aberstudent/yr2/iy7/bt');
+                system(state, '/cs_d/aberstudent/yr2/iy7/bt');
 
-        openworld(state);
-        state.cms = -1;
+                openworld(state);
+                state.cms = -1;
 
-        return findPlayer(state, state.globme)
+                return findPlayer(state, state.globme);
+            })
             .then((me) => {
                 if (!me) {
                     loseme(state);
@@ -1637,9 +1620,7 @@ const u_system = (state: State): Promise<void> => getPlayer(state, state.mynum)
                 }
                 rte(state);
                 openworld(state);
-
-                const ms = sendVisiblePlayer(state.globme, `${state.globme} has returned to AberMud\n`);
-                sendsys(state, state.globme, state.globme, -10113, 0, ms3);
+                return sendWizards(state, sendVisiblePlayer(state.globme, `${state.globme} has returned to AberMud\n`));
             });
     });
 
@@ -1656,27 +1637,19 @@ const inumcom = (state: State): Promise<void> => {
         .then(item => bprintf(state, `Item Number is ${item.itemId}\n`));
 };
 
-/*
- updcom()
-    {
-    extern long my_lev;
-    char x[128];
-    extern char globme[];
-    if(my_lev<10)
-       {
-       bprintf("Hmmm... you can't do that one\n");
-       return;
-       }
-    loseme();
-    sprintf(x,"[ %s has updated ]\n",globme);
-    sendsys(globme,globme,-10113,0,x);
-    closeworld();
-    sprintf(x,"%s",globme);
-    execl(EXE,
-    "   --{----- ABERMUD -----}--   ",x,0);  *//* GOTOSS eek! *//*
-    bprintf("Eeek! someones pinched the executable!\n");
+const updcom = (state: State): Promise<void> => {
+    if (state.my_lev < 10) {
+        bprintf(state, 'Hmmm... you can\'t do that one\n');
+        return Promise.resolve();
     }
-*/
+    loseme();
+    return sendWizards(state, `[ ${state.globme} has updated ]\n`)
+        .then(() => {
+            closeworld(state);
+            return execl(EXE, '   --{----- ABERMUD -----}--   ', `-n${state.globme}`); /* GOTOSS eek! */
+        })
+        .catch(() => bprintf(state, 'Eeek! someones pinched the executable!\n'));
+};
 
 const becom = (state: State): Promise<void> => {
     if (state.my_lev < 10) {
@@ -1688,10 +1661,12 @@ const becom = (state: State): Promise<void> => {
         bprintf(state, 'To become what ?, inebriated ?\n');
         return Promise.resolve();
     }
-    sendsys(state, null, null, -10113, 0, `${state.globme} has quit, via BECOME\n`);
-    loseme(state);
-    closeworld(state);
-    return execl(state, '   --}----- ABERMUD ------   ', `-n${x2}`)
+    return sendWizards(state, `${state.globme} has quit, via BECOME\n`)
+        .then(() => {
+            loseme(state);
+            closeworld(state);
+            return execl(state, '   --}----- ABERMUD ------   ', `-n${x2}`);
+        })
         .catch(() => bprintf(state, 'Eek! someone\'s just run off with mud!!!!\n'));
 };
 

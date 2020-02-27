@@ -11,9 +11,9 @@ import {
 import {findAvailableItem} from "../objsys";
 import {getItems} from "../support";
 import {showMessages} from "../bprintf/output";
-import {getAvailablePlayer} from "../new1";
+import {getAvailablePlayer} from "../new1/actions";
+import {checkDumb} from "../new1/reducer";
 
-const chkdumb = (state: State): boolean => false;
 const rescom = (state: State): Promise<any> => Promise.resolve({});
 const sillycom = (state: State, message: string): Promise<any> => Promise.resolve({});
 const findzone = (state: State, locationId: number): number[] => [0, 0];
@@ -41,10 +41,10 @@ export class Crash extends Action {
 
 export class Sing extends Action {
     action(state: State): Promise<any> {
-        if (chkdumb(state)) {
-            throw new Error();
-        }
-        return sillycom(state, `${sendSoundPlayer('%s')}${sendSound(' sings in Gaelic\n')}`);
+        return Promise.all([
+            checkDumb(state),
+            sillycom(state, `${sendSoundPlayer('%s')}${sendSound(' sings in Gaelic\n')}`),
+        ]);
     }
 
     decorate(result: any): void {
