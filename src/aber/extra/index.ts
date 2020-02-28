@@ -8,6 +8,7 @@ import {
     getPlayer,
 } from '../support';
 import {sendVisibleName} from '../bprintf';
+import {isWizard} from "../newuaf/reducer";
 
 const openroom = (state: State, locationId: number, permissions: string): Promise<any> => Promise.resolve({});
 const showname = (state: State, locationId: number): string => '';
@@ -17,12 +18,12 @@ const getstr = (file: any): Promise<string[]> => Promise.resolve([]);
 const showChannel = (state: State, locationId: number) => (channel: any): Promise<string> => getstr(channel)
     .then((text) => {
         const short = text[7];
-        const name = (state.my_lev > 9) ? ` | ${showname(state, locationId)}` : '';
+        const name = isWizard(state) ? ` | ${showname(state, locationId)}` : '';
         return fclose(channel).then(() => `${short}${name}`);
     });
 
 export const showLocation = (state: State, locationId: number, carryFlag: number): Promise<string> => {
-    if ((state.my_lev < 10) && (carryFlag === LOCATED_IN) && (locationId > -5)) {
+    if (!isWizard(state) && (carryFlag === LOCATED_IN) && (locationId > -5)) {
         return Promise.resolve('Somewhere.....');
     }
     if (carryFlag === CONTAINED_IN) {

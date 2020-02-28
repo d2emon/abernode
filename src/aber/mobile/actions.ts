@@ -13,6 +13,7 @@ import {getItems} from "../support";
 import {showMessages} from "../bprintf/output";
 import {getAvailablePlayer} from "../new1/actions";
 import {checkDumb} from "../new1/reducer";
+import {isWizard} from "../newuaf/reducer";
 
 const rescom = (state: State): Promise<any> => Promise.resolve({});
 const sillycom = (state: State, message: string): Promise<any> => Promise.resolve({});
@@ -20,7 +21,7 @@ const findzone = (state: State, locationId: number): number[] => [0, 0];
 
 export class Crash extends Action {
     action(state: State): Promise<any> {
-        if (state.my_lev < 10) {
+        if (!isWizard(state)) {
             throw new Error('Hmmm....\nI expect it will sometime');
         }
         sendsys(
@@ -77,7 +78,7 @@ export class Spray extends Action {
 
 export class Direction extends Action {
     action(state: State): Promise<any> {
-        if (state.my_lev < 10) {
+        if (!isWizard(state)) {
             throw new Error('That\'s a wiz command');
         }
         return getItems(state)

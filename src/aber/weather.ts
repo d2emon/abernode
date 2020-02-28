@@ -5,6 +5,7 @@ import {findAvailableItem, findVisiblePlayer, isCarriedBy, isLocatedIn} from "./
 import {sendSound, sendSoundPlayer, sendVisibleName, sendVisiblePlayer} from "./bprintf/bprintf";
 import {roll} from "./magic";
 import {checkDumb} from "./new1/reducer";
+import {isGod, isWizard} from "./newuaf/reducer";
 
 /*
 #include "files.h"
@@ -38,18 +39,15 @@ extern char wordbuf[];
 
  */
 
-/*
- setwthr(n)
-    {
-    extern long my_lev;
-    if(my_lev<10)
-       {
-       bprintf("What ?\n");
-       return;
-       }
-    adjwthr(n);
+const setwthr = (state: State, n: number): void => {
+    if (!isWizard(state)) {
+        bprintf(state, 'What ?\n');
+        return;
     }
+    adjwthr(state, n);
+};
 
+/*
  suncom()
     {
     setwthr(0);
@@ -243,7 +241,7 @@ const sniggercom = (state: State): Promise<void> => checkDumb(state)
     });
 
 const posecom = (state: State): Promise<void> => {
-    if (state.my_lev < 10) {
+    if (!isWizard(state)) {
         bprintf(state, 'You are just not up to this yet\n');
         return Promise.resolve();
     }
@@ -273,7 +271,7 @@ const posecom = (state: State): Promise<void> => {
 
 const emotecom = (state: State): Promise<void> => {
     /* (C) Jim Finnis */
-    if (state.my_lev < 10000) {
+    if (!isGod(state)) {
         bprintf(state, 'Your emotions are strictly limited!\n');
         return Promise.resolve();
     }
@@ -369,7 +367,7 @@ const setcom = (state: State): Promise<void> => {
         bprintf(state, 'set what\n');
         return Promise.resolve();
     }
-    if (state.my_lev < 10) {
+    if (!isWizard(state)) {
         bprintf(state, 'Sorry, wizards only\n');
         return Promise.resolve();
     }
@@ -408,7 +406,7 @@ const isdark = (state: State): Promise<boolean> => {
                 if ((item.itemId !== 32) && !item.isLit) {
                     return;
                 }
-                if (isLocatedIn(item, state.curch, (state.my_lev < 10))) {
+                if (isLocatedIn(item, state.curch, !isWizard(state))) {
                     found = false;
                     return;
                 }
@@ -426,7 +424,7 @@ const isdark = (state: State): Promise<boolean> => {
             .then(() => (found === undefined) ? true : found);
     };
 
-    if (state.my_lev > 9) {
+    if (isWizard(state)) {
         return Promise.resolve(false);
     }
     if ((state.curch === -1100) || (state.curch === -1101)) {

@@ -11,7 +11,7 @@ import {
     findItem,
     dropItems,
     dropMyItems,
-    findVisiblePlayer, findPlayer
+    findVisiblePlayer, findPlayer, isContainedIn
 } from "./objsys";
 import {hitPlayer} from "./blood";
 import {receiveDamage} from './blood/events';
@@ -31,6 +31,18 @@ import {getAvailableItem, isWornBy, sendBotDamage, teleport} from "./new1";
 import {checkCrippled, checkDumb, clearForce, getDumb, getForce} from "./new1/reducer";
 import {newReceive, sendShout, sendWizards} from "./new1/events";
 import {resetPlayers} from "./new1/bots";
+import {removePerson} from "./newuaf";
+import {
+    getLevel,
+    getScore,
+    getSex,
+    getStrength, isAdmin, isGod,
+    isWizard, setLevel,
+    setScore,
+    setStrength,
+    updateScore,
+    updateStrength
+} from "./newuaf/reducer";
 
 const debug2 = (state: State): Promise<void> => Promise.resolve(bprintf(state, 'No debugger available\n'));
 
@@ -51,7 +63,7 @@ const onFlee = (state: State): Promise<void> => Promise.all([
     .then(([
         player,
         items,
-    ]) => items.forEach((item) => isCarriedBy(item, player, (state.my_lev < 10)) && !isWornBy(state, item, player) && putItem(state, item.itemId, item.locationId)))
+    ]) => items.forEach((item) => isCarriedBy(item, player, !isWizard(state)) && !isWornBy(state, item, player) && putItem(state, item.itemId, item.locationId)))
     .then(() => undefined);
 
 /*
@@ -119,24 +131,23 @@ char  wd_her[16]="";
 char  wd_them[16]="";
 char  wd_there[128]="";
 long  stp;
+*/
 
-void pncom()
-{
-	extern long my_lev;
-	extern char globme[];
-	bprintf("Current pronouns are:\n");
-	bprintf("Me              : %s\n",globme);
-	bprintf("Myself          : %s\n",globme);
-	bprintf("It              : %s\n",wd_it);
-	bprintf("Him             : %s\n",wd_him);
-	bprintf("Her             : %s\n",wd_her);
-	bprintf("Them            : %s\n",wd_them);
-	if(my_lev>9)
-	{
-		bprintf("There           : %s\n",wd_there);
-	}
-}
+const pncom = (state: State): Promise<void> => {
+    bprintf(state, 'Current pronouns are:\n');
+    bprintf(state, `Me              : ${state.globme}\n`);
+    bprintf(state, `Myself          : ${state.globme}\n`);
+    bprintf(state, `It              : ${state.wd_it}\n`);
+    bprintf(state, `Him             : ${state.wd_him}\n`);
+    bprintf(state, `Her             : ${state.wd_her}\n`);
+    bprintf(state, `Them            : ${state.wd_them}\n`);
+    if (isWizard(state)) {
+        bprintf(state, `There           : ${state.wd_there}\n`);
+    }
+    return Promise.resolve();
+};
 
+ /*
 int gamecom(str)
 char *str;
     {
@@ -682,14 +693,14 @@ const doaction = (state: State, actionId: number): Promise<void> => {
                         player,
                         runeSword,
                     ]) => {
-                        if (isCarriedBy(runeSword, player, (state.my_lev < 10))) {
+                        if (isCarriedBy(runeSword, player, !isWizard(state))) {
                             bprintf(state, 'The sword won\'t let you!!!!\n');
                             return resolve();
                         }
                         const ar = `${sendVisibleName(state.globme)} drops everything in a frantic attempt to escape\n`;
                         sendsys(state, state.globme, state.globme, -10000, state.curch, ar);
                         sendsys(state, state.globme, state.globme, -20000, state.curch, null);
-                        state.my_sco -= state.my_sco / 33;
+                        updateScore(state, getScore(state) / 33);
                         /* loose 3% */
                         calibme(state);
                         state.in_fight = 0;
@@ -751,7 +762,7 @@ const doaction = (state: State, actionId: number): Promise<void> => {
          */
     };
     const defaultAction = () => new Promise((resolve) => {
-        if (state.my_lev > 9999) {
+        if (isGod(state)) {
             bprintf(state, `Sorry not written yet[COMREF ${actionId}]\n`);
         } else {
             bprintf(state, 'I don\'t know that verb.\n');
@@ -765,28 +776,9 @@ const doaction = (state: State, actionId: number): Promise<void> => {
     return action();
 };
 
+
+
 /*
-
- doaction(n)
-    {
-    char xx[128];
-    extern long my_sco;
-    extern long curmode;
-    extern long curch;
-    extern long debug_mode;
-    extern char globme[];
-    extern long isforce;
-    extern long in_fight;
-    extern long brmode;
-    long  brhold;
-    extern long mynum;
-    extern long my_lev;
-    openworld();
-    if((n>1)&&(n<8)){dodirn(n);return;}
-    switch(n)
-       {
-    }
-
 char in_ms[81]="has arrived.";
 char out_ms[81]="";
 char mout_ms[81]="vanishes in a puff of smoke.";
@@ -832,7 +824,7 @@ const dodirn = (state: State, n: number): Promise<void> => {
             runeSword,
             player25,
         ]) => {
-            if (isCarriedBy(runeSword, player, (state.my_lev < 10)) && (player25.locationId === state.curch) && player25.exists) {
+            if (isCarriedBy(runeSword, player, !isWizard(state)) && (player25.locationId === state.curch) && player25.exists) {
                 bprintf(state, `${sendVisibleName('The Golem')} bars the doorway!`);
                 return;
             }
@@ -936,15 +928,14 @@ const gamrcv = (state: State, block: { locationId: number, code: number }): Prom
             loseme(state);
             return endGame(state, 'Bye Bye Cruel World....');
         },
-        /*
-       case -599:
-          if(isme)
-             {
-             sscanf(text,"%d.%d.%d.",&my_lev,&my_sco,&my_str);
-             calibme();
-             }
-          break;
-       */
+        '-599': (text: number[]) => {
+            if (isme) {
+                setLevel(state, text[0]);
+                setScore(state, text[1]);
+                setStrength(state, text[2]);
+                calibme(state);
+            }
+        },
         '-750': () => {
             if (!isme) {
                 return Promise.resolve();
@@ -1000,7 +991,7 @@ const gamrcv = (state: State, block: { locationId: number, code: number }): Prom
                 return Promise.resolve();
             }
             const ades = block.locationId;
-            if (state.my_lev < 10) {
+            if (!isWizard(state)) {
                 bprintf(state, `You drop everything you have as you are summoned by ${sendName(name2)}`);
             } else {
                 bprintf(state, `${sendName(name2)} tried to summon you`);
@@ -1011,7 +1002,7 @@ const gamrcv = (state: State, block: { locationId: number, code: number }): Prom
         },
         '-10001': () => {
             if (isme) {
-                if (state.my_lev > 10) {
+                if (isWizard(state)) {
                     bprintf(state, `${sendName(name2)} cast a lightning bolt at you\n`);
                     return Promise.resolve();
                 }
@@ -1020,12 +1011,15 @@ const gamrcv = (state: State, block: { locationId: number, code: number }): Prom
                 return sendWizards(state, `[ ${sendName(state.globme)} has just been zapped by ${sendName(name2)} and terminated ]\n`)
                     .then(() => {
                         state.zapped = true;
-                        delpers(state, state.globme);
                         const zb2 = sendVisiblePlayer(state.globme, `${state.globme} has just died.\\n\n`);
                         sendsys(state, state.globme, state.globme, -10000, state.curch, zb2);
                         loseme(state);
                         bprintf(state, `You have been utterly destroyed by ${name2}\n`);
-                        return endGame(state, 'Bye Bye.... Slain By Lightning');
+                        return Promise.all([
+                            removePerson(state, state.globme),
+                            //
+                            endGame(state, 'Bye Bye.... Slain By Lightning'),
+                        ]);
                     });
             } else if (block.locationId === state.curch) {
                 bprintf(state, `${sendVisibleName('A massive lightning bolt strikes ')}${sendPlayerForVisible(name2)}${sendVisibleName('\n')}`);
@@ -1036,7 +1030,7 @@ const gamrcv = (state: State, block: { locationId: number, code: number }): Prom
             if (isme) {
                 return Promise.resolve();
             }
-            if ((block.locationId === state.curch) || (state.my_lev > 9)) {
+            if ((block.locationId === state.curch) || (isWizard(state))) {
                 bprintf(state, `${sendSoundPlayer(name2)}${sendSound(` shouts '${text}'\n`)}`);
                 return Promise.resolve();
             } else {
@@ -1156,7 +1150,7 @@ const eorte = (state: State): Promise<void> => {
             item,
         ]) => {
             if (xpRoll || isWornBy(state, item, player)) {
-                state.my_str += 1;
+                updateStrength(state, 1);
                 if (state.i_setup) {
                     calibme(state);
                 }
@@ -1188,7 +1182,7 @@ long me_cal=0;
 */
 
 const rescom = (state: State): Promise<void> => {
-    if (state.my_lev < 10) {
+    if (!isWizard(state)) {
         bprintf(state, 'What ?\\n');
         return Promise.resolve();
     }
@@ -1207,7 +1201,7 @@ const rescom = (state: State): Promise<void> => {
 }
 
 const lightning = (state: State): Promise<void> => {
-    if (state.my_lev < 10) {
+    if (!isWizard(state)) {
         bprintf(state, 'Your spell fails.....\n');
         return Promise.resolve();
     }
@@ -1250,14 +1244,14 @@ const eatcom = (state: State): Promise<void> => {
             } else if (item.itemId === 75) {
                 return bprintf(state, 'very refreshing\n');
             } else if (item.itemId === 175) {
-                if (state.my_lev < 3) {
-                    state.my_sco += 40;
+                if (getLevel(state) < 3) {
+                    updateScore(state, 40);
                     calibme(state);
                     bprintf(state, 'You feel a wave of energy sweeping through you.\n');
                 } else {
                     bprintf(state, 'Faintly magical by the taste.\n');
-                    if (state.my_str < 40) {
-                        state.my_str += 2;
+                    if (getStrength(state) < 40) {
+                        updateStrength(state, 2);
                     }
                     calibme(state);
                 }
@@ -1266,7 +1260,7 @@ const eatcom = (state: State): Promise<void> => {
                 return setItem(state, item.itemId, { flags: { [IS_DESTROYED]: true }})
                     .then(() => {
                         bprintf(state, 'Ok....\n');
-                        state.my_str += 12;
+                        updateStrength(state, 12);
                         calibme(state);
                     });
             } else {
@@ -1280,13 +1274,13 @@ const calibme = (state: State): Promise<void> => {
     if (!state.i_setup) {
         return;
     }
-    const level = levelof(state, state.my_sco);
-    if (level !== state.my_lev) {
-        state.my_lev = level;
+    const level = levelof(state, getScore(state));
+    if (level !== getLevel(state)) {
+        setLevel(state, level);
         bprintf(state, `You are now ${state.globme} `);
         logger.write(`${state.globme} to level ${level}`)
             .then(() => {
-                bprintf(state, `${getTitle(level, state.my_sex, state.hasfarted)}\n`);
+                bprintf(state, `${getTitle(level, getSex(state), state.hasfarted)}\n`);
                 return getPlayer(state, state.mynum);
             })
             .then((player) => {
@@ -1299,37 +1293,45 @@ const calibme = (state: State): Promise<void> => {
             });
     }
     return setPlayer(state, state.mynum, {
-        level: state.my_lev,
-        strength: state.my_str,
-        sex: state.my_sex,
+        level: getLevel(state),
+        strength: getStrength(state),
+        sex: getSex(state),
         weaponId: state.wpnheld,
     })
         .then(() => {
-            if (state.my_str > (30 + 10 * state.my_lev)) {
-                state.my_str = 30 + 10 * state.my_lev;
+            if (getStrength(state) > (30 + 10 * getLevel(state))) {
+                setStrength(state, 30 + 10 * getLevel(state));
             }
         });
 };
 
-/*
- levelof(score)
-    {
-    extern long my_lev;
-    score=score/2;  *//* Scaling factor *//*
-    if(my_lev>10) return(my_lev);
-    if(score<500) return(1);
-    if(score<1000) return(2);
-    if(score<3000) return(3);
-    if(score<6000) return(4);
-    if(score<10000) return(5);
-    if(score<20000) return(6);
-    if(score<32000) return(7);
-    if(score<44000) return(8);
-    if(score<70000) return(9);
-    return(10);
+const levelof = (state: State, score: number): number => {
+    const realScore = score / 2; /* Scaling factor */
+    const level = getLevel(state);
+    if (level > 10) {
+        return level;
+    } else if (realScore < 500) {
+        return 1;
+    } else if (realScore < 1000) {
+        return 2;
+    } else if (realScore < 3000) {
+        return 3;
+    } else if (realScore < 6000) {
+        return 4;
+    } else if (realScore < 10000) {
+        return 5;
+    } else if (realScore < 20000) {
+        return 6;
+    } else if (realScore < 32000) {
+        return 7;
+    } else if (realScore < 44000) {
+        return 8;
+    } else if (realScore < 70000) {
+        return 9;
+    } else {
+        return 10;
     }
-
-*/
+};
 
 const playcom = (state: State): Promise<void> => {
     if (brkword(state) === -1) {
@@ -1344,7 +1346,7 @@ const playcom = (state: State): Promise<void> => {
             player,
             item,
         ]) => {
-            if ((item.itemId === -1) || !isAvailable(item, player, state.curch, (state.my_lev < 10))) {
+            if ((item.itemId === -1) || !isAvailable(item, player, state.curch, !isWizard(state))) {
                 return bprintf(state, 'That isn\'t here\n');
             }
         })
@@ -1364,7 +1366,7 @@ const playcom = (state: State): Promise<void> => {
 const shoutcom = (state: State): Promise<void> => checkDumb(state)
     .then(() => {
         const blob = getreinput(state);
-        if (state.my_lev > 9) {
+        if (isWizard(state)) {
             return sendShout(state, blob);
         } else {
             return sendsys(state, state.globme, state.globme, -10002, state.curch, blob);
@@ -1397,16 +1399,16 @@ const tellcom = (state: State): Promise<void> => checkDumb(state)
     });
 
 const scorecom = (state: State): Promise<void> => {
-    if (state.my_lev === 1) {
-        bprintf(state, `Your strength is ${state.my_str}\n`);
+    if (getLevel(state) === 1) {
+        bprintf(state, `Your strength is ${getStrength(state)}\n`);
         return Promise.resolve();
     }
-    bprintf(state, `Your strength is ${state.my_str}(from ${50 + 8 * state.my_lev}),Your score is ${state.my_sco}\n`);
-    bprintf(state, `This ranks you as ${state.globme} ${getTitle(state.my_lev, state.my_sex, state.hasfarted)}\n`);
+    bprintf(state, `Your strength is ${getStrength(state)}(from ${50 + 8 * getLevel(state)}),Your score is ${getScore(state)}\n`);
+    bprintf(state, `This ranks you as ${state.globme} ${getTitle(getLevel(state), getSex(state), state.hasfarted)}\n`);
 };
 
 const exorcom = (state: State): Promise<void> => {
-    if (state.my_lev < 10) {
+    if (!isWizard(state)) {
         bprintf(state, 'No chance....\n');
         return Promise.resolve();
     }
@@ -1492,16 +1494,16 @@ const dogive = (state: State, itemId: number, playerId: number): Promise<void> =
         item,
         player,
     ]) => {
-        if ((state.my_lev < 10) && (player.locationId !== state.curch)) {
+        if (!isWizard(state) && (player.locationId !== state.curch)) {
             return bprintf(state, 'They are not here\n');
         }
-        if (!isCarriedBy(item, me, (state.my_lev < 10))) {
+        if (!isCarriedBy(item, me, !isWizard(state))) {
             return bprintf(state, 'You are not carrying that\n');
         }
         if (!cancarry(state, player.playerId)) {
             return bprintf(state, 'They can\'t carry that\n');
         }
-        if ((state.my_lev < 10) && (item.itemId === 32)) {
+        if (!isWizard(state) && (item.itemId === 32)) {
             return bprintf(state, 'It doesn\'t wish to be given away.....\n');
         }
         return holdItem(state, item.itemId, player.playerId)
@@ -1537,7 +1539,7 @@ const stealcom = (state: State): Promise<void> => {
                     if (item.itemId === -1) {
                         return bprintf(state, 'They are not carrying that\n');
                     }
-                    if ((state.my_lev < 10) && (player.locationId !== state.curch)) {
+                    if (!isWizard(state) && (player.locationId !== state.curch)) {
                         return bprintf(state, 'But they aren\'t here\n');
                     }
                     if (item.wearingBy !== undefined) {
@@ -1552,7 +1554,7 @@ const stealcom = (state: State): Promise<void> => {
 
                     const t = time(state);
                     srand(state, t);
-                    let e = 10 + state.my_lev - player.level;
+                    let e = 10 + getLevel(state) - player.level;
                     e *= 5;
                     return roll()
                         .then((f) => {
@@ -1585,7 +1587,7 @@ const dosumm = (state: State, locationId: number): Promise<void> => {
 };
 
 const tsscom = (state: State): Promise<void> => {
-    if (state.my_lev < 10000) {
+    if (!isGod(state)) {
         bprintf(state, 'I don\'t know that verb\n');
         return Promise.resolve();
     }
@@ -1635,7 +1637,7 @@ const rmedit = (state: State): Promise<void> => getPlayer(state, state.mynum)
 
 const u_system = (state: State): Promise<void> => getPlayer(state, state.mynum)
     .then((editor) => {
-        if (state.my_lev < 10) {
+        if (!isWizard(state)) {
             return bprintf(state, 'You\'ll have to leave the game first!\n');
         }
 
@@ -1664,7 +1666,7 @@ const u_system = (state: State): Promise<void> => getPlayer(state, state.mynum)
     });
 
 const inumcom = (state: State): Promise<void> => {
-    if (state.my_lev < 10000) {
+    if (!isGod(state)) {
         bprintf(state, 'Huh ?\n');
         return;
     }
@@ -1677,7 +1679,7 @@ const inumcom = (state: State): Promise<void> => {
 };
 
 const updcom = (state: State): Promise<void> => {
-    if (state.my_lev < 10) {
+    if (!isWizard(state)) {
         bprintf(state, 'Hmmm... you can\'t do that one\n');
         return Promise.resolve();
     }
@@ -1691,7 +1693,7 @@ const updcom = (state: State): Promise<void> => {
 };
 
 const becom = (state: State): Promise<void> => {
-    if (state.my_lev < 10) {
+    if (!isWizard(state)) {
         bprintf(state, 'Become what ?\n');
         return Promise.resolve();
     }
@@ -1709,58 +1711,45 @@ const becom = (state: State): Promise<void> => {
         .catch(() => bprintf(state, 'Eek! someone\'s just run off with mud!!!!\n'));
 };
 
-/*
- systat()
-    {
-    extern long my_lev;
-    if(my_lev<10000000)
-       {
-       bprintf("What do you think this is a DEC 10 ?\n");
-       return;
-       }
+const systat = (state: State): Promise<void> => {
+    if (getLevel(state) < 10000000) {
+        bprintf(state, 'What do you think this is a DEC 10 ?\n');
     }
+    return Promise.resolve();
+};
 
+/*
  convcom()
     {
     extern long convflg;
     convflg=1;
     bprintf("Type '**' on a line of its own to exit converse mode\n");
     }
-
- shellcom()
-    {
-    extern long convflg,my_lev;
-    if(my_lev<10000)
-       {
-       bprintf("There is nothing here you can shell\n");
-       return;
-       }
-    convflg=2;
-    bprintf("Type ** on its own on a new line to exit shell\n");
-    }
-
- rawcom()
-    {
-    extern long my_lev;
-    char x[100],y[100];
-    if(my_lev<10000)
-       {
-       bprintf("I don't know that verb\n");
-       return;
-       }
-    getreinput(x);
-    if((my_lev==10033)&&(x[0]=='!'))
-       {
-       broad(x+1);
-       return;
-       }
-    else
-       {
-       sprintf(y,"%s%s%s","** SYSTEM : ",x,"\n\007\007");
-       broad(y);
-       }
-    }
 */
+
+const shellcom = (state: State): Promise<void> => {
+    if (!isGod(state)) {
+        bprintf(state, 'There is nothing here you can shell\n');
+        return Promise.resolve();
+    }
+    state.convflg = 2;
+    bprintf(state, 'Type ** on its own on a new line to exit shell\n');
+    return Promise.resolve();
+};
+
+const rawcom = (state: State): Promise<void> => {
+    if (!isGod(state)) {
+        bprintf(state, 'I don\'t know that verb\n');
+        return Promise.resolve();
+    }
+    const x = getreinput(state);
+    if (isAdmin(state) && (x[0] === '!')) {
+        broad(state, x.substr(1));
+        return Promise.resolve();
+    }
+    broad(state, `** SYSTEM : ${x}\n`);
+    return Promise.resolve();
+};
 
 const rollcom = (state: State): Promise<void> => getAvailableItem(state)
     .then((item) => {
@@ -1776,7 +1765,7 @@ long brmode=0;
 */
 
 const debugcom = (state: State): Promise<void> => {
-    if (state.my_lev < 10000) {
+    if (!isGod(state)) {
         bprintf(state, 'I don\'t know that verb\n');
         return Promise.resolve();
     }
@@ -1836,23 +1825,16 @@ const look_cmd = (state: State): Promise<void> => {
         });
 };
 
-/*
-
-set_ms(x)
-char *x;
-{
-	extern long my_lev;
-	extern char globme[];
-	if((my_lev<10)&&(strcmp(globme,"Lorry")))
-	{
-		bprintf("No way !\n");
-	}
-	else
-	{
-		getreinput(x);
-	}
-	return;
+const set_ms = (state: State): string => {
+    if (!isWizard(state) && (state.globme !== 'Lorry')) {
+        bprintf(state, 'No way !\n');
+        return '';
+    } else {
+        return getreinput(state);
+    }
 }
+
+/*
 
 setmincom()
 {
@@ -1905,9 +1887,7 @@ const emptycom = (state: State): Promise<void> => {
     return  getAvailableItem(state)
         .then((container) => {
             return getItems(state)
-                .then(items => items.filter((item) => {
-                    return isContainedIn(item, container, (state.my_lev < 10));
-                }))
+                .then(items => items.filter((item) => isContainedIn(item, container, !isWizard(state))))
                 .then(items => items.forEach((item) => {
                     return holdItem(state, item.itemId, state.mynum)
                         .then(() => {

@@ -29,6 +29,7 @@ import {
 import {roll} from "./index";
 import {sendWizards} from "../new1/events";
 import {isWornBy} from "../new1";
+import {getLevel, getStrength, isAdmin, isGod, isWizard, updateStrength} from "../newuaf/reducer";
 
 const roomnum = (state: State, roomId: string, zoneId: string): number => 0;
 const sillycom = (state: State, message: string): void => undefined;
@@ -47,7 +48,7 @@ export class Summon extends Action {
     }
 
     private static summonItem(state: State, item: Item):Promise<any> {
-        if (state.my_lev < 10) {
+        if (!isWizard(state)) {
             throw new Error('You can only summon people');
         }
         return Summon.ownerLocationId(state, item)
@@ -71,22 +72,22 @@ export class Summon extends Action {
     }
 
     private static getSummonChance(state: State, me: Player): Promise<number> {
-        const baseChance = (state.my_lev > 9) ? 101 : (state.my_lev * 2);
+        const baseChance = isWizard(state) ? 101 : (getLevel(state) * 2);
         return Promise.all([
             111,
             121,
             163,
         ].map(itemId => getItem(state, itemId)))
-            .then(items => items.filter(item => isCarriedBy(item, me, (state.my_lev < 10))))
-            .then((items) => baseChance + (items.length * state.my_lev));
+            .then(items => items.filter(item => isCarriedBy(item, me, !isWizard(state))))
+            .then((items) => baseChance + (items.length * getLevel(state)));
     }
 
     private static summonPlayer(state: State, player: Player): Promise<any> {
-        if (state.my_str < 10) {
+        if (getStrength(state) < 10) {
             throw new Error('You are too weak');
         }
-        if (state.my_lev < 10) {
-            state.my_str -= 2;
+        if (!isWizard(state)) {
+            updateStrength(state, -2);
         }
         return getPlayer(state, state.mynum)
             .then(me => Promise.all([
@@ -111,14 +112,14 @@ export class Summon extends Action {
             ]) => ({
                 rolled: (successRoll <= chance) && !isWornBy(state, item90, player),
                 isWraith: wraith && (player.playerId === wraith.playerId),
-                items: items.filter(item => isCarriedBy(item, me, (state.my_lev < 10))),
+                items: items.filter(item => isCarriedBy(item, me, !isWizard(state))),
             }))
             .then(({
                 rolled,
                 isWraith,
                 items,
             }) => {
-                if (state.my_lev > 9) {
+                if (isWizard(state)) {
                     return true;
                 }
                 if (!rolled) {
@@ -212,7 +213,7 @@ export class DeleteUser extends Action {
     }
 
     action(state: State): Promise<any> {
-        if (state.my_lev < 11) {
+        if (getLevel(state) < 11) {
             throw new Error('What ?');
         }
         if (brkword(state) === -1) {
@@ -234,7 +235,7 @@ export class ChangePassword extends Action {
 
 export class GoToLocation extends Action {
     action(state: State): Promise<any> {
-        if (state.my_lev < 10) {
+        if (!isWizard(state)) {
             throw new Error('huh ?');
         }
         if (brkword(state) === -1) {
@@ -263,7 +264,7 @@ export class GoToLocation extends Action {
 
 export class Wizards extends Action {
     action(state: State): Promise<any> {
-        if (state.my_lev < 10) {
+        if (!isWizard(state)) {
             throw new Error('Such advanced conversation is beyond you');
         }
         state.wordbuf = getreinput(state);
@@ -274,7 +275,7 @@ export class Wizards extends Action {
 
 export class Visible extends Action {
     action(state: State): Promise<any> {
-        if (state.my_lev < 10) {
+        if (!isWizard(state)) {
             throw new Error('You can\'t just do that sort of thing at will you know.');
         }
         return getPlayer(state, state.mynum)
@@ -305,7 +306,7 @@ export class Visible extends Action {
 
 export class Invisible extends Action {
     action(state: State): Promise<any> {
-        if (state.my_lev < 10) {
+        if (!isWizard(state)) {
             throw new Error('You can\'t just turn invisible like that!\n');
         }
 
@@ -316,10 +317,10 @@ export class Invisible extends Action {
                 }
 
                 let visibility = 10;
-                if (state.my_lev > 9999) {
+                if (isGod(state)) {
                     visibility = 10000;
                 }
-                if ((state.my_lev === 10033) && (brkword(state) !== -1)) {
+                if (isAdmin(state) && (brkword(state) !== -1)) {
                     visibility = Number(state.wordbuf);
                 }
 
@@ -347,7 +348,7 @@ export class Invisible extends Action {
 
 export class Ressurect extends Action {
     action(state: State): Promise<any> {
-        if (state.my_lev < 10) {
+        if (!isWizard(state)) {
             throw new Error('Huh ?');
         }
         if (brkword(state) === -1) {

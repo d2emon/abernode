@@ -15,6 +15,7 @@ import {
 import {findVisiblePlayer} from '../objsys';
 import {touchSnoop} from './snoop';
 import LogService from '../services/log';
+import {isGod, isWizard} from "../newuaf/reducer";
 
 const geteuid = (state: State): void => undefined;
 const getuid = (state: State): void => undefined;
@@ -91,7 +92,7 @@ export class Snoop extends Action {
                 if (!snooped) {
                     throw new Error('Who is that ?');
                 }
-                if (((state.my_lev < 10000) && snooped.isWizard) || !snooped.canBeSnooped) {
+                if ((!isGod(state) && snooped.isWizard) || !snooped.canBeSnooped) {
                     stopSnoop(state);
                     throw new Error('Your magical vision is obscured');
                 }
@@ -116,7 +117,7 @@ export class Snoop extends Action {
     }
 
     action(state: State): Promise<any> {
-        if (state.my_lev < 10) {
+        if (!isWizard(state)) {
             throw new Error('Ho hum, the weather is nice isn\'t it');
         }
         return getSnooped(state)

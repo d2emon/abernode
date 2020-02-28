@@ -1,6 +1,7 @@
 import State from "../state";
 import {Player} from "../support";
 import {getBlind} from "../new1/reducer";
+import {getLevel} from "../newuaf/reducer";
 
 const isdark = (state: State, locationId: number): boolean => false;
 
@@ -36,7 +37,7 @@ export const canSeePlayer = (state: State, player: Player): boolean => {
         /* me */
         return true;
     }
-    if (player.visibility > state.my_lev) {
+    if (player.visibility > getLevel(state)) {
         return false;
     }
     if (getBlind(state)) {

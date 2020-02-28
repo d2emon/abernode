@@ -20,6 +20,7 @@ import {
     hitPlayer,
 } from './index';
 import {RESET_N} from "../files";
+import {getLevel, setLevel} from "../newuaf/reducer";
 
 const calibme = (state: State): void => undefined;
 const rescom = (state: State): Promise<any> => Promise.resolve({});
@@ -31,11 +32,8 @@ const fclose = (file: any): Promise<void> => Promise.resolve();
 
 const sysReset = (state: State): Promise<void> => {
     const doReset = (level: number): Promise<void> => {
-        state.my_lev = 10;
-        return rescom(state)
-            .then(() => {
-                state.my_lev = level;
-            });
+        setLevel(state, 10);
+        return rescom(state).then(() => setLevel(state, level));
     };
 
     if (scale(state) !== 2) {
@@ -59,7 +57,7 @@ const sysReset = (state: State): Promise<void> => {
             if (!canReset) {
                 throw new Error('Sorry at least an hour must pass between resets');
             }
-            return doReset(state.my_lev);
+            return doReset(getLevel(state));
         });
 };
 

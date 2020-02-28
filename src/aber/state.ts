@@ -132,6 +132,11 @@ export default interface State {
     ail_dumb: boolean,
     forf: boolean,
     isforce: boolean,
+    // newuaf
+    my_lev: number,
+    my_sex: number,
+    my_sco: number,
+    my_str: number,
     //
     brmode: boolean,
     curch: number,
@@ -146,10 +151,6 @@ export default interface State {
     me_cal: number,
     min_ms: string,
     mout_ms: string,
-    my_lev: number,
-    my_sex: number,
-    my_sco: number,
-    my_str: number,
     mynum: number,
     objects: Item[],
     objinfo: ItemData[],

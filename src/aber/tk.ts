@@ -13,6 +13,7 @@ import {roll} from "./magic";
 import {onLook} from "./mobile";
 import {cureBlind, getBlind} from "./new1/reducer";
 import {sendWizards} from "./new1/events";
+import {getLevel, getSex, getStrength, isGod, isWizard} from "./newuaf/reducer";
 
 /*
  *
@@ -43,9 +44,6 @@ extern FILE * openlock();
 extern char globme[];
 extern long cms;
 extern long curch;
-extern long my_str;
-extern long my_sex;
-extern long my_lev;
 extern FILE * openroom();
 extern FILE * openworld();
 extern char key_buff[];
@@ -121,7 +119,7 @@ const sendmsg = (state: State, name: string): Promise<boolean> => Promise.all([
         if (state.debug_mode) {
             prmpt += '#';
         }
-        if (state.my_lev > 9) {
+        if (isWizard(state)) {
             prmpt += '----';
         }
         if (state.convflg === 0) {
@@ -337,17 +335,6 @@ long rd_qd=0;
 */
 
 const special = (state: State, word: string, name: string): Promise<boolean> => {
-    /*
-    extern long curmode;
-    char ch,bk[128];
-    extern long curch,moni;
-    extern long mynum;
-    extern long my_str,my_lev,my_sco,my_sex;
-    FILE * ufl;
-    char xx[128];
-    char xy[128];
-    char us[32];
-    */
     const bk = word.toLowerCase();
     if (bk[0] !== '.') {
         return Promise.resolve(false);
@@ -360,10 +347,10 @@ const special = (state: State, word: string, name: string): Promise<boolean> => 
                 initme(state);
                 openworld(state);
                 return setPlayer(state, player.playerId, {
-                    strength: state.my_str,
-                    level: state.my_lev,
-                    visibility: (state.my_lev < 10000) ? 0 : 10000,
-                    flags: { sex: state.my_sex },
+                    strength: getStrength(state),
+                    level: getLevel(state),
+                    visibility: isGod(state) ? 0 : 10000,
+                    flags: { sex: getSex(state) },
                     weaponId: -1,
                     helping: -1,
                 })
@@ -560,7 +547,7 @@ const lookin = (state: State, roomId: number): Promise<void> => {
     if (getBlind(state)) {
         bprintf(state, 'You are blind... you can\'t see a thing!\n');
     }
-    if (state.my_lev > 9) {
+    if (isWizard(state)) {
         showname(state, roomId);
     }
     return openroom(roomId, 'r')
@@ -587,7 +574,7 @@ const lookin = (state: State, roomId: number): Promise<void> => {
                                             return xx1();
                                         });
                                 }
-                                if (state.my_lev > 9) {
+                                if (isWizard(state)) {
                                     return bprintf(state, '<DEATH ROOM>\n');
                                 } else {
                                     loseme(state, state.globme);

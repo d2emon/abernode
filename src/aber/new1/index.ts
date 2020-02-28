@@ -18,6 +18,7 @@ import {
 import {sendWizards} from "./events";
 import {roll} from "../magic";
 import {sendVisiblePlayer} from "../bprintf";
+import {getLevel, isWizard} from "../newuaf/reducer";
 
 const openworld = (state: State): void => undefined;
 const trapch = (state: State, locationId: number): void => undefined;
@@ -43,7 +44,7 @@ export const getAvailableItem = (state: State): Promise<Item> => {
 };
 
 export const isWornBy = (state: State, item: Item, player: Player): boolean => {
-    if (!isCarriedBy(item, player, (state.my_lev < 10))) {
+    if (!isCarriedBy(item, player, !isWizard(state))) {
         return false;
     }
     if (item.heldBy === undefined) {
@@ -73,7 +74,7 @@ export const setPlayerDamage = (state: State, enemy: Player, player: Player): Pr
             shields,
         ]) => {
             const hasShield = shields.some(shield => isWornBy(state, shield, player));
-            const chance = 3 * (15 - state.my_lev) + 20 - (hasShield ? 10 : 0);
+            const chance = 3 * (15 - getLevel(state)) + 20 - (hasShield ? 10 : 0);
             return (hitRoll < chance)
                 ? roll()
                     .then(damageRoll => damageRoll % enemy.damage)

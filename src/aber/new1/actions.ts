@@ -65,6 +65,7 @@ import {
     checkDumb,
     checkIsForced,
 } from "./reducer";
+import {getLevel, getStrength, isWizard, updateScore, updateStrength} from "../newuaf/reducer";
 
 const broad = (state: State, message: string): void => undefined;
 const sillycom = (state: State, message: string): Promise<any> => Promise.resolve({});
@@ -111,18 +112,18 @@ const spellFails = (state: State, reflect: boolean) => sendMessage(state, 'You f
     });
 
 const spellSuccess = (state: State) => (
-    (state.my_lev < 10)
+    !isWizard(state)
         ? sendMessage(state, 'The spell succeeds!!\n')
         : Promise.resolve()
 );
 
 const getSpellTarget = (state: State, reflect: boolean = true): Promise<Player> => getTargetPlayer(state)
     .then((player) => {
-        if (state.my_str < 10) {
+        if (getStrength(state) < 10) {
             throw new Error('You are too weak to cast magic');
         }
-        if (state.my_lev < 10) {
-            state.my_str -= 2;
+        if (!isWizard(state)) {
+            updateStrength(state, -2);
         }
         return Promise.all([
             Promise.resolve(player),
@@ -139,9 +140,9 @@ const getSpellTarget = (state: State, reflect: boolean = true): Promise<Player> 
         items,
         successRoll,
     ]) => {
-        const bonus = items.filter(item => isCarriedBy(item, player, (state.my_lev < 10))).length;
-        const chance = (bonus + 5) * state.my_lev;
-        if ((state.my_lev < 10) && (successRoll > chance)) {
+        const bonus = items.filter(item => isCarriedBy(item, player, !isWizard(state))).length;
+        const chance = (bonus + 5) * getLevel(state);
+        if (!isWizard(state) && (successRoll > chance)) {
             return spellFails(state, reflect);
         } else {
             return spellSuccess(state)
@@ -408,7 +409,7 @@ export class Put extends Action {
         if (container.state !== 2) {
             throw new Error('There is already a candle in it!');
         }
-        state.my_sco += 50;
+        updateScore(state, 50);
         return setItem(state, container.itemId, {
             flags: {
                 [IS_DESTROYED]: true,
@@ -862,7 +863,7 @@ export class Missile extends Action {
             return Promise.resolve();
         }
         /* Bonus ? */
-        state.my_sco += victim.value;
+        updateScore(state, victim.value);
         state.in_fight = 0;
         state.fighting = -1;
         /* MARK ALREADY DEAD */
@@ -872,7 +873,7 @@ export class Missile extends Action {
     action(state: State): Promise<any> {
         return getTouchSpellTarget(state)
             .then((player) => {
-                const damage = state.my_lev * 2;
+                const damage = getLevel(state) * 2;
                 const promises = [sendMissile(state, player, damage)];
                 const result = (player.strength < damage);
                 if (result) {
@@ -915,7 +916,7 @@ export class Fireball extends Action {
             return Promise.resolve();
         }
         /* Bonus ? */
-        state.my_sco += victim.value;
+        updateScore(state, victim.value);
         state.in_fight = 0;
         state.fighting = -1;
         /* MARK ALREADY DEAD */
@@ -937,7 +938,7 @@ export class Fireball extends Action {
                 player,
                 yeti,
             ]) => {
-                const damage = ((player.playerId === yeti.playerId) ? 6 : 2) * state.my_lev;
+                const damage = ((player.playerId === yeti.playerId) ? 6 : 2) * getLevel(state);
                 const promises = [sendFireball(state, player, damage)];
                 const result = (player.strength < damage);
                 if (result) {
@@ -961,7 +962,7 @@ export class Shock extends Action {
             return Promise.resolve();
         }
         /* Bonus ? */
-        state.my_sco += victim.value;
+        updateScore(state, victim.value);
         state.in_fight = 0;
         state.fighting = -1;
         /* MARK ALREADY DEAD */
@@ -974,7 +975,7 @@ export class Shock extends Action {
                 if (player.playerId === state.mynum) {
                     throw new Error('You are supposed to be killing other people not yourself\n');
                 }
-                const damage = state.my_lev * 2;
+                const damage = getLevel(state) * 2;
                 const promises = [sendShock(state, player, damage)];
                 const result = (player.strength < damage);
                 if (result) {
@@ -1136,7 +1137,7 @@ export class Wear extends Action {
                 item,
                 shields,
             ]) => {
-                if (!isCarriedBy(item, player, (state.my_lev < 10))) {
+                if (!isCarriedBy(item, player, !isWizard(state))) {
                     throw new Error('You are not carrying this');
                 }
                 if (isWornBy(state, item, player)) {

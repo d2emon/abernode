@@ -18,6 +18,7 @@ import {sendName} from '../bprintf';
 import {sendMessage} from '../bprintf/bprintf';
 import {checkRoll, roll} from "../magic";
 import {isWornBy, sendBotDamage} from "../new1";
+import {getToHit, isWizard, updateScore} from "../newuaf/reducer";
 
 const calibme = (state: State): void => undefined;
 
@@ -39,7 +40,7 @@ const badWeapon = (state: State, weapon: Item): Promise<undefined> => Promise.al
     .then(() => undefined);
 const swordVsSceptre = (state: State, victim: Player): Promise<void> => getItem(state, SCEPTRE_ID)
     .then((sceptre) => {
-        if (isCarriedBy(sceptre, victim, (state.my_lev < 10))) {
+        if (isCarriedBy(sceptre, victim, !isWizard(state))) {
             throw new Error('The runesword flashes back away from its target, growling in anger!');
         }
     });
@@ -51,7 +52,7 @@ export const hitPlayer = (state: State, victim: Player, weapon?: Item): Promise<
         }
         /* Chance to hit stuff */
         let p = Promise.resolve(weapon);
-        if (weapon && !isCarriedBy(weapon, player, (state.my_lev < 10))) {
+        if (weapon && !isCarriedBy(weapon, player, !isWizard(state))) {
             p = badWeapon(state, weapon)
         }
         return p
@@ -81,7 +82,7 @@ export const hitPlayer = (state: State, victim: Player, weapon?: Item): Promise<
                 ])
             })
             .then((shields) => {
-                let toHit = 40 + 3 * state.my_lev;
+                let toHit = getToHit(state);
                 if (shields.some(shield => isWornBy(state, shield, victim))) {
                     toHit -= 10;
                 }
@@ -111,15 +112,16 @@ export const hitPlayer = (state: State, victim: Player, weapon?: Item): Promise<
                         promises.push(sendMessage(state, 'Your last blow did the trick\n'));
                         if (!victim.isDead) {
                             /* Bonus ? */
-                            state.my_sco += victim.value;
+                            updateScore(state, victim.value);
                         }
                         resetFight(state);
                         /* MARK ALREADY DEAD */
                         promises.push(setPlayer(state, victim.playerId, { isDead: true }));
                     }
                     promises.push(new Promise((resolve) => {
-                        state.my_sco += attack.damage * 2;
+                        updateScore(state, attack.damage * 2);
                         calibme(state);
+                        return resolve();
                     }));
                 } else {
                     promises.push(sendMessage(state, `You missed ${sendName(victim.name)}\n`));

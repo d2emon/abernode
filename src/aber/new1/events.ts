@@ -15,10 +15,11 @@ import {sendsys} from "../__dummies";
 import {logger} from "../files";
 import {dropMyItems} from "../objsys";
 import {endGame} from "../gamego/endGame";
+import {removePerson} from "../newuaf";
+import {getSexName, getStrength, isWizard, revertSex, updateStrength} from "../newuaf/reducer";
 
 const calibme = (state: State): void => undefined;
 const loseme = (state: State): void => undefined;
-const delpers = (state: State, name: string): void => undefined;
 const openworld = (state: State): void => undefined;
 const closeworld = (state: State): void => undefined;
 
@@ -30,21 +31,20 @@ interface Event {
 }
 
 const receiveMagicDamage = (state: State, damage: number, message: string): Promise<void> => {
-    if (state.my_lev > 9) {
+    if (isWizard(state)) {
         return Promise.resolve();
     }
-    state.my_str -= damage;
+    updateStrength(state, -damage);
     state.me_cal = 1;
-    if (state.my_lev >= 0) {
+    if (getStrength(state) >= 0) {
         return Promise.resolve();
     }
     closeworld(state);
-    delpers(state, state.globme);
-    state.zapped = true;
+
     openworld(state);
+    state.zapped = true;
     return Promise.all([
         sendMessage(state, message),
-        logger.write(`${state.globme} slain magically`),
         dropMyItems(state),
         Promise.resolve(loseme(state)),
         Promise.resolve(sendsys(
@@ -56,6 +56,8 @@ const receiveMagicDamage = (state: State, damage: number, message: string): Prom
             `${state.globme} has just died\n`,
         )),
         sendWizards(state, `[ ${state.globme} has just died ]\n`),
+        logger.write(`${state.globme} slain magically`),
+        removePerson(state, state.globme),
         endGame(state, 'Oh dear you just died'),
     ])
         .then(() => {});
@@ -109,7 +111,7 @@ const receiveCure = (state: State) => {
     return sendMessage(state, 'All your ailments have been cured\n');
 };
 const receiveCripple = (state: State, event: Event) => {
-    if (state.my_lev < 10) {
+    if (!isWizard(state)) {
         setCripple(state);
         return sendMessage(state, 'You have been magically crippled\n');
     } else {
@@ -117,7 +119,7 @@ const receiveCripple = (state: State, event: Event) => {
     }
 };
 const receiveDumb = (state: State, event: Event) => {
-    if (state.my_lev < 10) {
+    if (!isWizard(state)) {
         setDumb(state);
         return sendMessage(state, 'You have been struck magically dumb\n');
     } else {
@@ -125,7 +127,7 @@ const receiveDumb = (state: State, event: Event) => {
     }
 };
 const receiveForce = (state: State, event: Event) => {
-    if (state.my_lev < 10) {
+    if (!isWizard(state)) {
         return addForce(state, event.payload)
             .then(() => sendMessage(state, `${sendName(event.sender.name)} has forced you to ${event.payload}\n`));
     } else {
@@ -134,7 +136,7 @@ const receiveForce = (state: State, event: Event) => {
 };
 const receiveShout = (state: State, event: Event) => sendMessage(state, `${sendName(event.sender.name)} shouts '${event.payload}'\n`);
 const receiveBlind = (state: State, event: Event) => {
-    if (state.my_lev < 10) {
+    if (!isWizard(state)) {
         setBlind(state);
         return sendMessage(state, 'You have been struck magically blind\n');
     } else {
@@ -155,10 +157,10 @@ const receiveMissile = (state: State, event: Event, isMe: boolean) => {
         });
 };
 const receiveChange = (state: State, event: Event) => {
-    state.my_sex = 1 - state.my_sex;
+    revertSex(state);
     calibme(state);
     return sendMessage(state, `Your sex has been magically changed!\n`
-        + `You are now ${ !state.my_sex ? 'Male' : 'Female' }\n`);
+        + `You are now ${getSexName(state)}\n`);
 };
 const receiveFireball = (state: State, event: Event, isMe: boolean) => {
     if (state.curch !== event.locationId) {
@@ -180,13 +182,13 @@ const receiveShock = (state: State, event: Event, isMe: boolean) => {
 };
 const receiveSocial = (state: State, event: Event) => sendMessage(state, `${event.payload}\n`);
 const receiveWizard = (state: State, event: Event) => {
-    if (state.my_lev <= 9) {
+    if (!isWizard(state)) {
         return Promise.resolve();
     }
     return sendMessage(state, `${event.payload}\n`);
 };
 const receiveDeaf = (state: State, event: Event) => {
-    if (state.my_lev < 10) {
+    if (!isWizard(state)) {
         setDeaf(state);
         return sendMessage(state, 'You have been magically deafened\n');
     } else {

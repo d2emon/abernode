@@ -20,6 +20,7 @@ import {hitPlayer} from "../blood";
 import {sendsys} from "../__dummies";
 import {endGame} from "../gamego/endGame";
 import {setPlayerDamage} from "../new1";
+import {getLevel, isWizard, updateScore} from "../newuaf/reducer";
 
 const calibme = (state: State): Promise<void> => Promise.resolve();
 const loseme = (state: State): Promise<void> => Promise.resolve();
@@ -89,7 +90,7 @@ const doRune = (state: State, runeSword: Item): Promise<void> => {
     }
     return Promise.all([
         getVictim(),
-        checkRoll(r => r < 9 * state.my_lev),
+        checkRoll(r => r < 9 * getLevel(state)),
     ])
         .then(([
             victim,
@@ -143,14 +144,14 @@ export const onLook = (state: State): Promise<void> => Promise.all([
             'yeti',
             'guardian',
         ];
-        if (!isCarriedBy(item45, player, (state.my_lev < 10))) {
+        if (!isCarriedBy(item45, player, !isWizard(state))) {
             enemies.push('wraith');
             enemies.push('zombie');
         }
         return Promise.all([
             ...enemies.map(checkEnemy),
             getItem(state, 32)
-                .then(runeSword => isCarriedBy(runeSword, player, (state.my_lev < 10)) && doRune(state, runeSword)),
+                .then(runeSword => isCarriedBy(runeSword, player, !isWizard(state)) && doRune(state, runeSword)),
             checkHelp(state, player),
         ]);
     })
@@ -160,7 +161,7 @@ export const onTime = (state: State): Promise<void> => checkRoll(r => r > 80)
     .then(eventRoll => eventRoll && onLook(state));
 
 export const getDragon = (state: State): Promise<Player> => {
-    if (state.my_lev > 9) {
+    if (isWizard(state)) {
         return Promise.resolve(undefined);
     }
     return findPlayer(state, 'dragon')
@@ -172,7 +173,7 @@ const dropPepper = (state: State): Promise<void> => {
     const fried = (dragon: Player) => setPlayer(state, dragon.playerId, { exists: false })
         .then(() => {
             /* No dragon */
-            state.my_sco += 100;
+            updateScore(state, 100);
             return calibme(state);
         });
 
@@ -206,7 +207,7 @@ const dropPepper = (state: State): Promise<void> => {
                 return;
             }
             /* Ok dragon and pepper time */
-            return (isCarriedBy(pepper, player, (state.my_lev < 10)) && (pepper.heldBy !== undefined))
+            return (isCarriedBy(pepper, player, !isWizard(state)) && (pepper.heldBy !== undefined))
                 ? fried(dragon)
                 : dragonSneeze();
         });

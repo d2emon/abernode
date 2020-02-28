@@ -39,6 +39,7 @@ import {showLocation} from "./index";
 import {endGame} from "../gamego/endGame";
 import {checkRoll, roll} from "../magic";
 import {teleport} from "../new1";
+import {getLevel, getStrength, isGod, isWizard, updateStrength} from "../newuaf/reducer";
 
 const fopen = (name: string, permissions: string): Promise<any> => Promise.resolve({});
 const fclose = (file: any): Promise<void> => Promise.resolve();
@@ -118,10 +119,10 @@ export class Help extends Action {
 
         closeworld(state);
         const parts = [showFile(HELP1)];
-        if (state.my_lev > 9) {
+        if (isWizard(state)) {
             parts.push(showFile(HELP2));
         }
-        if (state.my_lev > 9999) {
+        if (isGod(state)) {
             parts.push(showFile(HELP3));
         }
         return Promise.all([parts.map((text, textId) => new Promise((resolve) => {
@@ -211,7 +212,7 @@ export class Stats extends Action {
         if (brkword(state) == -1) {
             throw new Error('STATS what ?');
         }
-        if (state.my_lev < 10) {
+        if (!isWizard(state)) {
             throw new Error('Sorry, this is a wizard command buster...');
         }
         return findItem(state, state.wordbuf)
@@ -346,7 +347,7 @@ export class Examine extends Action {
                 if (!candle) {
                     return undefined;
                 }
-                if (!isCarriedBy(candle, me, (state.my_lev < 10))) {
+                if (!isCarriedBy(candle, me, !isWizard(state))) {
                     return undefined;
                 }
                 if (!candle.isLit) {
@@ -429,7 +430,7 @@ export class Examine extends Action {
 
 export class Wizlist extends Action {
     action(state: State): Promise<any> {
-        if (state.my_lev < 10) {
+        if (!isWizard(state)) {
             throw new Error('Huh ?');
         }
         closeworld(state);
@@ -439,7 +440,7 @@ export class Wizlist extends Action {
 
 export class InLocation extends Action {
     action(state: State): Promise<any> {
-        if (state.my_lev < 10) {
+        if (!isWizard(state)) {
             throw new Error('Huh');
         }
         const exBk = [...state.ex_dat];
@@ -488,10 +489,10 @@ export class Jump extends Action {
     };
 
     private static canJump(state: State, player: Player, umbrella: Item): boolean {
-        if (state.my_lev >= 10) {
+        if (isWizard(state)) {
             return true;
         }
-        if (!isCarriedBy(umbrella, player, (state.my_lev < 10))) {
+        if (!isCarriedBy(umbrella, player, !isWizard(state))) {
             return false;
         }
         return umbrella.state === 0;
@@ -570,14 +571,14 @@ export class Where extends Action {
             .then(items => items.filter(item => (item.name === state.wordbuf)))
             .then((items) => items.map(item => showLocation(state, item.locationId, item.carryFlag)
                 .then((location) => {
-                    const itemId = (state.my_lev > 9999) ? `[${item.itemId}]` : '';
-                    return `${itemId}${item.name} - ${((state.my_lev < 10) && item.isDestroyed) ? 'Nowhere' : location}\n`;
+                    const itemId = isGod(state) ? `[${item.itemId}]` : '';
+                    return `${itemId}${item.name} - ${(!isWizard(state) && item.isDestroyed) ? 'Nowhere' : location}\n`;
                 })
             ));
     }
 
     action(state: State): Promise<any> {
-        if (state.my_str < 10) {
+        if (getStrength(state) < 10) {
             throw new Error('You are too weak');
         }
         return Promise.all([
@@ -592,17 +593,17 @@ export class Where extends Action {
                 me,
                 items,
             ]) => {
-                const chance = items.some(item => isCarriedBy(item, me, (state.my_lev < 10)))
+                const chance = items.some(item => isCarriedBy(item, me, !isWizard(state)))
                     ? 100
-                    : 10 * state.my_lev;
+                    : 10 * getLevel(state);
                 return checkRoll(r => r <= chance);
             })
             .then((success) => {
                 if (!success) {
                     throw new Error('Your spell fails...');
                 }
-                if (state.my_lev < 10) {
-                    state.my_str -= 2;
+                if (!isWizard(state)) {
+                    updateStrength(state, -2);
                 }
                 closeworld(state);
                 if (brkword(state) === -1) {

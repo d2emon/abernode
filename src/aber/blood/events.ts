@@ -12,10 +12,11 @@ import {Attack} from './index';
 import {sendMessage} from '../bprintf/bprintf';
 import {endGame} from "../gamego/endGame";
 import {sendWizards} from "../new1/events";
+import {removePerson} from "../newuaf";
+import {getStrength, isWizard, updateScore, updateStrength} from "../newuaf/reducer";
 
 const openworld = (state: State): void => undefined;
 const closeworld = (state: State): void => undefined;
-const delpers = (state: State, name: string): void => undefined;
 const loseme = (state: State): void => undefined;
 
 const WRAITH_ID = 16;
@@ -31,21 +32,15 @@ export const receiveDamage = (state: State, attack: Attack, isMe: boolean): Prom
         weapon,
     ]) => {
         const lifeDrain = () => {
-            state.my_sco -= 100 * damage;
-            if (state.my_sco < 0) {
-                state.my_str = -1;
-            }
+            updateScore(state, -100 * damage);
             return sendMessage(state, 'You feel weaker, as the wraiths icy touch seems to drain your very life force\n');
         };
 
-        const killed = () => Promise.all([
-            logger.write(`${state.globme} slain by ${enemy.name}`),
-            dropMyItems(state),
-        ])
+        const killed = () => dropMyItems(state)
             .then(() => {
                 loseme(state);
                 closeworld(state);
-                delpers(state, state.globme);
+
                 openworld(state);
                 sendsys(
                     state,
@@ -57,8 +52,11 @@ export const receiveDamage = (state: State, attack: Attack, isMe: boolean): Prom
                 );
                 return Promise.all([
                     sendWizards(state, `[ ${sendName(state.globme)} has been slain by ${sendName(enemy.name)}[/p] ]\n`),
+                    logger.write(`${state.globme} slain by ${enemy.name}`),
+                    removePerson(state, state.globme),
                     endGame(state, 'Oh dear... you seem to be slightly dead'),
-                ]);
+                ])
+                    .then(() => {});
             });
 
         const missed = () => {
@@ -70,17 +68,17 @@ export const receiveDamage = (state: State, attack: Attack, isMe: boolean): Prom
             const weaponMessage = weapon ? ` with the ${weapon.name}` : '';
             return sendMessage(state, `You are wounded by ${sendName(enemy.name)}${weaponMessage}\n`)
                 .then(() => {
-                    if (state.my_lev >= 10) {
+                    if (isWizard(state)) {
                         return;
                     }
                     // Set Damage
-                    state.my_str -= damage;
+                    updateStrength(state, damage);
                     if (enemy.playerId === WRAITH_ID) {
                         return lifeDrain();
                     }
                 })
                 .then(() => {
-                    if (state.my_str < 0) {
+                    if (getStrength(state) < 0) {
                         return killed();
                     }
 
