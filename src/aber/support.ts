@@ -23,7 +23,27 @@ import {
     IS_FOOD,
 } from './object';
 
-const damof = (state: State, playerId: number): number => 0;
+const damageOf = (playerId: number): number => {
+    if ([18, 19, 20, 21, 22].indexOf(playerId) !== -1) {
+        return 6;
+    } else if (playerId === 23) {
+        return 32;
+    } else if (playerId === 24) {
+        return 8;
+    } else if (playerId === 28) {
+        return 6;
+    } else if (playerId === 30) {
+        return 20;
+    } else if (playerId === 31) {
+        return 14;
+    } else if (playerId === 32) {
+        return 15;
+    } else if (playerId === 33) {
+        return 10;
+    } else {
+        return 10;
+    }
+};
 
 export const scale = (state: State): number => {
     const players = state.ublock.filter(
@@ -292,6 +312,7 @@ export interface Player {
 
     exists: boolean,
     isDead: boolean,
+    damage: number,
     value: number,
     isAbsent: boolean,
     title: string,
@@ -324,9 +345,10 @@ const playerFromState = (state: State, playerId: number): Player => ({
 
     exists: !!state.ublock[playerId].name.length,
     isDead: state.ublock[playerId].strength < 0,
+    damage: damageOf(playerId),
     value: (playerId < 16)
         ? state.ublock[playerId].level * state.ublock[playerId].level * 100
-        : 10 * damof(state, playerId),
+        : 10 * damageOf(playerId),
     isAbsent: state.ublock[playerId].eventId === -2,
     title: getTitle(state.ublock[playerId].level, state.ublock[playerId].flags.sex ? 0 : 1, state.hasfarted),
     isBot: (playerId > 15),

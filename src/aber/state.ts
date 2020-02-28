@@ -125,10 +125,13 @@ export default interface State {
     sig_active: boolean,
     interrupt: boolean,
     // new1
+    acfor: string,
     ail_blind: boolean,
     ail_crip: boolean,
     ail_deaf: boolean,
     ail_dumb: boolean,
+    forf: boolean,
+    isforce: boolean,
     //
     brmode: boolean,
     curch: number,
@@ -138,7 +141,6 @@ export default interface State {
     globme: string,
     hasfarted: boolean,
     i_setup: boolean,
-    isforce: boolean,
     jumtb: number[],
     maxu: number,
     me_cal: number,

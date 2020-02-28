@@ -12,7 +12,7 @@ import {keyInput} from "./key";
 import {roll} from "./magic";
 import {onLook} from "./mobile";
 import {cureBlind, getBlind} from "./new1/reducer";
-import {sendWizards} from "./new1/receivers";
+import {sendWizards} from "./new1/events";
 
 /*
  *

@@ -1,10 +1,12 @@
 import State from "../state";
 import {
     cureAll,
+    getForce,
     setBlind,
     setCripple,
     setDeaf,
     setDumb,
+    setForce,
 } from "./reducer";
 import {sendName} from "../bprintf";
 import {Player} from "../support";
@@ -14,18 +16,16 @@ import {logger} from "../files";
 import {dropMyItems} from "../objsys";
 import {endGame} from "../gamego/endGame";
 
-const addforce = (state: State, action: string): void => undefined;
 const calibme = (state: State): void => undefined;
 const loseme = (state: State): void => undefined;
 const delpers = (state: State, name: string): void => undefined;
 const openworld = (state: State): void => undefined;
 const closeworld = (state: State): void => undefined;
-const iam = (state: State, player: Player): boolean => false;
 
 interface Event {
     sender: Player,
-    receiver: Player,
-    locationId: number,
+    receiver?: Player,
+    locationId?: number,
     payload: any,
 }
 
@@ -61,6 +61,23 @@ const receiveMagicDamage = (state: State, damage: number, message: string): Prom
         .then(() => {});
 };
 
+const addForce = (state: State, action: string): Promise<void> => {
+    const force = getForce(state);
+    setForce(state, action);
+    return force
+        ? sendMessage(state, `The compulsion to ${force} is overridden\n`)
+        : Promise.resolve();
+};
+
+const iAm = (state: State, name: string): boolean => {
+    const name1 = name.toLowerCase();
+    const name2 = state.globme.toLowerCase();
+    if (name1 === name2) {
+        return true;
+    }
+    return (name2.substr(0, 4) === 'the ') && (name1.substr(4) === name2.substr(4));
+};
+
 const onlyMe = (state: State, isMe: boolean, sender: Player, payload: any, callback): Promise<void> => (
     isMe
         ? callback(state, {
@@ -79,6 +96,11 @@ const notMe = (state: State, isMe: boolean, sender: Player, payload: any, callba
             payload,
             locationId: 0,
         })
+        : Promise.resolve()
+);
+const notMy = (state: State, event: Event, isMe: boolean, callback): Promise<void> => (
+    !iAm(state, event.sender.name)
+        ? callback(state, event, isMe)
         : Promise.resolve()
 );
 
@@ -104,8 +126,8 @@ const receiveDumb = (state: State, event: Event) => {
 };
 const receiveForce = (state: State, event: Event) => {
     if (state.my_lev < 10) {
-        addforce(state, event.payload);
-        return sendMessage(state, `${sendName(event.sender.name)} has forced you to ${event.payload}\n`);
+        return addForce(state, event.payload)
+            .then(() => sendMessage(state, `${sendName(event.sender.name)} has forced you to ${event.payload}\n`));
     } else {
         return sendMessage(state, `${sendName(event.sender.name)} tried to force you to ${event.payload}\n`);
     }
@@ -120,9 +142,6 @@ const receiveBlind = (state: State, event: Event) => {
     }
 };
 const receiveMissile = (state: State, event: Event, isMe: boolean) => {
-    if (iam(state, event.sender)) {
-        return Promise.resolve();
-    }
     if (state.curch !== event.locationId) {
         return Promise.resolve();
     }
@@ -142,9 +161,6 @@ const receiveChange = (state: State, event: Event) => {
         + `You are now ${ !state.my_sex ? 'Male' : 'Female' }\n`);
 };
 const receiveFireball = (state: State, event: Event, isMe: boolean) => {
-    if (iam(state, event.sender)) {
-        return Promise.resolve();
-    }
     if (state.curch !== event.locationId) {
         return Promise.resolve();
     }
@@ -158,9 +174,6 @@ const receiveFireball = (state: State, event: Event, isMe: boolean) => {
         });
 };
 const receiveShock = (state: State, event: Event, isMe: boolean) => {
-    if (iam(state, event.sender)) {
-        return Promise.resolve();
-    }
     if (isMe) {
         return receiveMagicDamage(state, Number(event.payload), `${sendName(event.sender.name)} touches you giving you a sudden electric shock!\n`);
     }
@@ -331,27 +344,50 @@ export const newReceive = (state: State, isMe: boolean, locationId: number, rece
         '-10101': () => onlyMe(state, isMe, sender, payload, receiveCripple),
         '-10102': () => onlyMe(state, isMe, sender, payload, receiveDumb),
         '-10103': () => onlyMe(state, isMe, sender, payload, receiveForce),
-        '-10104': () => notMe(state, isMe, sender, payload, receiveShout),
+        '-10104': () => notMy(
+            state,
+            {
+                sender,
+                payload,
+            },
+            isMe,
+            receiveShout,
+        ),
         '-10105': () => onlyMe(state, isMe, sender, payload, receiveBlind),
-        '-10106': () => receiveMissile(state, {
-            sender,
-            receiver,
-            locationId,
-            payload,
-        }, isMe),
+        '-10106': () => notMy(
+            state,
+            {
+                sender,
+                receiver,
+                locationId,
+                payload,
+            },
+            isMe,
+            receiveMissile,
+        ),
         '-10107': () => onlyMe(state, isMe, sender, payload, receiveChange),
-        '-10109': () => receiveFireball(state, {
-            sender,
-            receiver,
-            locationId,
-            payload,
-        }, isMe),
-        '-10110': () => receiveShock(state, {
-            sender,
-            receiver,
-            locationId,
-            payload,
-        }, isMe),
+        '-10109': () => notMy(
+            state,
+            {
+                sender,
+                receiver,
+                locationId,
+                payload,
+            },
+            isMe,
+            receiveFireball,
+        ),
+        '-10110': () => notMy(
+            state,
+            {
+                sender,
+                receiver,
+                locationId,
+                payload,
+            },
+            isMe,
+            receiveShock,
+        ),
         '-10111': () => onlyMe(state, isMe, sender, payload, receiveSocial),
         '-10113': () => receiveWizard(state, {
             sender,

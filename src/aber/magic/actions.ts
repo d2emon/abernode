@@ -27,9 +27,9 @@ import {
     setPlayer,
 } from '../support';
 import {roll} from "./index";
-import {sendWizards} from "../new1/receivers";
+import {sendWizards} from "../new1/events";
+import {isWornBy} from "../new1";
 
-const iswornby = (state: State, item: Item, player: Player): boolean => false;
 const roomnum = (state: State, roomId: string, zoneId: string): number => 0;
 const sillycom = (state: State, message: string): void => undefined;
 const trapch = (state: State, locationId: number): void => undefined;
@@ -109,7 +109,7 @@ export class Summon extends Action {
                 items,
                 item90,
             ]) => ({
-                rolled: (successRoll <= chance) && !iswornby(state, item90, player),
+                rolled: (successRoll <= chance) && !isWornBy(state, item90, player),
                 isWraith: wraith && (player.playerId === wraith.playerId),
                 items: items.filter(item => isCarriedBy(item, me, (state.my_lev < 10))),
             }))

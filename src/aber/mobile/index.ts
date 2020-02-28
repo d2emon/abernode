@@ -1,5 +1,5 @@
 import State from '../state';
-import {roll} from '../magic';
+import {checkRoll, roll} from '../magic';
 import {
     Item,
     Player,
@@ -19,8 +19,8 @@ import {sendVisibleName} from '../bprintf';
 import {hitPlayer} from "../blood";
 import {sendsys} from "../__dummies";
 import {endGame} from "../gamego/endGame";
+import {setPlayerDamage} from "../new1";
 
-const mhitplayer = (state: State, enemy: Player, victim: Player): Promise<void> => Promise.resolve();
 const calibme = (state: State): Promise<void> => Promise.resolve();
 const loseme = (state: State): Promise<void> => Promise.resolve();
 
@@ -28,21 +28,21 @@ const moveBot = (state: State, player: Player): Promise<void> => Promise.resolve
 
 const checkFight = (state: State, player: Player, enemy: Player): Promise<void> => {
     const hitByMonster = (): Promise<void> => Promise.all([
-        roll(),
+        checkRoll(r => r > 40),
         byMask(state, { [IS_LIT]: true }),
         findPlayer(state, 'yeti'),
     ])
         .then(([
-            successRoll,
+            success,
             found,
             yeti,
         ]) => {
-            if (successRoll > 40) {
+            if (success) {
                 return;
             } else if ((enemy.playerId === yeti.playerId) && found) {
                 return;
             } else {
-                return mhitplayer(state, enemy, player);
+                return setPlayerDamage(state, enemy, player);
             }
         });
 
@@ -89,12 +89,12 @@ const doRune = (state: State, runeSword: Item): Promise<void> => {
     }
     return Promise.all([
         getVictim(),
-        roll(),
+        checkRoll(r => r < 9 * state.my_lev),
     ])
         .then(([
             victim,
-            successRoll,
-        ]) => victim && (successRoll < 9 * state.my_lev) && Promise.all([
+            success,
+        ]) => victim && success && Promise.all([
             sendMessage(state, 'The runesword twists in your hands lashing out savagely\n'),
             hitPlayer(state, victim, runeSword),
         ]))
@@ -156,8 +156,8 @@ export const onLook = (state: State): Promise<void> => Promise.all([
     })
     .then(() => {});
 
-export const onTime = (state: State): Promise<void> => roll()
-    .then(eventRoll => (eventRoll > 80) && onLook(state));
+export const onTime = (state: State): Promise<void> => checkRoll(r => r > 80)
+    .then(eventRoll => eventRoll && onLook(state));
 
 export const getDragon = (state: State): Promise<Player> => {
     if (state.my_lev > 9) {

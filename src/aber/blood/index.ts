@@ -16,11 +16,10 @@ import {
 } from './reducer';
 import {sendName} from '../bprintf';
 import {sendMessage} from '../bprintf/bprintf';
-import {roll} from "../magic";
-import {receiveDamage} from "../new1";
+import {checkRoll, roll} from "../magic";
+import {isWornBy, sendBotDamage} from "../new1";
 
 const calibme = (state: State): void => undefined;
-const iswornby = (state: State, item: Item, player: Player): boolean => false;
 
 const SCEPTRE_ID = 16;
 const RUNE_SWORD_ID = 32;
@@ -83,25 +82,23 @@ export const hitPlayer = (state: State, victim: Player, weapon?: Item): Promise<
             })
             .then((shields) => {
                 let toHit = 40 + 3 * state.my_lev;
-                if (shields.some(shield => iswornby(state, shield, victim))) {
+                if (shields.some(shield => isWornBy(state, shield, victim))) {
                     toHit -= 10;
                 }
                 if (toHit < 0) {
                     toHit = 0;
                 }
                 return Promise.all([
-                    roll(),
-                    Promise.resolve(toHit),
+                    checkRoll(r => r < toHit),
                     roll(),
                 ]);
             })
             .then(([
-                hitRoll,
-                toHit,
+                hit,
                 damageRoll,
             ]) => ({
                 characterId: state.mynum,
-                damage: (hitRoll < toHit) ? (damageRoll % damageByItem(weapon)) : undefined,
+                damage: hit ? (damageRoll % damageByItem(weapon)) : undefined,
                 weaponId: weapon ? weapon.itemId : undefined,
             }))
             .then((attack: Attack) => {
@@ -141,7 +138,7 @@ export const hitPlayer = (state: State, victim: Player, weapon?: Item): Promise<
                         attack,
                     );
                 } else {
-                    return receiveDamage(state, victim, attack.damage || 0);
+                    return sendBotDamage(state, victim, attack.damage || 0);
                 }
             })
             .catch(e => sendMessage(state, `${e}\n`));

@@ -37,7 +37,8 @@ import {IS_DESTROYED} from "../object";
 import {sendVisiblePlayer} from "../bprintf";
 import {showLocation} from "./index";
 import {endGame} from "../gamego/endGame";
-import {roll} from "../magic";
+import {checkRoll, roll} from "../magic";
+import {teleport} from "../new1";
 
 const fopen = (name: string, permissions: string): Promise<any> => Promise.resolve({});
 const fclose = (file: any): Promise<void> => Promise.resolve();
@@ -49,7 +50,6 @@ const openworld = (state: State): void => undefined;
 const getchar = (state: State): Promise<string> => Promise.resolve('\n');
 const showname = (state: State, locationId: number): void => undefined;
 const trapch = (state: State, locationId: number): void => undefined;
-const teletrap = (state: State, locationId: number): void => undefined;
 const roomnum = (state: State, locationId: string, zoneId: string): number => 0;
 const getreinput = (state: State): string => '';
 const openroom = (state: State, locationId: number, permissions: string): Promise<any> => Promise.resolve({});
@@ -358,8 +358,10 @@ export class Examine extends Action {
                 if (!scroll) {
                     return Examine.examineDefault(state, item);
                 }
-                return setItem(state, scroll.itemId, {flags: {[IS_DESTROYED]: true}})
-                    .then(() => teletrap(state, -1074))
+                return Promise.all([
+                    setItem(state, scroll.itemId, {flags: {[IS_DESTROYED]: true}}),
+                    teleport(state, -1074),
+                ])
                     .then(() => ({ description: 'Everything shimmers and then solidifies into a different view!\n' }));
             })
     }
@@ -589,19 +591,14 @@ export class Where extends Action {
             .then(([
                 me,
                 items,
-            ]) => Promise.all([
-                Promise.resolve(
-                    (items.some(item => isCarriedBy(item, me, (state.my_lev < 10))))
-                        ? 100
-                        : 10 * state.my_lev
-                ),
-                roll(),
-            ])
-            .then(([
-                chance,
-                successRoll,
             ]) => {
-                if (successRoll > chance) {
+                const chance = items.some(item => isCarriedBy(item, me, (state.my_lev < 10)))
+                    ? 100
+                    : 10 * state.my_lev;
+                return checkRoll(r => r <= chance);
+            })
+            .then((success) => {
+                if (!success) {
                     throw new Error('Your spell fails...');
                 }
                 if (state.my_lev < 10) {

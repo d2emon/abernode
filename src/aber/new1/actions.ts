@@ -8,35 +8,70 @@ import {
     sendVisibleName,
     sendVisiblePlayer,
 } from "../bprintf";
-import {getAvailableItem} from "./index";
-import {brkword, sendsys} from "../__dummies";
-import {getHelper, getItem, getPlayer, Item, Player, putItem, putItemIn, setItem, setPlayer} from "../support";
-import {byMask, findAvailableItem, findPlayer, findVisiblePlayer, isCarriedBy, itemDescription} from "../objsys";
-import {CAN_BE_EXTINGUISHED, CAN_BE_LIT, IS_DESTROYED, IS_KEY, IS_LIT} from "../object";
+import {
+    getAvailableItem,
+    isWornBy,
+    sendBotDamage,
+    teleport,
+} from "./index";
+import {
+    brkword,
+    sendsys,
+} from "../__dummies";
+import {
+    Item,
+    Player,
+    getHelper,
+    getItem,
+    getPlayer,
+    holdItem,
+    putItem,
+    putItemIn,
+    setItem,
+    setPlayer,
+    wearItem
+} from "../support";
+import {
+    byMask,
+    findAvailableItem,
+    findPlayer,
+    findVisiblePlayer,
+    isCarriedBy,
+    itemDescription,
+} from "../objsys";
+import {
+    CAN_BE_EXTINGUISHED,
+    CAN_BE_LIT,
+    IS_DESTROYED,
+    IS_KEY,
+    IS_LIT,
+} from "../object";
 import {getDragon} from "../mobile";
 import {endGame} from "../gamego/endGame";
 import {sendMessage} from "../bprintf/bprintf";
 import {roll} from "../magic";
 import {
+    sendBlind,
     sendChangeSex,
     sendCripple,
-    sendCure,
+    sendCure, sendDeaf,
     sendDumb,
     sendFireball,
     sendForce,
     sendMissile,
     sendShock, sendSocial
-} from "./receivers";
-import {checkDumb} from "./reducer";
+} from "./events";
+import {
+    checkDumb,
+    checkIsForced,
+} from "./reducer";
 
 const broad = (state: State, message: string): void => undefined;
 const sillycom = (state: State, message: string): Promise<any> => Promise.resolve({});
 const getreinput = (state: State): string => '';
 const loseme = (state: State): void => undefined;
 const openworld = (state: State): void => undefined;
-const teletrap = (state: State, locationId: number): void => undefined;
 const trapch = (state: State, locationId: number): void => undefined;
-const woundmn = (state: State, playerId: number, damage: number): void => undefined;
 
 /* This one isnt for magic */
 
@@ -330,7 +365,7 @@ export class Wave extends Action {
     }
 
     private static wave158(state: State): Promise<any> {
-        teletrap(state, -114);
+        teleport(state, -114);
         return Promise.resolve('You are teleported!\n');
     }
 
@@ -842,9 +877,7 @@ export class Missile extends Action {
                 const result = (player.strength < damage);
                 if (result) {
                     promises.push(Missile.killVictim(state, player));
-                    if (player.isBot) {
-                        woundmn(state, player.playerId, damage);
-                    }
+                    promises.push(sendBotDamage(state, player, damage));
                 }
                 return Promise.all(promises).then(() => result);
             })
@@ -909,9 +942,7 @@ export class Fireball extends Action {
                 const result = (player.strength < damage);
                 if (result) {
                     promises.push(Fireball.killVictim(state, player));
-                    if (player.isBot) {
-                        woundmn(state, player.playerId, damage);
-                    }
+                    promises.push(sendBotDamage(state, player, damage));
                 }
                 return Promise.all(promises).then(() => result);
             })
@@ -948,9 +979,7 @@ export class Shock extends Action {
                 const result = (player.strength < damage);
                 if (result) {
                     promises.push(Shock.killVictim(state, player));
-                    if (player.isBot) {
-                        woundmn(state, player.playerId, damage);
-                    }
+                    promises.push(sendBotDamage(state, player, damage));
                 }
                 return Promise.all(promises).then(() => result);
             })
@@ -983,10 +1012,8 @@ export class Stare extends Action {
 
 export class Grope extends Action {
     action(state: State): Promise<any> {
-        if (state.isforce) {
-            throw new Error('You can\'t be forced to do that');
-        }
-        return getAvailablePlayer(state)
+        return checkIsForced(state)
+            .then(() => getAvailablePlayer(state))
             .then((player) => {
                 if (player.playerId === state.mynum) {
                     return sendMessage(state, 'With a sudden attack of morality the machine edits your persona\n')
@@ -1093,3 +1120,71 @@ export class Tickle extends Action {
     }
 }
 
+export class Wear extends Action {
+    action(state: State): Promise<any> {
+        return Promise.all([
+            getPlayer(state, state.mynum),
+            getAvailableItem(state),
+            Promise.all([
+                89,
+                113,
+                114,
+            ].map(itemId => getItem(state, itemId)))
+        ])
+            .then(([
+                player,
+                item,
+                shields,
+            ]) => {
+                if (!isCarriedBy(item, player, (state.my_lev < 10))) {
+                    throw new Error('You are not carrying this');
+                }
+                if (isWornBy(state, item, player)) {
+                    throw new Error('You are wearing this');
+                }
+                if (
+                    shields.some(shield => isWornBy(state, shield, player))
+                        && shields.some(shield => (item.itemId === shield.itemId))
+                ) {
+                    throw new Error('You can\'t use TWO shields at once...');
+                }
+                if (!item.canBeWorn) {
+                    throw new Error('Is this a new fashion ?');
+                }
+                return wearItem(state, item.itemId, state.mynum)
+                    .then(() => 'OK\n');
+            });
+    }
+}
+
+export class Remove extends Action {
+    action(state: State): Promise<any> {
+        return Promise.all([
+            getPlayer(state, state.mynum),
+            getAvailableItem(state),
+        ])
+            .then(([
+                player,
+                item,
+            ]) => {
+                if (!isWornBy(state, item, player)) {
+                    throw new Error('You are not wearing this');
+                }
+                return holdItem(state, item.itemId, state.mynum);
+            });
+    }
+}
+
+export class Deaf extends Action {
+    action(state: State): Promise<any> {
+        return getSpellTarget(state)
+            .then(player => sendDeaf(state, player));
+    }
+}
+
+export class Blind extends Action {
+    action(state: State): Promise<any> {
+        return getSpellTarget(state)
+            .then(player => sendBlind(state, player));
+    }
+}

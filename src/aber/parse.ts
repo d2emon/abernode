@@ -1,5 +1,5 @@
 import State from "./state";
-import {createItem, getItem, getItems, getPlayer, getTitle, holdItem, setItem, setPlayer} from "./support";
+import {createItem, getItem, getItems, getPlayer, getTitle, holdItem, putItem, setItem, setPlayer} from "./support";
 import {bprintf, brkword, sendsys} from "./__dummies";
 import {CREDITS, GWIZ, logger, RESET_DATA, ROOMS} from "./files";
 import {CONTAINED_IN, IS_DESTROYED} from "./object";
@@ -13,7 +13,8 @@ import {
     dropMyItems,
     findVisiblePlayer, findPlayer
 } from "./objsys";
-import {hitPlayer, receiveDamage} from "./blood/blood";
+import {hitPlayer} from "./blood";
+import {receiveDamage} from './blood/events';
 import {
     sendName,
     sendPlayerForVisible,
@@ -22,16 +23,36 @@ import {
     sendVisibleName,
     sendVisiblePlayer,
     showFile
-} from "./bprintf/bprintf";
+} from "./bprintf";
 import {showMessages} from "./bprintf/output";
 import {endGame} from "./gamego/endGame";
-import {roll} from "./magic";
-import {getAvailableItem} from "./new1";
-import {checkCrippled, checkDumb, getDumb} from "./new1/reducer";
-import {newReceive, sendShout, sendWizards} from "./new1/receivers";
-import state from "./state";
+import {checkRoll, roll} from "./magic";
+import {getAvailableItem, isWornBy, sendBotDamage, teleport} from "./new1";
+import {checkCrippled, checkDumb, clearForce, getDumb, getForce} from "./new1/reducer";
+import {newReceive, sendShout, sendWizards} from "./new1/events";
+import {resetPlayers} from "./new1/bots";
 
 const debug2 = (state: State): Promise<void> => Promise.resolve(bprintf(state, 'No debugger available\n'));
+
+const checkForce = (state: State): void => {
+    const force = getForce(state);
+    state.isforce = true;
+    if (force) {
+        gamecom(state, force);
+    }
+    state.isforce = false;
+    clearForce(state);
+};
+
+const onFlee = (state: State): Promise<void> => Promise.all([
+    getPlayer(state, state.mynum),
+    getItems(state),
+])
+    .then(([
+        player,
+        items,
+    ]) => items.forEach((item) => isCarriedBy(item, player, (state.my_lev < 10)) && !isWornBy(state, item, player) && putItem(state, item.itemId, item.locationId)))
+    .then(() => undefined);
 
 /*
 #include "files.h"
@@ -672,8 +693,8 @@ const doaction = (state: State, actionId: number): Promise<void> => {
                         /* loose 3% */
                         calibme(state);
                         state.in_fight = 0;
-                        on_flee_event(state);
-                        return dogocom(state);
+                        return onFlee(state)
+                            .then(() => dogocom(state));
                     });
             }),
         /*
@@ -841,17 +862,34 @@ const dodirn = (state: State, n: number): Promise<void> => {
                 })
                 .then((newch) => {
                     if (newch === -139) {
-                        if (!iswornby(state, 113, state.mynum) && !iswornby(state, 114, state.mynum) && !iswornby(state, 89, state.mynum)) {
-                            return bprintf(state, 'The intense heat drives you back\n');
-                        } else {
-                            bprintf(state, 'The shield protects you from the worst of the lava stream\'s heat\n');
-                        }
+                        Promise.all([
+                            89,
+                            113,
+                            114,
+                        ].map(itemId => getItem(state, itemId)))
+                            .then((shields) => {
+                                if (shields.some(shield => isWornBy(state, shield, player))) {
+                                    bprintf(state, 'The shield protects you from the worst of the lava stream\'s heat\n');
+                                } else {
+                                    return bprintf(state, 'The intense heat drives you back\n');
+                                }
+                            });
                     }
                     let p = Promise.resolve(true);
                     if (n === 2) {
-                        p = findPlayer(state, 'figure')
-                            .then((figure) => {
-                                if ((figure.playerId !== state.mynum) && (figure.playerId !== -1) && (figure.locationId === state.curch) && !iswornby(state, 101, state.mynum) && !iswornby(state, 102, state.mynum) && !iswornby(state, 103, state.mynum)) {
+                        p = Promise.all([
+                            findPlayer(state, 'figure'),
+                            Promise.all([
+                                101,
+                                102,
+                                103,
+                            ].map(itemId => getItem(state, itemId))),
+                        ])
+                            .then(([
+                                figure,
+                                items,
+                            ]) => {
+                                if (figure && (figure.playerId !== state.mynum) && (figure.locationId === state.curch) && !items.some(item => isWornBy(state, item, player))) {
                                     bprintf(state, `${sendName('The Figure')} holds you back\n`);
                                     bprintf(state, `${sendName('The Figure')} says \'Only true sorcerors may pass\'\n`);
                                     return false;
@@ -1107,15 +1145,23 @@ const eorte = (state: State): Promise<void> => {
             });
     }
     return p
-        .then(() => roll())
-        .then((xpRoll) => {
-            if (iswornby(state, 18, state.mynum) || (xpRoll < 10)) {
+        .then(() => Promise.all([
+            checkRoll(r => r < 10),
+            getPlayer(state, state.mynum),
+            getItem(state, 18),
+        ])
+        .then(([
+            xpRoll,
+            player,
+            item,
+        ]) => {
+            if (xpRoll || isWornBy(state, item, player)) {
                 state.my_str += 1;
                 if (state.i_setup) {
                     calibme(state);
                 }
             }
-            forchk(state);
+            checkForce(state);
             if (state.me_drunk > 0) {
                 state.me_drunk -= 1;
                 if (!getDumb(state)) {
@@ -1157,7 +1203,7 @@ const rescom = (state: State): Promise<void> => {
         .then((s) => fprintf(state, s, `Last Reset At ${ctime(time())}\n`).then(() => fclose(a)))
         .then(() => fopen(RESET_N, 'w'))
         .then((s) => fprintf(state, s, time()).then(() => fclose(a)))
-        .then(() => resetplayers(state));
+        .then(() => resetPlayers(state));
 }
 
 const lightning = (state: State): Promise<void> => {
@@ -1176,13 +1222,8 @@ const lightning = (state: State): Promise<void> => {
             }
             sendsys(state, player.name, state.globme, -10001, player.locationId, null);
             return logger.write(`${state.globme} zapped ${player.name}`)
-                .then(() => {
-                    if (player.playerId > 15) {
-                        woundmn(state, player.playerId, 10000);
-                        /* DIE */
-                    }
-                    broad(state, sendSound('You hear an ominous clap of thunder in the distance\n'));
-                });
+                .then(() => sendBotDamage(state, player, 10000))
+                .then(() => broad(state, sendSound('You hear an ominous clap of thunder in the distance\n')));
         });
 };
 
@@ -1204,7 +1245,7 @@ const eatcom = (state: State): Promise<void> => {
             } else if (item.itemId === 11) {
                 bprintf(state, 'You feel funny, and then pass out\n');
                 bprintf(state, 'You wake up elsewhere....\n');
-                teletrap(state, -1076);
+                teleport(state, -1076);
                 return;
             } else if (item.itemId === 75) {
                 return bprintf(state, 'very refreshing\n');
@@ -1511,17 +1552,15 @@ const stealcom = (state: State): Promise<void> => {
 
                     const t = time(state);
                     srand(state, t);
+                    let e = 10 + state.my_lev - player.level;
+                    e *= 5;
                     return roll()
                         .then((f) => {
-                            let e = 10 + state.my_lev - player.level;
-                            e *= 5;
                             if (f < e) {
                                 const tb = `${sendName(state.globme)} steals the ${item.name} from you !\n`;
                                 if (f & 1) {
                                     sendsys(state, player.name, state.globme, -10011, state.curch, tb);
-                                    if (player.playerId > 15) {
-                                        woundmn(state, player.playerId, 0);
-                                    }
+                                    return sendBotDamage(state, player, 0);
                                 }
                                 return holdItem(state, item.itemId, state.mynum);
                             } else {

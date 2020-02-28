@@ -11,7 +11,7 @@ import {setFight} from './reducer';
 import {Attack} from './index';
 import {sendMessage} from '../bprintf/bprintf';
 import {endGame} from "../gamego/endGame";
-import {sendWizards} from "../new1/receivers";
+import {sendWizards} from "../new1/events";
 
 const openworld = (state: State): void => undefined;
 const closeworld = (state: State): void => undefined;

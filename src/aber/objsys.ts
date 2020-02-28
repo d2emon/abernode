@@ -15,8 +15,8 @@ import {bprintf, brkword, sendsys} from "./__dummies";
 import {CONTAINED_IN, HELD_BY} from "./object";
 import {canSeePlayer, seePlayerName, sendPlayerForVisible, sendVisibleName, setName} from "./bprintf/bprintf";
 import {getDragon} from "./mobile";
+import {isWornBy} from "./new1";
 
-const iswornby = (state: State, item: Item, player: Player): boolean => false;
 const calibme = (state: State): boolean => false;
 const showwthr = (state: State): boolean => false;
 const cancarry = (state: State, playerId: number): boolean => false;
@@ -100,7 +100,7 @@ export const itemsAt = (state: State, locationId: number, mode: number): Promise
         let message = [
             item.name,
             state.debug_mode ? item.itemId : '',
-            iswornby(state, item, owner as Player) ? ' <worn>' : '',
+            isWornBy(state, item, owner as Player) ? ' <worn>' : '',
         ].join('');
         return  item.isDestroyed
             ? ` (${message})`
