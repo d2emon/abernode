@@ -2,7 +2,6 @@ import State from "../state";
 import {showMessages} from "../bprintf/output";
 import {setNeedPrompt} from "../bprintf/reducer";
 
-const keysetback = (state: State): void => undefined;
 const stopGame = (code: number): void => undefined;
 
 const dashes = '-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-';

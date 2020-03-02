@@ -12,7 +12,6 @@ import {isGod, isWizard} from "./newuaf/reducer";
 extern FILE *openlock();
 extern FILE *openuaf();
 extern FILE *openroom();
-extern FILE *openworld();
 extern char globme[];
 extern char wordbuf[];
 */

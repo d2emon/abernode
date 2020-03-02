@@ -66,12 +66,12 @@ import {
     checkIsForced,
 } from "./reducer";
 import {getLevel, getStrength, isWizard, updateScore, updateStrength} from "../newuaf/reducer";
+import {loadWorld} from "../opensys";
 
 const broad = (state: State, message: string): void => undefined;
 const sillycom = (state: State, message: string): Promise<any> => Promise.resolve({});
 const getreinput = (state: State): string => '';
 const loseme = (state: State): void => undefined;
-const openworld = (state: State): void => undefined;
 const trapch = (state: State, locationId: number): void => undefined;
 
 /* This one isnt for magic */
@@ -80,18 +80,20 @@ const getTargetPlayer = (state: State): Promise<Player> => {
     if (brkword(state) === -1) {
         throw new Error('Who ?');
     }
-    openworld(state);
-    if (state.wordbuf === 'at') {
-        /* STARE AT etc */
-        return getTargetPlayer(state);
-    }
-    return findVisiblePlayer(state, state.wordbuf)
-        .then((player) => {
-            if (!player) {
-                throw new Error('Who ?');
+    return loadWorld(state)
+        .then(() => {
+            if (state.wordbuf === 'at') {
+                /* STARE AT etc */
+                return getTargetPlayer(state);
             }
-            return player;
-        })
+            return findVisiblePlayer(state, state.wordbuf)
+                .then((player) => {
+                    if (!player) {
+                        throw new Error('Who ?');
+                    }
+                    return player;
+                })
+        });
 };
 
 export const getAvailablePlayer = (state: State): Promise<Player> => getTargetPlayer(state)

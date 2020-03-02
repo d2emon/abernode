@@ -19,8 +19,8 @@ import {sendWizards} from "./events";
 import {roll} from "../magic";
 import {sendVisiblePlayer} from "../bprintf";
 import {getLevel, isWizard} from "../newuaf/reducer";
+import {loadWorld} from "../opensys";
 
-const openworld = (state: State): void => undefined;
 const trapch = (state: State, locationId: number): void => undefined;
 
 /**
@@ -33,8 +33,8 @@ export const getAvailableItem = (state: State): Promise<Item> => {
     if (brkword(state) === -1) {
         throw new Error('Tell me more ?');
     }
-    openworld(state);
-    return findAvailableItem(state, state.wordbuf)
+    return loadWorld(state)
+        .then(() => findAvailableItem(state, state.wordbuf))
         .then((item) => {
             if (!item) {
                 throw new Error('There isn\'t one of those here');

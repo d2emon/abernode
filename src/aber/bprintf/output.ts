@@ -24,8 +24,8 @@ import {
     clearLineBreak,
 } from '../key';
 import {getBlind, getDeaf} from "../new1/reducer";
+import {saveWorld} from "../opensys";
 
-const closeworld = (state: State): void => undefined;
 const f_listfl = (fileName: string): string => '';
 const isdark = (state: State, locationId: number): boolean => false;
 
@@ -112,17 +112,16 @@ const decodeScreen = (state: State, messages: string) => {
     return Promise.resolve();
 };
 
-export const showMessages = (state: State): Promise<void> => withoutAlarm(state)(()=> {
-    closeworld(state);
-    return Messages.getMessages(state.messagesId)
-        .then(messages => Promise.all([
-            decodeLog(state, messages),
-            decodeSnoop(state, messages),
-            decodeScreen(state, messages),
-        ]))
-        // Clear buffer
-        .then(() => Messages.clearMessages(state.messagesId))
-        // Show snooped
-        .then(() => getSnooped(state))
-        .then(snooped => snooped && viewSnoop(state, snooped));
-});
+export const showMessages = (state: State): Promise<void> => withoutAlarm(state)(()=> saveWorld(state)
+    .then(() => Messages.getMessages(state.messagesId))
+    .then(messages => Promise.all([
+        decodeLog(state, messages),
+        decodeSnoop(state, messages),
+        decodeScreen(state, messages),
+    ]))
+    // Clear buffer
+    .then(() => Messages.clearMessages(state.messagesId))
+    // Show snooped
+    .then(() => getSnooped(state))
+    .then(snooped => snooped && viewSnoop(state, snooped))
+);

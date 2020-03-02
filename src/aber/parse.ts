@@ -45,6 +45,7 @@ import {
     updateScore,
     updateStrength
 } from "./newuaf/reducer";
+import {loadWorld, saveWorld} from "./opensys";
 
 const debug2 = (state: State): Promise<void> => Promise.resolve(bprintf(state, 'No debugger available\n'));
 
@@ -311,24 +312,27 @@ const doaction = (state: State, actionId: number): Promise<void> => {
                 return resolve();
             }
             rte(state, state.globme);
-            openworld(state);
-            if (state.in_fight) {
-                bprintf(state, 'Not in the middle of a fight!\n');
-                return resolve();
-            }
-            const xx1 = `${state.globme} has left the game\n`;
-            bprintf(state, 'Ok');
-            sendsys(state, state.globme, state.globme, -10000, state.curch, xx1);
-            return Promise.all([
-                sendWizards(state, `[ Quitting Game : ${state.globme} ]\n`),
-                dropMyItems(state),
-                setPlayer(state, state.mynum, {
-                    exists: false,
-                    isDead: true,
-                }),
-            ])
+            return loadWorld(state)
                 .then(() => {
-                    closeworld(state);
+                    if (state.in_fight) {
+                        bprintf(state, 'Not in the middle of a fight!\n');
+                        return resolve();
+                    }
+                    const xx1 = `${state.globme} has left the game\n`;
+                    bprintf(state, 'Ok');
+                    sendsys(state, state.globme, state.globme, -10000, state.curch, xx1);
+                    return Promise.all([
+                        sendWizards(state, `[ Quitting Game : ${state.globme} ]\n`),
+                        dropMyItems(state),
+                        setPlayer(state, state.mynum, {
+                            exists: false,
+                            isDead: true,
+                        }),
+                    ])
+                        .then(() => {})
+                })
+                .then(() => saveWorld(state))
+                .then(() => {
                     state.curmode = 0;
                     state.curch = 0;
                     return savePerson(state)
@@ -947,9 +951,11 @@ const gamrcv = (state: State, block: { locationId: number, code: number }): Prom
                     if (!player2) {
                         return loseme(state);
                     }
-                    closeworld(state);
-                    console.log('***HALT');
-                    return exit(0);
+                    return saveWorld(state)
+                        .then(() => {
+                            console.log('***HALT');
+                            return exit(0);
+                        });
                 });
         },
         '-400': () => {
@@ -1594,14 +1600,16 @@ const tsscom = (state: State): Promise<void> => {
         return Promise.resolve();
     }
     const s = getreinpout(state);
-    closeworld(state);
-    if (getuid(state) === geteuid(state)) {
-        system(state, s);
-        return Promise.resolve();
-    } else {
-        bprintf(state, 'Not permitted on this ID\n');
-        return Promise.resolve();
-    }
+    return saveWorld(state)
+        .then(() => {
+            if (getuid(state) === geteuid(state)) {
+                system(state, s);
+                return Promise.resolve();
+            } else {
+                bprintf(state, 'Not permitted on this ID\n');
+                return Promise.resolve();
+            }
+        });
 };
 
 const rmedit = (state: State): Promise<void> => getPlayer(state, state.mynum)
@@ -1616,25 +1624,25 @@ const rmedit = (state: State): Promise<void> => getPlayer(state, state.mynum)
                 update(state, state.globme);
                 return showMessages(state);
             })
+            .then(() => saveWorld(state))
             .then(() => {
-                closeworld(state);
                 if (chdir(state, ROOMS) === -1) {
                     bprintf(state, 'Warning: Can\'t CHDIR\n');
                 }
                 const ms2 = '/cs_d/aberstudent/yr2/hy8/.sunbin/emacs';
                 system(state, ms2);
                 state.cms = -1;
-                openworld(state);
-                return findPlayer(state, state.globme)
-                    .then((me) => {
-                        if (!me) {
-                            loseme(state);
-                            return endGame(state, 'You have been kicked off');
-                        }
-                        return sendWizards(state, sendVisiblePlayer(state.globme, `${state.globme} re-enters the normal universe\n`));
-                    })
-                    .then(() => rte(state));
-            });
+            })
+            .then(() => loadWorld(state))
+            .then(() => findPlayer(state, state.globme))
+            .then((me) => {
+                if (!me) {
+                   loseme(state);
+                    return endGame(state, 'You have been kicked off');
+                }
+                return sendWizards(state, sendVisiblePlayer(state.globme, `${state.globme} re-enters the normal universe\n`));
+            })
+            .then(() => rte(state));
     });
 
 const u_system = (state: State): Promise<void> => getPlayer(state, state.mynum)
@@ -1646,14 +1654,11 @@ const u_system = (state: State): Promise<void> => getPlayer(state, state.mynum)
         state.cms = -2; /* CODE NUMBER */
         update(state, state.globme);
         return sendWizards(state, sendVisiblePlayer(state.globme, `${state.globme} has dropped into BB\n`))
+            .then(() => saveWorld(state))
+            .then(() => system(state, '/cs_d/aberstudent/yr2/iy7/bt'))
+            .then(() => loadWorld(state))
             .then(() => {
-                closeworld(state);
-
-                system(state, '/cs_d/aberstudent/yr2/iy7/bt');
-
-                openworld(state);
                 state.cms = -1;
-
                 return findPlayer(state, state.globme);
             })
             .then((me) => {
@@ -1662,9 +1667,9 @@ const u_system = (state: State): Promise<void> => getPlayer(state, state.mynum)
                     return endGame(state, 'You have been kicked off');
                 }
                 rte(state);
-                openworld(state);
-                return sendWizards(state, sendVisiblePlayer(state.globme, `${state.globme} has returned to AberMud\n`));
-            });
+            })
+            .then(() => loadWorld(state))
+            .then(() => sendWizards(state, sendVisiblePlayer(state.globme, `${state.globme} has returned to AberMud\n`)));
     });
 
 const inumcom = (state: State): Promise<void> => {
@@ -1687,10 +1692,8 @@ const updcom = (state: State): Promise<void> => {
     }
     loseme();
     return sendWizards(state, `[ ${state.globme} has updated ]\n`)
-        .then(() => {
-            closeworld(state);
-            return execl(EXE, '   --{----- ABERMUD -----}--   ', `-n${state.globme}`); /* GOTOSS eek! */
-        })
+        .then(() => saveWorld(state))
+        .then(() => execl(EXE, '   --{----- ABERMUD -----}--   ', `-n${state.globme}`)) /* GOTOSS eek! */
         .catch(() => bprintf(state, 'Eeek! someones pinched the executable!\n'));
 };
 
@@ -1705,11 +1708,9 @@ const becom = (state: State): Promise<void> => {
         return Promise.resolve();
     }
     return sendWizards(state, `${state.globme} has quit, via BECOME\n`)
-        .then(() => {
-            loseme(state);
-            closeworld(state);
-            return execl(state, '   --}----- ABERMUD ------   ', `-n${x2}`);
-        })
+        .then(() => loseme(state))
+        .then(() => saveWorld(state))
+        .then(() => execl(state, '   --}----- ABERMUD ------   ', `-n${x2}`))
         .catch(() => bprintf(state, 'Eek! someone\'s just run off with mud!!!!\n'));
 };
 
@@ -1898,9 +1899,7 @@ const emptycom = (state: State): Promise<void> => {
                             gamecom(state, x);
                             return showMessages(state);
                         })
-                        .then(() => {
-                            openworld(state);
-                        });
+                        .then(() => loadWorld(state));
                 }));
         });
 };

@@ -17,11 +17,10 @@ import {dropMyItems} from "../objsys";
 import {endGame} from "../gamego/endGame";
 import {removePerson} from "../newuaf";
 import {getSexName, getStrength, isWizard, revertSex, updateStrength} from "../newuaf/reducer";
+import {loadWorld, saveWorld} from "../opensys";
 
 const calibme = (state: State): void => undefined;
 const loseme = (state: State): void => undefined;
-const openworld = (state: State): void => undefined;
-const closeworld = (state: State): void => undefined;
 
 interface Event {
     sender: Player,
@@ -39,27 +38,28 @@ const receiveMagicDamage = (state: State, damage: number, message: string): Prom
     if (getStrength(state) >= 0) {
         return Promise.resolve();
     }
-    closeworld(state);
-
-    openworld(state);
-    state.zapped = true;
-    return Promise.all([
-        sendMessage(state, message),
-        dropMyItems(state),
-        Promise.resolve(loseme(state)),
-        Promise.resolve(sendsys(
-            state,
-            state.globme,
-            state.globme,
-            -10000,
-            state.curch,
-            `${state.globme} has just died\n`,
-        )),
-        sendWizards(state, `[ ${state.globme} has just died ]\n`),
-        logger.write(`${state.globme} slain magically`),
-        removePerson(state, state.globme),
-        endGame(state, 'Oh dear you just died'),
-    ])
+    return saveWorld(state)
+        .then(() => loadWorld(state))
+        .then(() => {
+            state.zapped = true;
+            return Promise.all([
+                sendMessage(state, message),
+                dropMyItems(state),
+                Promise.resolve(loseme(state)),
+                Promise.resolve(sendsys(
+                    state,
+                    state.globme,
+                    state.globme,
+                    -10000,
+                    state.curch,
+                    `${state.globme} has just died\n`,
+                )),
+                sendWizards(state, `[ ${state.globme} has just died ]\n`),
+                logger.write(`${state.globme} slain magically`),
+                removePerson(state, state.globme),
+                endGame(state, 'Oh dear you just died'),
+            ])
+        })
         .then(() => {});
 };
 

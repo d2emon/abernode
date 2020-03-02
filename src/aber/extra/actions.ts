@@ -40,14 +40,13 @@ import {endGame} from "../gamego/endGame";
 import {checkRoll, roll} from "../magic";
 import {teleport} from "../new1";
 import {getLevel, getStrength, isGod, isWizard, updateStrength} from "../newuaf/reducer";
+import {loadWorld, saveWorld} from "../opensys";
 
 const fopen = (name: string, permissions: string): Promise<any> => Promise.resolve({});
 const fclose = (file: any): Promise<void> => Promise.resolve();
 const getstr = (file: any): Promise<string[]> => Promise.resolve([]);
 
 const loseme = (state: State): void => undefined;
-const closeworld = (state: State): void => undefined;
-const openworld = (state: State): void => undefined;
 const getchar = (state: State): Promise<string> => Promise.resolve('\n');
 const showname = (state: State, locationId: number): void => undefined;
 const trapch = (state: State, locationId: number): void => undefined;
@@ -117,29 +116,31 @@ export class Help extends Action {
             return this.helpSomeone(state);
         }
 
-        closeworld(state);
-        const parts = [showFile(HELP1)];
-        if (isWizard(state)) {
-            parts.push(showFile(HELP2));
-        }
-        if (isGod(state)) {
-            parts.push(showFile(HELP3));
-        }
-        return Promise.all([parts.map((text, textId) => new Promise((resolve) => {
-            this.output(`${text}\n`);
-            if (textId < parts.length - 1) {
-                this.output('Hit <Return> For More....\n');
-                return showMessages(state)
-                    .then(() => getchar(state));
-            }
-        }))]);
+        return saveWorld(state)
+            .then(() => {
+                const parts = [showFile(HELP1)];
+                if (isWizard(state)) {
+                    parts.push(showFile(HELP2));
+                }
+                if (isGod(state)) {
+                    parts.push(showFile(HELP3));
+                }
+                return Promise.all([parts.map((text, textId) => new Promise((resolve) => {
+                    this.output(`${text}\n`);
+                    if (textId < parts.length - 1) {
+                        this.output('Hit <Return> For More....\n');
+                        return showMessages(state)
+                            .then(() => getchar(state));
+                    }
+                }))]);
+            })
     }
 }
 
 export class Levels extends Action {
     action(state: State): Promise<any> {
-        closeworld(state);
-        return Promise.resolve(showFile(LEVELS));
+        return saveWorld(state)
+            .then(() => showFile(LEVELS));
     }
 }
 
@@ -433,8 +434,8 @@ export class Wizlist extends Action {
         if (!isWizard(state)) {
             throw new Error('Huh ?');
         }
-        closeworld(state);
-        return Promise.resolve(showFile(WIZLIST));
+        return saveWorld(state)
+            .then(() => showFile(WIZLIST));
     }
 }
 
@@ -459,16 +460,16 @@ export class InLocation extends Action {
         }
         const toPerform = getreinput(state);
         state.curch = locationId;
-        closeworld(state);
-        return openroom(state, state.curch, 'r')
+        return saveWorld(state)
+            .then(() => openroom(state, state.curch, 'r'))
             .then((unit) => {
                 lodex(state, unit);
                 return fclose(unit);
             })
+            .then(() => loadWorld(state))
+            .then(() => gamecom(state, toPerform))
+            .then(() => loadWorld(state))
             .then(() => {
-                openworld(state);
-                gamecom(state, toPerform);
-                openworld(state);
                 if (state.curch === locationId) {
                     state.ex_dat = [...exBk];
                 }
@@ -605,14 +606,16 @@ export class Where extends Action {
                 if (!isWizard(state)) {
                     updateStrength(state, -2);
                 }
-                closeworld(state);
+                return saveWorld(state);
+            })
+            .then(() => {
                 if (brkword(state) === -1) {
                     throw new Error('What is that ?');
                 }
                 return Promise.all([
                     Where.showItems(state),
                     Where.showPlayer(state),
-                ])
+                ]);
             })
             .then(([
                 items,

@@ -8,8 +8,7 @@ import {findVisiblePlayer} from './objsys';
 import {showMessages} from './bprintf/output';
 import {sendMessage} from './bprintf/bprintf';
 import {getString} from "./gamego/input";
-
-const openworld = (state: State): void => undefined;
+import {loadWorld} from "./opensys";
 
 const getInput = (state: State, message: string, show: boolean): Promise<void> => sendMessage(state, message)
     .then(() => show && showMessages(state));
@@ -40,16 +39,18 @@ export class Frobnicate extends Action {
                         .then(() => getString(8)),
                 ]))
                 .then((values) => {
-                    openworld(state);
-                    sendsys(
-                        state,
-                        player.name,
-                        player.name,
-                        -599,
-                        0,
-                        values,
-                    );
-                    return true;
+                    return loadWorld(state)
+                        .then(() => {
+                            sendsys(
+                                state,
+                                player.name,
+                                player.name,
+                                -599,
+                                0,
+                                values,
+                            )
+                        })
+                        .then(() => true);
                 });
         });
     }

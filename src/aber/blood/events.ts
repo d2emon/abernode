@@ -14,9 +14,8 @@ import {endGame} from "../gamego/endGame";
 import {sendWizards} from "../new1/events";
 import {removePerson} from "../newuaf";
 import {getStrength, isWizard, updateScore, updateStrength} from "../newuaf/reducer";
+import {loadWorld, saveWorld} from "../opensys";
 
-const openworld = (state: State): void => undefined;
-const closeworld = (state: State): void => undefined;
 const loseme = (state: State): void => undefined;
 
 const WRAITH_ID = 16;
@@ -39,25 +38,24 @@ export const receiveDamage = (state: State, attack: Attack, isMe: boolean): Prom
         const killed = () => dropMyItems(state)
             .then(() => {
                 loseme(state);
-                closeworld(state);
-
-                openworld(state);
-                sendsys(
+                return saveWorld(state);
+            })
+            .then(() => loadWorld(state))
+            .then(() => Promise.all([
+                Promise.resolve(sendsys(
                     state,
                     state.globme,
                     state.globme,
                     -10000,
                     state.curch,
                     `${sendName(state.globme)} has just died.\n`,
-                );
-                return Promise.all([
-                    sendWizards(state, `[ ${sendName(state.globme)} has been slain by ${sendName(enemy.name)}[/p] ]\n`),
-                    logger.write(`${state.globme} slain by ${enemy.name}`),
-                    removePerson(state, state.globme),
-                    endGame(state, 'Oh dear... you seem to be slightly dead'),
-                ])
-                    .then(() => {});
-            });
+                )),
+                sendWizards(state, `[ ${sendName(state.globme)} has been slain by ${sendName(enemy.name)}[/p] ]\n`),
+                logger.write(`${state.globme} slain by ${enemy.name}`),
+                removePerson(state, state.globme),
+                endGame(state, 'Oh dear... you seem to be slightly dead'),
+            ]))
+           .then(() => {});
 
         const missed = () => {
             const weaponMessage = weapon ? ` with the ${weapon.name}` : '';

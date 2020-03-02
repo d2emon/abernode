@@ -6,9 +6,8 @@ import {
 } from '../key';
 import {showMessages} from "../bprintf/output";
 import {onTime} from "../mobile";
+import {loadWorld, saveWorld} from "../opensys";
 
-const openworld = (state: State): void => undefined;
-const closeworld = (state: State): void => undefined;
 const loseme = (state: State): void => undefined;
 const rte = (state: State, name: string, interrupt: boolean = false): void => undefined;
 
@@ -22,19 +21,16 @@ const SIGQUIT = 'SIGQUIT';
 const SIGCONT = 'SIGCONT';
 const SIGALRM = 'SIGALRM';
 
-const timerEvent = (state: State) => withNoAlarm(state)(() => {
-    openworld(state);
-
-    rte(state, state.globme, true);
-
-    return onTime(state)
-        .then(() => {
-            closeworld(state);
-            return showMessages(state);
-        })
-        .then(checkPrompt)
-        .then((inputData: InputData) => inputData.toPrompt && console.log(`\n${inputData.prompt}${inputData.input}`));
-});
+const timerEvent = (state: State) => withNoAlarm(state)(() => loadWorld(state)
+    .then(() => {
+        rte(state, state.globme, true);
+        return onTime(state);
+    })
+    .then(() => saveWorld(state))
+    .then(() => showMessages(state))
+    .then(checkPrompt)
+    .then((inputData: InputData) => inputData.toPrompt && console.log(`\n${inputData.prompt}${inputData.input}`))
+);
 const exitEvent = (state: State): Promise<void> => asyncUnsetAlarm(state).then(() => loseme(state));
 
 const onTimer = (state: State): Promise<void> => state.sig_active ? timerEvent(state) : NO_ACTION();

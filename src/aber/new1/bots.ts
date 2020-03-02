@@ -30,10 +30,6 @@ const newBot = (
     weaponId: -1,
 });
 
-/*
-    {
-    };
- */
 const BOTS: Bot[] = [
     newBot('The Wraith', -1077, 60, 0, -2),
     newBot('Shazareth', -1080, 99, 0, -30),

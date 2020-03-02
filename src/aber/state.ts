@@ -54,7 +54,7 @@ export interface ItemFlags {
     [IS_WEAPON]: boolean,
 }
 
-interface ItemData {
+export interface ItemData {
     locationId: number,
     state: number,
     flags: ItemFlags,
@@ -137,6 +137,8 @@ export default interface State {
     my_sex: number,
     my_sco: number,
     my_str: number,
+    // opensys
+    filrf: any,
     //
     brmode: boolean,
     curch: number,

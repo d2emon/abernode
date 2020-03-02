@@ -1,29 +1,31 @@
 import State from "./state";
 import {endGame} from "./gamego/endGame";
+import World from './services/world';
 
 /* Fast File Controller v0.1 */
 
-/*
-FILE *filrf=NULL;  *//* - = not open *//*
+export const saveWorld = (state: State): Promise<any> => state.filrf
+    ? Promise.all([
+            World.writeItems(state.objinfo),
+            World.writePlayers(state.ublock),
+        ])
+        .then(() => {
+            state.filrf = null;
+        })
+    : Promise.resolve();
 
-extern FILE *openlock();
-closeworld()
-{
-	extern FILE *filrf;
-        extern long objinfo[],numobs,ublock[];
-	if(filrf==NULL) return;
-	sec_write(filrf,objinfo,400,4*numobs);
-	sec_write(filrf,ublock,350,16*48);
-	fcloselock(filrf);
-	filrf= NULL;
-}
- */
-
-const openworld = (state: State): Promise<any> => state.filrf || openlock('/usr/tmp/-iy7AM', 'r+')
-    .then((filrf) => {
-        state.filrf = filrf;
-        state.objinfo = sec_read(state, filrf, 400, state.numobs);
-        state.ublock = sec_read(state, filrf, 350, 48);
-        return filrf;
-    })
-    .catch(() => endGame(state, 'Cannot find World file'));
+export const loadWorld = (state: State): Promise<any> => state.filrf
+    ? Promise.resolve()
+    : Promise.all([
+            World.readItems(),
+            World.readPlayers(),
+        ])
+        .then(([
+            items,
+            players,
+        ]) => {
+            state.objinfo = items;
+            state.ublock = players;
+            state.filrf = {};
+        })
+        .catch(() => endGame(state, 'Cannot find World file'));
