@@ -41,6 +41,7 @@ import {teleport} from "../new1";
 import {getLevel, getStrength, isGod, isWizard, updateStrength} from "../newuaf/reducer";
 import {loadWorld, saveWorld} from "../opensys";
 import {sendLocalMessage, sendPrivate} from "../parse/events";
+import {executeCommand} from "../parse/parser";
 
 const fopen = (name: string, permissions: string): Promise<any> => Promise.resolve({});
 const fclose = (file: any): Promise<void> => Promise.resolve();
@@ -54,7 +55,6 @@ const roomnum = (state: State, locationId: string, zoneId: string): number => 0;
 const getreinput = (state: State): string => '';
 const openroom = (state: State, locationId: number, permissions: string): Promise<any> => Promise.resolve({});
 const lodex = (state: State, file: any): void => undefined;
-const gamecom = (state: State, toPerform: string): void => undefined;
 
 const UMBRELLA_ID = 1;
 const CRYSTAL_BALL_ID = 7;
@@ -70,9 +70,9 @@ const TUBE_ID = 144;
 const SCROLL_145_ID = 145;
 
 export class Help extends Action {
-    private helpSomeone(state: State) {
+    private helpSomeone(state: State, name) {
         return Promise.all([
-            findVisiblePlayer(state, state.wordbuf),
+            findVisiblePlayer(state, name),
             getPlayer(state, state.mynum),
         ])
             .then(([player, me]) => {
@@ -102,8 +102,9 @@ export class Help extends Action {
     }
 
     action(state: State): Promise<any> {
-        if (brkword(state) !== -1) {
-            return this.helpSomeone(state);
+        const name = brkword(state);
+        if (name) {
+            return this.helpSomeone(state, name);
         }
 
         return saveWorld(state)
@@ -136,15 +137,16 @@ export class Levels extends Action {
 
 export class Value extends Action {
     action(state: State): Promise<any> {
-        if (brkword(state) == -1) {
+        const name = brkword(state);
+        if (!name) {
             throw new Error('Value what ?');
         }
-        return findAvailableItem(state, state.wordbuf)
+        return findAvailableItem(state, name)
             .then((item) => {
                 if (!item) {
                     throw new Error('There isn\'t one of those here.');
                 }
-                return `${state.wordbuf} : ${item.value} points\n`;
+                return `${name} : ${item.value} points\n`;
             })
     }
 }
@@ -180,8 +182,8 @@ export class Stats extends Action {
             }));
     };
 
-    private static statPlayer(state: State): Promise<any> {
-        return findVisiblePlayer(state, state.wordbuf)
+    private static statPlayer(state: State, name: string): Promise<any> {
+        return findVisiblePlayer(state, name)
             .then((player) => {
                 if (!player) {
                     throw new Error('Whats that ?\n');
@@ -200,14 +202,15 @@ export class Stats extends Action {
     }
 
     action(state: State): Promise<any> {
-        if (brkword(state) == -1) {
+        const name = brkword(state);
+        if (!name) {
             throw new Error('STATS what ?');
         }
         if (!isWizard(state)) {
             throw new Error('Sorry, this is a wizard command buster...');
         }
-        return findItem(state, state.wordbuf)
-            .then((item: Item) => (item ? Stats.statItem(state, item) : Stats.statPlayer(state)));
+        return findItem(state, name)
+            .then((item: Item) => (item ? Stats.statItem(state, item) : Stats.statPlayer(state, name)));
     }
 
     decorate(result: any): void {
@@ -385,10 +388,11 @@ export class Examine extends Action {
     }
 
     action(state: State): Promise<any> {
-        if (brkword(state) == -1) {
+        const name = brkword(state);
+        if (!name) {
             throw new Error('Examine what ?\n');
         }
-        return findAvailableItem(state, state.wordbuf)
+        return findAvailableItem(state, name)
             .then((item: Item) => {
                 if (!item) {
                     throw new Error( 'You see nothing special at all\n');
@@ -435,14 +439,14 @@ export class InLocation extends Action {
             throw new Error('Huh');
         }
         const exBk = [...state.ex_dat];
-        if (brkword(state) === -1) {
+        const rn = brkword(state);
+        if (!rn) {
             throw new Error('In where ?');
         }
-        const rn = state.wordbuf;
-        if (brkword(state) === -1) {
+        const rv = brkword(state);
+        if (!rv) {
             throw new Error('In where ?');
         }
-        const rv = state.wordbuf;
         const oldLocationId = state.curch;
         const locationId = roomnum(state, rn, rv);
         if (locationId === 0) {
@@ -457,7 +461,7 @@ export class InLocation extends Action {
                 return fclose(unit);
             })
             .then(() => loadWorld(state))
-            .then(() => gamecom(state, toPerform))
+            .then(() => executeCommand(state, toPerform))
             .then(() => loadWorld(state))
             .then(() => {
                 if (state.curch === locationId) {
@@ -527,8 +531,8 @@ export class Jump extends Action {
 }
 
 export class Where extends Action {
-    private static showPlayer(state: State): Promise<any> {
-        return findVisiblePlayer(state, state.wordbuf)
+    private static showPlayer(state: State, name: string): Promise<any> {
+        return findVisiblePlayer(state, name)
             .then(player => Promise.all([
                 Promise.resolve(player),
                 showLocation(state, player.locationId, 0),
@@ -544,9 +548,9 @@ export class Where extends Action {
             });
     }
 
-    private static showItems(state: State): Promise<any> {
+    private static showItems(state: State, name: string): Promise<any> {
         return getItems(state)
-            .then(items => items.filter(item => (item.name === state.wordbuf)))
+            .then(items => items.filter(item => (item.name === name)))
             .then((items) => items.map(item => showLocation(state, item.locationId, item.carryFlag)
                 .then((location) => {
                     const itemId = isGod(state) ? `[${item.itemId}]` : '';
@@ -586,12 +590,13 @@ export class Where extends Action {
                 return saveWorld(state);
             })
             .then(() => {
-                if (brkword(state) === -1) {
+                const name = brkword(state);
+                if (!name) {
                     throw new Error('What is that ?');
                 }
                 return Promise.all([
-                    Where.showItems(state),
-                    Where.showPlayer(state),
+                    Where.showItems(state, name),
+                    Where.showPlayer(state, name),
                 ]);
             })
             .then(([
@@ -622,10 +627,11 @@ export class Where extends Action {
 
 export class EditWorld extends Action {
     private static getNumber(state: State, minValue: number = 0, maxValue?: number): number {
-        if (brkword(state) === -1) {
+        const word = brkword(state);
+        if (!word) {
             throw new Error('Missing numeric argument');
         }
-        const value = Number(state.wordbuf);
+        const value = Number(word);
         if (value < minValue) {
             throw new Error('Invalid range');
         }
@@ -675,12 +681,13 @@ export class EditWorld extends Action {
                 if (!editor.canEditWorld) {
                     throw new Error('Must be Game Administrator');
                 }
-                if (brkword(state) === -1) {
+                const name = brkword(state);
+                if (!name) {
                     throw new Error('Must Specify Player or Object');
                 }
-                if (state.wordbuf === 'player') {
+                if (name === 'player') {
                     return EditWorld.editPlayer(state);
-                } else if (state.wordbuf !== 'object') {
+                } else if (name !== 'object') {
                     return EditWorld.editItem(state);
                 } else {
                     throw new Error('Must Specify Player or Object');

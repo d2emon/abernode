@@ -147,18 +147,19 @@ export class Summon extends Action {
     }
 
     action(state: State): Promise<any> {
-        if (brkword(state) === -1) {
+        const name = brkword(state);
+        if (!name) {
             throw new Error('Summon who ?');
         }
         return Promise.all([
-            findItem(state, state.wordbuf),
-            findVisiblePlayer(state, state.wordbuf),
+            findItem(state, name),
+            findVisiblePlayer(state, name),
         ])
             .then(([
                 item,
                 player,
             ]) => {
-                if (item && (item.itemId !== -1)) {
+                if (item) {
                     return Summon.summonItem(state, item);
                 }
                 if (player) {
@@ -194,10 +195,11 @@ export class DeleteUser extends Action {
         if (getLevel(state) < 11) {
             throw new Error('What ?');
         }
-        if (brkword(state) === -1) {
+        const name = brkword(state);
+        if (!name) {
             throw new Error('Who ?');
         }
-        return DeleteUser.deleteUser(state.wordbuf)
+        return DeleteUser.deleteUser(name)
             .catch((e) => {
                 this.output(e);
                 throw new Error('failed');
@@ -216,14 +218,12 @@ export class GoToLocation extends Action {
         if (!isWizard(state)) {
             throw new Error('huh ?');
         }
-        if (brkword(state) === -1) {
+        const roomId = brkword(state);
+        if (!roomId) {
             throw new Error('Go where ?');
         }
-        const roomId = state.wordbuf;
-        if (brkword(state) === -1) {
-            state.wordbuf = '';
-        }
-        const locationId = roomnum(state, roomId, state.wordbuf);
+        const name = brkword(state) || '';
+        const locationId = roomnum(state, roomId, name);
         return openroom(locationId, 'r')
             .then((room) => {
                 if ((locationId >= 0) || !room) {
@@ -245,9 +245,9 @@ export class Wizards extends Action {
         if (!isWizard(state)) {
             throw new Error('Such advanced conversation is beyond you');
         }
-        state.wordbuf = getreinput(state);
+        const message = getreinput(state);
         state.rd_qd = true;
-        return sendWizards(state, `${sendName(state.globme)} : ${state.wordbuf}\n`);
+        return sendWizards(state, `${sendName(state.globme)} : ${message}\n`);
     }
 }
 
@@ -294,8 +294,9 @@ export class Invisible extends Action {
                 if (isGod(state)) {
                     visibility = 10000;
                 }
-                if (isAdmin(state) && (brkword(state) !== -1)) {
-                    visibility = Number(state.wordbuf);
+                const value = brkword(state);
+                if (isAdmin(state) && value) {
+                    visibility = Number(value);
                 }
 
                 return Promise.all([
@@ -320,10 +321,11 @@ export class Ressurect extends Action {
         if (!isWizard(state)) {
             throw new Error('Huh ?');
         }
-        if (brkword(state) === -1) {
+        const name = brkword(state);
+        if (!name) {
             throw new Error('Yes but what ?');
         }
-        return findItem(state, state.wordbuf)
+        return findItem(state, name)
             .then((item) => {
                 if (!item) {
                     throw new Error('You can only ressurect objects');

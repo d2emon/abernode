@@ -1,6 +1,5 @@
 import State from "../state";
 import {createItem, getItem, getItems, getPlayer, getTitle, holdItem, putItem, setItem, setPlayer} from "../support";
-import {brkword} from "../__dummies";
 import {CREDITS, GWIZ, logger, RESET_DATA, ROOMS} from "../files";
 import {CONTAINED_IN, IS_DESTROYED} from "../object";
 import {
@@ -46,7 +45,16 @@ import {
     updateStrength
 } from "../newuaf/reducer";
 import {loadWorld, saveWorld} from "../opensys";
-import {changeDebugMode} from "./reducer";
+import {
+    addWordChar, applyPronouns,
+    changeDebugMode,
+    getCurrentChar,
+    getStringBuffer, getWordBuffer,
+    nextStop,
+    resetStop,
+    resetWordBuffer,
+    setStringBuffer
+} from "./reducer";
 import {
     sendEndFight,
     sendExorcise,
@@ -57,15 +65,14 @@ import {
     sendSimpleShout,
     sendTell
 } from "./events";
-
-const gamecom = (state: State, action: string): Promise<void> => Promise.resolve();
+import {executeCommand} from "./parser";
 
 const debug2 = (state: State): Promise<void> => Promise.resolve(bprintf(state, 'No debugger available\n'));
 
 const checkForce = (state: State): Promise<void> => Promise.resolve(getForce(state))
     .then((force) => {
         state.isforce = true;
-        return force ? gamecom(state, force) : Promise.resolve();
+        return force ? executeCommand(state, force) : Promise.resolve();
     })
     .then(() => {
         state.isforce = false;
@@ -98,134 +105,7 @@ const onFlee = (state: State): Promise<void> => Promise.all([
  * Stam:state:loc:flag
  */
 
- /*
-char  strbuf[128];
-char  wordbuf[128]="";
-char  wd_it[64]="";
-char  wd_him[16]="";
-char  wd_her[16]="";
-char  wd_them[16]="";
-char  wd_there[128]="";
-long  stp;
-*/
-
-const pncom = (state: State): Promise<void> => {
-    bprintf(state, 'Current pronouns are:\n');
-    bprintf(state, `Me              : ${state.globme}\n`);
-    bprintf(state, `Myself          : ${state.globme}\n`);
-    bprintf(state, `It              : ${state.wd_it}\n`);
-    bprintf(state, `Him             : ${state.wd_him}\n`);
-    bprintf(state, `Her             : ${state.wd_her}\n`);
-    bprintf(state, `Them            : ${state.wd_them}\n`);
-    if (isWizard(state)) {
-        bprintf(state, `There           : ${state.wd_there}\n`);
-    }
-    return Promise.resolve();
-};
-
- /*
-int gamecom(str)
-char *str;
-    {
-    long  a;
-    extern long in_fight;
-    extern long stp;
-    extern char strbuf[];
-    if(strcmp(str,"!")) strcpy(strbuf,str);
-    if(!strcmp(str,".q")) strcpy(str,"");  *//* Otherwise drops out after command *//*
-    stp=0;
-    if(!strlen(str)) return(0);
-    if(!strcmp(str,"!")) strcpy(str,strbuf);
-    if(brkword()== -1)
-       {
-       bprintf("Pardon ?\n");
-       return(-1);
-       }
-    if((a=chkverb())== -1)
-       {
-       bprintf("I don't know that verb\n");
-       return(-1);
-       }
-    doaction(a);
-    return(0);
-    }
-
-int brkword()
-    {
-    extern char wd_it[],wd_them[],wd_her[],wd_him[],globme[];
-    extern long stp;
-    extern char strbuf[],wordbuf[];
-    int  worp;
-    x1:worp=0;
-    while(strbuf[stp]==' ') stp++;
-    while((strbuf[stp])&&(strbuf[stp]!=' '))
-       {
-       wordbuf[worp++]=strbuf[stp++];
-       }
-    wordbuf[worp]=0;
-    lowercase(wordbuf);
-    if(!strcmp(wordbuf,"it"))strcpy(wordbuf,wd_it);
-    if(!strcmp(wordbuf,"them"))strcpy(wordbuf,wd_them);
-    if(!strcmp(wordbuf,"him"))strcpy(wordbuf,wd_him);
-    if(!strcmp(wordbuf,"her"))strcpy(wordbuf,wd_her);
-    if(!strcmp(wordbuf,"me")) strcpy(wordbuf,globme);
-    if(!strcmp(wordbuf,"myself")) strcpy(wordbuf,globme);
-    if(!strcmp(wordbuf,"there")) strcpy(wordbuf,wd_there);
-    if(worp)return(0);
-    else
-       return(-1);
-    }
-
-
-chklist(word,lista,listb)
-char *word;
-char *lista[];
-int listb[];
-    {
-    long  a,b,c,d;
-    a=0;
-    b=0;
-    c=0;
-    d= -1;
-    lowercase(word);
-    while(lista[a])
-       {
-       b=Match(word,lista[a]);
-       if (b>c) { c=b; d=listb[a]; }
-       a++;
-       }
-    if(c<5) return(-1); *//* No good matches *//*
-    return(d);
-    }
-
-int Match(x,y)
-char *x,*y;
-    {
-    long  c,n;
-    c=0; n=0;
-    if (!strcmp(x,y)) return(10000);
-    if(!strcmp(y,"reset")) return(-1);
-    if (*x==0) return(0);
-    while((x[n]!=0)&&(y[n]!=0))
-       {
-       if (x[n]==y[n])
-          {
-          if(n==0) c+=2;
-          if(n==1) c++;
-          c++;
-          }
-       n++;
-       }
-    return(c);
-    }
-
- chkverb()
-    {
-    extern char wordbuf[],*verbtxt[];
-    extern int verbnum[];
-    return(chklist(wordbuf,verbtxt,verbnum));
-    }
-
+/*
 char *verbtxt[]={"go","climb","n","e","s","w","u","d",
     "north","east","south","west","up","down",
     "quit",
@@ -762,28 +642,22 @@ char out_ms[81]="";
 char mout_ms[81]="vanishes in a puff of smoke.";
 char min_ms[81]="appears with an ear-splitting bang.";
 char here_ms[81]="is here";
-
-dogocom(n)
-    {
-    extern char *exittxt[];
-    extern long exitnum[];
-    extern char wordbuf[];
-    long  a;
-    if(brkword()== -1)
-       {
-       bprintf("GO where ?\n");
-       return(-1);
-       }
-    if(!strcmp(wordbuf,"rope")) strcpy(wordbuf,"up");
-    a=chklist(wordbuf,exittxt,exitnum);
-    if(a== -1)
-       {
-       bprintf("Thats not a valid direction\n");
-       return(-1);
-       }
-    return(dodirn(a+1));
-    }
     */
+
+const dogocom = (state: State, n: number): Promise<void> => {
+    const word = brkword(state);
+    if (!word) {
+        throw new Error('GO where ?');
+    }
+    return Promise.resolve((word === 'rope') ? 'up' : word)
+        .then((word) => checkList(state, word.toLowerCase(), exittxt, exitnum))
+        .then((a) => {
+            if (a === -1) {
+                throw new Error('Thats not a valid direction');
+            }
+            return dodirn(state, a + 1);
+        });
+};
 
 const dodirn = (state: State, n: number): Promise<void> => {
     if (state.in_fight > 0) {
@@ -1139,7 +1013,7 @@ const eorte = (state: State): Promise<void> => {
             if (state.me_drunk > 0) {
                 state.me_drunk -= 1;
                 if (!getDumb(state)) {
-                    gamecom(state, 'hiccup');
+                    executeCommand(state, 'hiccup');
                 }
             }
             state.interrupt = false;
@@ -1185,11 +1059,12 @@ const lightning = (state: State): Promise<void> => {
         bprintf(state, 'Your spell fails.....\n');
         return Promise.resolve();
     }
-    if (brkword(state) === -1) {
+    const word = brkword(state);
+    if (!word) {
         bprintf(state, 'But who do you wish to blast into pieces....\n');
         return Promise.resolve();
     }
-    return findVisiblePlayer(state, state.wordbuf)
+    return findVisiblePlayer(state, word)
         .then((player) => {
             if (player.playerId === -1) {
                 return bprintf(state, 'There is no one on with that name\n');
@@ -1202,17 +1077,22 @@ const lightning = (state: State): Promise<void> => {
 };
 
 const eatcom = (state: State): Promise<void> => {
-    if (brkword(state) === -1) {
+    const word = brkword(state);
+    if (!word) {
         bprintf(state, 'What\n');
         return Promise.resolve();
     }
-    if ((state.curch === -609) && (state.wordbuf === 'water')) {
-        state.wordbuf = 'spring';
-    }
-    if (state.wordbuf === 'from') {
-        brkword(state);
-    }
-    return findAvailableItem(state, state.wordbuf)
+    return Promise.resolve(word)
+        .then((word) => {
+            if ((state.curch === -609) && (word === 'water')) {
+                return 'spring';
+            }
+            if (word === 'from') {
+                return brkword(state);
+            }
+            return word;
+        })
+        .then(word => findAvailableItem(state, word))
         .then((item) => {
             if (item.itemId === -1) {
                 return bprintf(state, 'There isn\'t one of those here\n');
@@ -1313,13 +1193,14 @@ const levelof = (state: State, score: number): number => {
 };
 
 const playcom = (state: State): Promise<void> => {
-    if (brkword(state) === -1) {
+    const word = brkword(state);
+    if (!word) {
         bprintf(state, 'Play what ?\n');
         return Promise.resolve();
     }
     return Promise.all([
         getPlayer(state, state.mynum),
-        findAvailableItem(state, state.wordbuf),
+        findAvailableItem(state, word),
     ])
         .then(([
             player,
@@ -1331,16 +1212,17 @@ const playcom = (state: State): Promise<void> => {
         })
 };
 
-/*
- getreinput(blob)
-    {
-    extern long stp;
-    extern char strbuf[];
-    strcpy(blob,"");
-    while(strbuf[stp]==' ') stp++;
-    while(strbuf[stp]) addchar(blob,strbuf[stp++]);
+const getreinput = (state: State): string => {
+    let blob = '';
+    while (getCurrentChar(state) === ' ') {
+        nextStop(state);
     }
-*/
+    while (getCurrentChar(state)) {
+        blob += getCurrentChar(state);
+        nextStop(state);
+    }
+    return blob;
+};
 
 const shoutcom = (state: State): Promise<void> => checkDumb(state)
     .then(() => {
@@ -1362,11 +1244,12 @@ const saycom = (state: State): Promise<void> => checkDumb(state)
 
 const tellcom = (state: State): Promise<void> => checkDumb(state)
     .then(() => {
-        if (brkword(state) === -1) {
+        const word = brkword(state);
+        if (!word) {
             bprintf(state, 'Tell who ?\n');
             return Promise.resolve();
         }
-        return findVisiblePlayer(state, state.wordbuf)
+        return findVisiblePlayer(state, word)
             .then((player) => {
                 if (player.playerId === -1) {
                     return bprintf(state, 'No one with that name is playing\n');
@@ -1390,11 +1273,12 @@ const exorcom = (state: State): Promise<void> => {
         bprintf(state, 'No chance....\n');
         return Promise.resolve();
     }
-    if (brkword(state) === -1) {
+    const word = brkword(state);
+    if (!word) {
         bprintf(state, 'Exorcise who ?\n');
         return Promise.resolve();
     }
-    return findVisiblePlayer(state, state.wordbuf)
+    return findVisiblePlayer(state, word)
         .then((player) => {
             if (!player) {
                 return bprintf(state, 'They aren\'t playing\n');
@@ -1412,14 +1296,15 @@ const exorcom = (state: State): Promise<void> => {
 };
 
 const givecom = (state: State): Promise<void> => {
-    const obfrst = (player: Player) => {
+    const obfrst = (player: Player, name: string) => {
         if (!player) {
-            return bprintf(state, `Who is ${state.wordbuf}\n`);
+            return bprintf(state, `Who is ${name}\n`);
         }
-        if (brkword(state) === -1) {
+        const word = brkword(state);
+        if (!word) {
             return bprintf(state, 'Give them what ?\n');
         }
-        return findAvailableItem(state, state.wordbuf)
+        return findAvailableItem(state, word)
             .then((item) => {
                 if (item.itemId === -1) {
                     return bprintf(state, 'You are not carrying that\n');
@@ -1428,33 +1313,36 @@ const givecom = (state: State): Promise<void> => {
             })
     };
 
-    if (brkword(state) === -1) {
+    const word = brkword(state);
+    if (!word) {
         bprintf(state, 'Give what to who ?\n');
         return Promise.resolve();
     }
-    findVisiblePlayer(state, state.wordbuf)
+    findVisiblePlayer(state, word)
         .then((player) => {
             if (player) {
-                return obfrst(player);
+                return obfrst(player, word);
             }
-            return findAvailableItem(state, state.wordbuf)
+            return findAvailableItem(state, word)
                 .then((item) => {
                     if (item.itemId === -1) {
                         return bprintf(state, 'You aren\'t carrying that\n');
                     }
                     /* a = item giving */
-                    if (brkword(state) === -1) {
+                    let whom = brkword(state);
+                    if (!whom) {
                         return bprintf(state, 'But to who ?\n');
                     }
-                    if (state.wordbuf === 'to') {
-                        if (brkword(state) === -1) {
+                    if (whom === 'to') {
+                        whom = brkword(state);
+                        if (!whom) {
                             return bprintf(state, 'But to who ?\n');
                         }
                     }
-                    return findVisiblePlayer(state, state.wordbuf)
+                    return findVisiblePlayer(state, whom)
                         .then((player) => {
                             if (!player) {
-                                return bprintf(state, `I don't know who ${state.wordbuf} is\n`);
+                                return bprintf(state, `I don't know who ${whom} is\n`);
                             }
                             return dogive(state, item.itemId, player.playerId);
                         });
@@ -1489,22 +1377,24 @@ const dogive = (state: State, itemId: number, playerId: number): Promise<void> =
     });
 
 const stealcom = (state: State): Promise<void> => {
-    if (brkword(state) === -1) {
+    const x = brkword(state);
+    if (!x) {
         bprintf(state, 'Steal what from who ?\n');
         return Promise.resolve();
     }
-    const x = state.wordbuf;
-    if (brkword(state) === -1) {
+    let word = brkword(state);
+    if (!word) {
         bprintf(state, 'From who ?\n');
         return Promise.resolve();
     }
-    if (state.wordbuf === 'from') {
-        if (brkword(state) === -1) {
+    if (word === 'from') {
+        word = brkword(state);
+        if (!word) {
             bprintf(state, 'From who ?\n');
             return Promise.resolve();
         }
     }
-    return findVisiblePlayer(state, state.wordbuf)
+    return findVisiblePlayer(state, word)
         .then((player) => {
             if (!player) {
                 return bprintf(state, 'Who is that ?\n');
@@ -1645,11 +1535,12 @@ const inumcom = (state: State): Promise<void> => {
         bprintf(state, 'Huh ?\n');
         return;
     }
-    if (brkword(state) === -1) {
+    const word = brkword(state);
+    if (!word) {
         bprintf(state, 'What...\n');
         return;
     }
-    return findItem(state, state.wordbuf)
+    return findItem(state, word)
         .then(item => bprintf(state, `Item Number is ${item.itemId}\n`));
 };
 
@@ -1725,7 +1616,7 @@ const rawcom = (state: State): Promise<void> => {
 const rollcom = (state: State): Promise<void> => getAvailableItem(state)
     .then((item) => {
         if ((item.itemId === 122) || (item.itemId === 123)) {
-            return gamecom(state, 'push pillar');
+            return executeCommand(state, 'push pillar');
         } else {
             return bprintf(state, 'You can\'t roll that\n');
         }
@@ -1755,12 +1646,8 @@ const typocom = (state: State): Promise<void> => {
 };
 
 const look_cmd = (state: State): Promise<void> => {
-    /*
-	int a;
-	extern long brmode;
-	extern char wordbuf[];
-    */
-    if (brkword(state) === -1) {
+    let word = brkword(state);
+    if (!word) {
         const brhold = state.brmode;
         state.brmode = false;
         lookin(state, state.curch);
@@ -1768,18 +1655,19 @@ const look_cmd = (state: State): Promise<void> => {
         return Promise.resolve();
     }
 
-    if (state.wordbuf === 'at') {
+    if (word === 'at') {
         examcom(state);
         return Promise.resolve();
     }
-    if ((state.wordbuf !== 'in') && (state.wordbuf !== 'into')) {
+    if ((word !== 'in') && (word !== 'into')) {
         return Promise.resolve();
     }
-    if (brkword(state) === -1) {
+    word = brkword(state);
+    if (!word) {
         bprintf(state, 'In what ?\n');
         return Promise.resolve();
     }
-    return findAvailableItem(state, state.wordbuf)
+    return findAvailableItem(state, word)
         .then((item) => {
             if (item.itemId === -1) {
                 return bprintf(state, 'What ?\n');
@@ -1863,9 +1751,8 @@ const emptycom = (state: State): Promise<void> => {
                     return holdItem(state, item.itemId, state.mynum)
                         .then(() => {
                             bprintf(state, `You empty the ${item.name} from the ${container.name}\n`);
-                            const x = `drop ${item.name}`;
-                            gamecom(state, x);
-                            return showMessages(state);
+                            return executeCommand(state, `drop ${item.name}`)
+                                .then(() => showMessages(state));
                         })
                         .then(() => loadWorld(state));
                 }));

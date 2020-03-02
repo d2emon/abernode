@@ -77,16 +77,17 @@ const trapch = (state: State, locationId: number): void => undefined;
 /* This one isnt for magic */
 
 const getTargetPlayer = (state: State): Promise<Player> => {
-    if (brkword(state) === -1) {
+    const name = brkword(state);
+    if (!name) {
         throw new Error('Who ?');
     }
     return loadWorld(state)
         .then(() => {
-            if (state.wordbuf === 'at') {
+            if (name === 'at') {
                 /* STARE AT etc */
                 return getTargetPlayer(state);
             }
-            return findVisiblePlayer(state, state.wordbuf)
+            return findVisiblePlayer(state, name)
                 .then((player) => {
                     if (!player) {
                         throw new Error('Who ?');
@@ -500,17 +501,19 @@ export class Put extends Action {
     action(state: State): Promise<any> {
         return getAvailableItem(state)
             .then((item) => {
-                if (brkword(state) === -1) {
+                let name = brkword(state);
+                if (!name) {
                     throw new Error('where ?');
                 }
-                if ((state.wordbuf === 'on') || (state.wordbuf === 'in')) {
-                    if (brkword(state) === -1) {
+                if ((name === 'on') || (name === 'in')) {
+                    name = brkword(state);
+                    if (!name) {
                         throw new Error('What ?');
                     }
                 }
                 return Promise.all([
                     Promise.resolve(item),
-                    findAvailableItem(state, state.wordbuf),
+                    findAvailableItem(state, name),
                 ])
             })
             .then(([
@@ -756,10 +759,11 @@ export class Push extends Action {
     }
 
     action(state: State): Promise<any> {
-        if (brkword(state) === -1) {
+        const name = brkword(state);
+        if (!name) {
             throw new Error('Push what ?');
         }
-        return findAvailableItem(state, state.wordbuf)
+        return findAvailableItem(state, name)
             .then((item) => {
                 if (!item) {
                     throw new Error('That is not here');
@@ -857,10 +861,11 @@ export class Missile extends Action {
 
 export class Change extends Action {
     action(state: State): Promise<any> {
-        if (brkword(state) === -1) {
+        const name = brkword(state);
+        if (!name) {
             throw new Error('change what (Sex ?) ?\n');
         }
-        if (state.wordbuf !== 'sex') {
+        if (name !== 'sex') {
             throw new Error('I don\'t know how to change that\n');
         }
         return getSpellTarget(state)

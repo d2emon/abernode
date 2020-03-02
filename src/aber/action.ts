@@ -1,7 +1,7 @@
 import State from "./state";
-import {bprintf} from "./__dummies";
 
 export interface ActionInterface {
+    actionId: number,
     action(state: State): Promise<any>,
     check(state: State): Promise<void>,
     decorate(result: any): void,
@@ -10,6 +10,12 @@ export interface ActionInterface {
 }
 
 class Action implements ActionInterface {
+    actionId = undefined;
+
+    constructor(actionId: number) {
+        this.actionId = actionId;
+    }
+
     action(state: State): Promise<any> {
         return Promise.reject(new Error('Not implemented'));
     };
@@ -23,7 +29,7 @@ class Action implements ActionInterface {
     };
 
     output(message: string): void {
-        bprintf({}, message)
+        console.log(message)
     }
 
     perform(state: State): Promise<void> {
@@ -31,7 +37,7 @@ class Action implements ActionInterface {
             .then(() => state)
             .then(this.action)
             .then(this.decorate)
-            .catch(e => bprintf(state, `${e}\n`));
+            .catch(e => this.output(`${e}\n`));
     }
 }
 

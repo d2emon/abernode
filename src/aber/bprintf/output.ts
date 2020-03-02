@@ -2,7 +2,6 @@ import State from '../state';
 import {Player} from '../support';
 import {
     canSeePlayer,
-    setName,
 } from './player';
 import {
     getIsKeyboard,
@@ -25,7 +24,7 @@ import {
 } from '../key';
 import {getBlind, getDeaf} from "../new1/reducer";
 import {saveWorld} from "../opensys";
-import {getDebugMode} from "../parse/reducer";
+import {getDebugMode, setName} from "../parse/reducer";
 
 const f_listfl = (fileName: string): string => '';
 const isdark = (state: State, locationId: number): boolean => false;

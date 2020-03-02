@@ -1,6 +1,7 @@
 import State from "./state";
 import {bprintf} from "./__dummies";
 import {isGod, isWizard} from "./newuaf/reducer";
+import {setThere} from "./parse/reducer";
 
 /*
 #include <stdio.h>
@@ -90,35 +91,36 @@ char *dirns[  ]={"North", "East ", "South", "West ", "Up   ", "Down "} ;
        a++ ;
        }
     }
- roomnum( str, offstr )
- char *str;
- char *offstr;
-    {
-    long a, b, c ;
-    long d ;
-    extern ZONE zoname[] ;
-    extern char wd_there[];
-    char w[64] ;
-    b=0 ;c=0 ;
-    a=0 ;
-    while( b<99990 )
-       {
-       strcpy( w, zoname[ a ].z_name ) ;lowercase( w ) ;
-       if( !strcmp( w, str ) ) goto fnd1 ;
-       b=zoname[ a ].z_loc ;
-       a++ ;
-       }
-    return( 0 ) ;
-    fnd1: ;
-    c=zoname[ a ].z_loc ;
-    sscanf(offstr,"%ld",&d);
-    if( !strlen( offstr ) ) d=1 ;
-    sprintf(wd_there,"%s %s",str,offstr);
-    if( d==0 ) return( 0 ) ;
-    if( d+b>c ) return( 0 ) ;
-    return( -( d+b ) ) ;
-    }
 */
+
+const roomnum = (state: State, name: string, roomId: number): number => {
+    let b = 0;
+
+    const fnd1 = (zone): number => {
+        const c = zone.locationId;
+        const d = roomId || 1;
+        setThere(state, name, roomId);
+        if (!d) {
+            return 0;
+        }
+        if (d + b > c) {
+            return 0;
+        }
+        return -(d + b);
+    };
+
+    let c = 0;
+    let w = '';
+    for (let a  = 0; b < 9999; a += 1) {
+        w = zoname[a].name.toLowerCase();
+        if (w === name) {
+            return fnd1(zoname[a]);
+        }
+        b = zoname[a].locationId;
+        a += 1;
+    }
+    return 0;
+}
 
 const showname = (state: State, loc: number): void => {
     const [b, a] = findzone(state, loc);
@@ -126,7 +128,7 @@ const showname = (state: State, loc: number): void => {
     if (isGod(state)) {
         bprintf(state, `[ ${loc} ]`);
     }
-    state.wd_there = `${a} ${b}`;
+    setThere(state, a, b);
     bprintf(state, '\n');
 };
 

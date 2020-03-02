@@ -18,10 +18,11 @@ export class Frobnicate extends Action {
     if (state.my_lev < 10000) {
         throw new Error('No way buster.');
     }
-    if (brkword(state) === -1) {
+    const name = brkword(state);
+    if (!name) {
         throw new Error('Frobnicate who ?');
     }
-    return findVisiblePlayer(state, state.wordbuf)
+    return findVisiblePlayer(state, name)
         .then((player) => {
             if (player.isBot && (state.my_lev !== 10033)) {
                 throw new Error('Can\'t frob mobiles old bean.');

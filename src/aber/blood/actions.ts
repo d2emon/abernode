@@ -64,11 +64,12 @@ const sysReset = (state: State): Promise<void> => {
 
 export class Weapon extends Action {
     action(state: State): Promise<any> {
-        if (brkword(state) === -1) {
+        const name = brkword(state);
+        if (!name) {
             throw new Error('Which weapon do you wish to select though');
         }
         return getPlayer(state, state.mynum)
-            .then(player => findCarriedItem(state, state.wordbuf, player))
+            .then(player => findCarriedItem(state, name, player))
             .then((item) => {
                 if (!item) {
                     throw new Error('Whats one of those ?');
@@ -88,8 +89,8 @@ export class Weapon extends Action {
 }
 
 export class Kill extends Action {
-    getVictim(state: State): Promise<Player> {
-        return findVisiblePlayer(state, state.wordbuf)
+    getVictim(state: State, name: string): Promise<Player> {
+        return findVisiblePlayer(state, name)
             .then((player) => {
                 if (!player) {
                     throw new Error('You can\'t do that');
@@ -105,17 +106,19 @@ export class Kill extends Action {
     }
 
     getWeapon(state: State): Promise<Item> {
-        if (brkword(state) === -1) {
+        let name = brkword(state);
+        if (!name) {
             return getWeapon(state);
         }
-        if (state.wordbuf !== 'with') {
+        if (name !== 'with') {
             return this.getWeapon(state);
         }
-        if (brkword(state) === -1) {
+        name = brkword(state);
+        if (!name) {
             throw new Error('with what ?\n');
         }
         return getPlayer(state, state.mynum)
-            .then(me => findCarriedItem(state, state.wordbuf, me))
+            .then(me => findCarriedItem(state, name, me))
             .then((weapon) => {
                 if (!weapon) {
                     throw new Error('with what ?\n');
@@ -145,13 +148,14 @@ export class Kill extends Action {
     };
 
     action(state: State): Promise<any> {
-        if (brkword(state) === -1) {
+        const name = brkword(state);
+        if (!name) {
             throw new Error('Kill who');
         }
-        if (state.wordbuf === 'door') {
+        if (name === 'door') {
             throw new Error('Who do you think you are , Moog?');
         }
-        return findAvailableItem(state, state.wordbuf)
+        return findAvailableItem(state, name)
             .then((item) => (
                 item
                     ? this.breakItem(state, item)

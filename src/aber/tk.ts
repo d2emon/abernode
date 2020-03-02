@@ -18,6 +18,7 @@ import {initPerson, savePerson} from "./newuaf";
 import {loadWorld, saveWorld} from "./opensys";
 import {getDebugMode} from "./parse/reducer";
 import {sendLocalMessage} from "./parse/events";
+import {executeCommand} from "./parse/parser";
 
 /*
  *
@@ -175,7 +176,7 @@ const sendmsg = (state: State, name: string): Promise<boolean> => Promise.all([
                                 }
 
                                 if (state.curmode === 1) {
-                                    gamecom(state, work)
+                                    executeCommand(state, work)
                                 } else if ((work !== '.Q') && (work !== '.q') && work) {
                                     special(state, work, name);
                                 }

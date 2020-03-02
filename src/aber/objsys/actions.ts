@@ -28,6 +28,7 @@ import {
 } from "./index";
 import {sendMessage} from "../bprintf/bprintf";
 import {sendLocalMessage} from "../parse/events";
+import {getStop, setStop} from "../parse/reducer";
 
 const calibme = (state: State): boolean => false;
 const cancarry = (state: State, playerId: number): boolean => false;
@@ -49,10 +50,11 @@ export class Inventory extends Action {
 
 export class GetItem extends Action {
     fromContainer(state: State, name:string): Promise<Item[]> {
-        if (brkword(state) === -1) {
+        const fromName = brkword(state);
+        if (!fromName) {
             return Promise.reject(new Error('From what ?'));
         }
-        return findAvailableItem(state, state.wordbuf)
+        return findAvailableItem(state, fromName)
             .then((container) => {
                 if (!container) {
                     return Promise.reject(new Error('You can\'t take things from that - it\'s not here'));
@@ -116,24 +118,25 @@ export class GetItem extends Action {
     }
 
     action(state: State): Promise<any> {
-        if (brkword(state) === -1) {
+        const name = brkword(state);
+        if (!name) {
             return Promise.reject(new Error('Get what ?'));
         }
-        const stp = state.stp;
-        const name = state.wordbuf;
+        const stop = getStop(state);
         return findHereItem(state, name)
             .then((item: Item) => {
                 /* Hold */
-                if (brkword(state) === -1) {
+                const fromName = brkword(state);
+                if (!fromName) {
                     return [item, undefined];
                 }
-                if ((state.wordbuf !== 'from') && (state.wordbuf !== 'out')) {
+                if ((fromName !== 'from') && (fromName !== 'out')) {
                     return [item, undefined];
                 }
                 return this.fromContainer(state, name);
             })
             .then(([item, container]) => {
-                state.stp = stp;
+                setStop(state, stop);
                 if (!item) {
                     return Promise.reject(new Error('That is not here.'));
                 }
@@ -170,11 +173,12 @@ export class GetItem extends Action {
 
 export class DropItem extends Action {
     action(state: State): Promise<any> {
-        if (brkword(state) === -1) {
+        const name = brkword(state);
+        if (!name) {
             return Promise.reject(new Error('Drop what ?'));
         }
         return getPlayer(state, state.mynum)
-            .then(player => findCarriedItem(state, state.wordbuf, player))
+            .then(player => findCarriedItem(state, name, player))
             .then((item) => {
                 if (!item) {
                     return Promise.reject(new Error('You are not carrying that.'));
@@ -195,7 +199,7 @@ export class DropItem extends Action {
                 }
 
                 return Promise.all([
-                    sendLocalMessage(state, state.curch, state.globme, `The ${state.wordbuf} disappears into the bottomless pit.\n`),
+                    sendLocalMessage(state, state.curch, state.globme, `The ${name} disappears into the bottomless pit.\n`),
                     new Promise((resolve) => {
                         updateScore(state, item.value);
                         calibme(state);

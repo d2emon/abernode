@@ -14,7 +14,6 @@ extern FILE *openlock();
 extern FILE *openuaf();
 extern FILE *openroom();
 extern char globme[];
-extern char wordbuf[];
 */
 
  /*
@@ -310,7 +309,7 @@ const cancarry = (state: State, playerId: number): Promise<boolean> => getPlayer
     });
 
 const setcom = (state: State): Promise<void> => {
-    const setmobile = () => findVisiblePlayer(state, state.wordbuf)
+    const setmobile = (name: string) => findVisiblePlayer(state, name)
         .then((player) => {
             if (!player) {
                 return bprintf(state, 'Set what ?\n');
@@ -318,21 +317,26 @@ const setcom = (state: State): Promise<void> => {
             if (player.playerId < 16) {
                 return bprintf(state, 'Mobiles only\n');
             }
-            if (brkword(state) === -1) {
+            const value = brkword(state);
+            if (!value) {
                 return bprintf(state, 'To what value ?\n');
             }
-            return setPlayer(state, player.playerId, { strength: Number(state.wordbuf) });
+            return setPlayer(state, player.playerId, { strength: Number(value) });
         });
 
     const bitset = (item: Item) => {
-        if (brkword(state) === -1) {
+        const bitId = brkword(state);
+        if (!bitId) {
             return bprintf(state, 'Which bit ?\n');
         }
-        const b = Number(state.wordbuf);
-        if (brkword(state) === -1) {
+        const b = Number(bitId);
+
+        const bitValue = brkword(state);
+        if (!bitValue) {
             return bprintf(state, `The bit is ${item.flags[b] ? 'TRUE' : 'FALSE'}\n`);
         }
-        const c = Number(state.wordbuf);
+        const c = Number(bitValue);
+
         if ((c < 0) || (c > 1) || (b < 0) || (b > 15)) {
             return bprintf(state, 'Number out of range\n');
         }
@@ -340,21 +344,25 @@ const setcom = (state: State): Promise<void> => {
     };
 
     const byteset = (item: Item) => {
-        if (brkword(state) === -1) {
+        const byteId = brkword(state);
+        if (!byteId) {
             return bprintf(state, 'Which byte ?\n');
         }
-        const b = Number(state, state.wordbuf);
-        if (brkword(state) === -1) {
+        const b = Number(byteId);
+
+        const byteValue = brkword(state);
+        if (!byteValue) {
             return bprintf(state, `Current Value is : ${item.payload[b]}\n`);
         }
-        const c = Number(state, state.wordbuf);
+        const c = Number(byteValue);
         if ((c < 0) || (c > 255) || (b < 0) || (b > 1)) {
             return bprintf(state, 'Number out of range\n');
         }
         return setItem(state, item.itemId, { payload: { [b]: c } });
     };
 
-    if (brkword(state) === -1) {
+    const word = brkword(state);
+    if (!word) {
         bprintf(state, 'set what\n');
         return Promise.resolve();
     }
@@ -362,22 +370,23 @@ const setcom = (state: State): Promise<void> => {
         bprintf(state, 'Sorry, wizards only\n');
         return Promise.resolve();
     }
-    return findAvailableItem(state, state.wordbuf)
+    return findAvailableItem(state, word)
         .then((item) => {
             if (item.itemId === -1) {
-                return setmobile();
+                return setmobile(word);
             }
-            if (brkword(state) === -1) {
+            const value = brkword(state);
+            if (!value) {
                 bprintf(state, 'Set to what value ?\n');
                 return Promise.resolve();
             }
-            if (state.wordbuf === 'bit') {
+            if (value === 'bit') {
                 return bitset(item);
             }
-            if (state.wordbuf === 'byte') {
+            if (value === 'byte') {
                 return byteset(item);
             }
-            const b = Number(state.wordbuf);
+            const b = Number(value);
             if (b > item.maxState) {
                 return bprintf(state, `Sorry max state for that is ${item.maxState}\n`);
             }
@@ -458,23 +467,29 @@ const setpflags = (state: State): Promise<void> => getPlayer(state, state.mynum)
             bprintf(state, 'You can\'t do that\n');
             return Promise.resolve();
         }
-        if (brkword(state) === -1) {
+        const name = brkword(state);
+        if (!name) {
             bprintf(state, 'Whose PFlags ?\n');
             return Promise.resolve();
         }
-        return findVisiblePlayer(state, state.wordbuf)
+        return findVisiblePlayer(state, name)
             .then((player) => {
                 if (!player) {
                     return bprintf(state, 'Who is that ?\n');
                 }
-                if (brkword(state) === -1) {
+
+                const flagId = brkword(state);
+                if (!flagId) {
                     return bprintf(state, 'Flag number ?\n');
                 }
-                const b = Number(state.wordbuf);
-                if (brkword(state) === -1) {
+                const b = Number(flagId);
+
+                const value = brkword(state);
+                if (!value) {
                     return bprintf(state, `Value is ${player.flags[b] ? 'TRUE' : 'FALSE'}\n`);
                 }
-                const c = Number(state.wordbuf);
+                const c = Number(value);
+
                 if ((c < 0) || (c > 1) || (b < 0) || (b > 31)) {
                     return bprintf(state, 'Out of range\n');
                 }

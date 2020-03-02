@@ -141,6 +141,14 @@ export default interface State {
     filrf: any,
     // parse
     debug_mode: boolean,
+    stp: number,
+    strbuf: string,
+    wd_her: string,
+    wd_him: string,
+    wd_it: string,
+    wd_them: string,
+    wd_there: string,
+    wordbuf: string,
     //
     brmode: boolean,
     curch: number,
@@ -159,12 +167,6 @@ export default interface State {
     objinfo: ItemData[],
     out_ms: string,
     rd_qd: boolean,
-    stp: number,
-    wd_her: string,
-    wd_him: string,
-    wd_it: string,
-    wd_them: string,
-    wordbuf: string,
     zapped: boolean,
     //
     me: {},

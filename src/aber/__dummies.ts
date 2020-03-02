@@ -1,1 +1,1 @@
-export const brkword = (state: {}) => -1;
+export const brkword = (state: {}) => null;

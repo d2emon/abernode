@@ -4,9 +4,9 @@ import {isWizard} from "../newuaf/reducer";
 import {CONTAINED_IN, HELD_BY} from "../object";
 import {isWornBy} from "../new1";
 import {brkword} from "../__dummies";
-import {canSeePlayer, setName} from "../bprintf/player";
+import {canSeePlayer} from "../bprintf/player";
 import {sendMessage} from "../bprintf/bprintf";
-import {getDebugMode} from "../parse/reducer";
+import {getDebugMode, setHer, setHim, setIt, setName} from "../parse/reducer";
 
 const showwthr = (state: State): boolean => false;
 
@@ -148,7 +148,7 @@ const baseFindItem = (state: State, name: string): Promise<Item> => {
     return byName(name)
         .then((item) => {
              if (item) {
-                 state.wd_it = name;
+                 setIt(state, name);
              }
              return item;
         });
@@ -192,7 +192,7 @@ export const itemDescription = (item: Item, debugMode: boolean): string => {
 
 const listItems = (state: State, items: Item[]): string[] => items.map((item) => {
     /*OLONGT NOTE TO BE ADDED */
-    state.wd_it = item.name;
+    setIt(state, item.name);
     return `${item.isDestroyed ? '--' : ''}${itemDescription(item, getDebugMode(state))}`;
 });
 
@@ -265,9 +265,9 @@ export const listPeople = (state: State): Promise<string[]> => getPlayers(state)
         .then((items) => {
             setName(state, player);
             if (player.sex) {
-                state.wd_her = player.name;
+                setHer(state, player.name);
             } else {
-                state.wd_him = player.name;
+                setHim(state, player.name);
             }
             const playerId = getDebugMode(state) ? `{${player.playerId}}` : '';
             return `${player.name} ${playerId}${player.title} is here carrying\n${items}`;

@@ -30,11 +30,12 @@ const trapch = (state: State, locationId: number): void => undefined;
 /* Door is 6 panel 49 */
 
 export const getAvailableItem = (state: State): Promise<Item> => {
-    if (brkword(state) === -1) {
+    const name = brkword(state);
+    if (!name) {
         throw new Error('Tell me more ?');
     }
     return loadWorld(state)
-        .then(() => findAvailableItem(state, state.wordbuf))
+        .then(() => findAvailableItem(state, name))
         .then((item) => {
             if (!item) {
                 throw new Error('There isn\'t one of those here');

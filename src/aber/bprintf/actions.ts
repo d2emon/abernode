@@ -77,10 +77,11 @@ export class Snoop extends Action {
     }
 
     private static startSnoop(state: State): Promise<any> {
-        if (brkword(state) === -1) {
+        const name = brkword(state);
+        if (!name) {
             return Promise.resolve();
         }
-        return findVisiblePlayer(state, state.wordbuf)
+        return findVisiblePlayer(state, name)
             .then((snooped) => {
                 if (!snooped) {
                     throw new Error('Who is that ?');

@@ -52,15 +52,17 @@ export class Spray extends Action {
     action(state: State): Promise<any> {
         return getAvailablePlayer(state)
             .then((player) => {
-                if (brkword(state) === -1) {
+                let name = brkword(state);
+                if (!name) {
                     throw new Error('With what ?');
                 }
-                if (state.wordbuf === 'with') {
-                    if (brkword(state) === -1) {
+                if (name === 'with') {
+                    name = brkword(state);
+                    if (!name) {
                         throw new Error('With what ?');
                     }
                 }
-                return findAvailableItem(state, state.wordbuf);
+                return findAvailableItem(state, name);
             })
             .then((item) => {
                 if (!item) {
