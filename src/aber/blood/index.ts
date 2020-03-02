@@ -7,7 +7,6 @@ import {
     setPlayer,
 } from '../support';
 import {isCarriedBy} from '../objsys';
-import {sendsys} from '../__dummies';
 import {
     getFight,
     resetFight,
@@ -19,17 +18,12 @@ import {sendMessage} from '../bprintf/bprintf';
 import {checkRoll, roll} from "../magic";
 import {isWornBy, sendBotDamage} from "../new1";
 import {getToHit, isWizard, updateScore} from "../newuaf/reducer";
+import {Attack, sendDamage} from "../parse/events";
 
 const calibme = (state: State): void => undefined;
 
 const SCEPTRE_ID = 16;
 const RUNE_SWORD_ID = 32;
-
-export interface Attack {
-    characterId: number,
-    damage: number,
-    weaponId?: number,
-}
 
 export const damageByItem = (item?: Item): number => item ? item.damage : 4;
 
@@ -131,14 +125,7 @@ export const hitPlayer = (state: State, victim: Player, weapon?: Item): Promise<
             })
             .then((attack) => {
                 if (!victim.isBot) {
-                    return sendsys(
-                        state,
-                        victim.name,
-                        state.globme,
-                        -10021,
-                        state.curch,
-                        attack,
-                    );
+                    return sendDamage(state, victim, attack);
                 } else {
                     return sendBotDamage(state, victim, attack.damage || 0);
                 }

@@ -1,8 +1,8 @@
-import State from "./state";
-import {createItem, getItem, getItems, getPlayer, getTitle, holdItem, putItem, setItem, setPlayer} from "./support";
-import {bprintf, brkword, sendsys} from "./__dummies";
-import {CREDITS, GWIZ, logger, RESET_DATA, ROOMS} from "./files";
-import {CONTAINED_IN, IS_DESTROYED} from "./object";
+import State from "../state";
+import {createItem, getItem, getItems, getPlayer, getTitle, holdItem, putItem, setItem, setPlayer} from "../support";
+import {brkword} from "../__dummies";
+import {CREDITS, GWIZ, logger, RESET_DATA, ROOMS} from "../files";
+import {CONTAINED_IN, IS_DESTROYED} from "../object";
 import {
     isCarriedBy,
     isAvailable,
@@ -14,9 +14,9 @@ import {
     findVisiblePlayer,
     findPlayer,
     isContainedIn,
-} from "./objsys";
-import {hitPlayer} from "./blood";
-import {receiveDamage} from './blood/events';
+} from "../objsys";
+import {hitPlayer} from "../blood";
+import {receiveDamage} from '../blood/events';
 import {
     sendName,
     sendPlayerForVisible,
@@ -25,15 +25,15 @@ import {
     sendVisibleName,
     sendVisiblePlayer,
     showFile
-} from "./bprintf";
-import {showMessages} from "./bprintf/output";
-import {endGame} from "./gamego/endGame";
-import {checkRoll, roll} from "./magic";
-import {getAvailableItem, isWornBy, sendBotDamage, teleport} from "./new1";
-import {checkCrippled, checkDumb, clearForce, getDumb, getForce} from "./new1/reducer";
-import {newReceive, sendShout, sendWizards} from "./new1/events";
-import {resetPlayers} from "./new1/bots";
-import {removePerson, savePerson} from "./newuaf";
+} from "../bprintf";
+import {showMessages} from "../bprintf/output";
+import {endGame} from "../gamego/endGame";
+import {checkRoll, roll} from "../magic";
+import {getAvailableItem, isWornBy, sendBotDamage, teleport} from "../new1";
+import {checkCrippled, checkDumb, clearForce, getDumb, getForce} from "../new1/reducer";
+import {newReceive, sendShout, sendWizards} from "../new1/events";
+import {resetPlayers} from "../new1/bots";
+import {removePerson, savePerson} from "../newuaf";
 import {
     getLevel,
     getScore,
@@ -44,20 +44,33 @@ import {
     setStrength,
     updateScore,
     updateStrength
-} from "./newuaf/reducer";
-import {loadWorld, saveWorld} from "./opensys";
+} from "../newuaf/reducer";
+import {loadWorld, saveWorld} from "../opensys";
+import {changeDebugMode} from "./reducer";
+import {
+    sendEndFight,
+    sendExorcise,
+    sendKick,
+    sendLocalMessage,
+    sendPrivate,
+    sendSay,
+    sendSimpleShout,
+    sendTell
+} from "./events";
+
+const gamecom = (state: State, action: string): Promise<void> => Promise.resolve();
 
 const debug2 = (state: State): Promise<void> => Promise.resolve(bprintf(state, 'No debugger available\n'));
 
-const checkForce = (state: State): void => {
-    const force = getForce(state);
-    state.isforce = true;
-    if (force) {
-        gamecom(state, force);
-    }
-    state.isforce = false;
-    clearForce(state);
-};
+const checkForce = (state: State): Promise<void> => Promise.resolve(getForce(state))
+    .then((force) => {
+        state.isforce = true;
+        return force ? gamecom(state, force) : Promise.resolve();
+    })
+    .then(() => {
+        state.isforce = false;
+        clearForce(state);
+    });
 
 const onFlee = (state: State): Promise<void> => Promise.all([
     getPlayer(state, state.mynum),
@@ -69,63 +82,23 @@ const onFlee = (state: State): Promise<void> => Promise.all([
     ]) => items.forEach((item) => isCarriedBy(item, player, !isWizard(state)) && !isWornBy(state, item, player) && putItem(state, item.itemId, item.locationId)))
     .then(() => undefined);
 
-/*
-#include "files.h"
-*/
- /*
+// -------------------------------------------------
 
- globme holds global me data
-
+/**
+ * Objects held in format
+ *
+ * [Short Text]
+ * [4 Long texts]
+ * [Max State]
  */
-/*
-#define  OBMUL 8
-#include <stdio.h>
 
-extern FILE *openlock();
-
-*/
-/*
-
- Objects held in format
-
- [Short Text]
- [4 Long texts]
- [Max State]
-
+/**
+ * Objects in text file in form
+ *
+ * Stam:state:loc:flag
  */
 
  /*
-
- Objects in text file in form
-
- Stam:state:loc:flag
-
- */
-
- /*
-long debug_mode=0;
-
-void sendsys(to,from,codeword,chan,text)
-char *to,*from;
-long codeword,chan;
-char *text;
-    {
-    long  block[128];
-    long *i;
-    i=(long *)text;
-    block[1]=codeword;
-    block[0]=chan;
-    sprintf((char *)(block+2),"%s%s%s%s",to,".",from,".");
-    if((codeword!= -9900)&&(codeword!= -10021)) strcpy((char *)(block+64),text);
-    else
-       {
-       block[64]=i[0];
-       block[65]=i[1];
-       block[66]=i[2];
-       }
-    send2(block);
-    }
-
 char  strbuf[128];
 char  wordbuf[128]="";
 char  wd_it[64]="";
@@ -320,8 +293,8 @@ const doaction = (state: State, actionId: number): Promise<void> => {
                     }
                     const xx1 = `${state.globme} has left the game\n`;
                     bprintf(state, 'Ok');
-                    sendsys(state, state.globme, state.globme, -10000, state.curch, xx1);
                     return Promise.all([
+                        sendLocalMessage(state, state.curch, state.globme, xx1),
                         sendWizards(state, `[ Quitting Game : ${state.globme} ]\n`),
                         dropMyItems(state),
                         setPlayer(state, state.mynum, {
@@ -703,14 +676,17 @@ const doaction = (state: State, actionId: number): Promise<void> => {
                             bprintf(state, 'The sword won\'t let you!!!!\n');
                             return resolve();
                         }
-                        const ar = `${sendVisibleName(state.globme)} drops everything in a frantic attempt to escape\n`;
-                        sendsys(state, state.globme, state.globme, -10000, state.curch, ar);
-                        sendsys(state, state.globme, state.globme, -20000, state.curch, null);
-                        updateScore(state, getScore(state) / 33);
-                        /* loose 3% */
-                        calibme(state);
-                        state.in_fight = 0;
-                        return onFlee(state)
+                        Promise.all([
+                            sendLocalMessage(state, state.curch, state.globme, `${sendVisibleName(state.globme)} drops everything in a frantic attempt to escape\n`),
+                            sendEndFight(state, state.globme),
+                        ])
+                            .then(() => {
+                                updateScore(state, getScore(state) / 33);
+                                /* loose 3% */
+                                calibme(state);
+                                state.in_fight = 0;
+                                return onFlee(state);
+                            })
                             .then(() => dogocom(state));
                     });
             }),
@@ -732,11 +708,7 @@ const doaction = (state: State, actionId: number): Promise<void> => {
           break;
           */
          180: () => getPlayer(state, state.mynum)
-             .then((player) => {
-                 if (player.canUseDebugMode) {
-                     state.debug_mode = !state.debug_mode;
-                 }
-             }),
+             .then((player) => player.canUseDebugMode && changeDebugMode(state)),
         /*
        case 181:
           setpflags();
@@ -905,12 +877,13 @@ const dodirn = (state: State, n: number): Promise<void> => {
                             }
                             return getPlayer(state, state.mynum)
                                 .then((player) => {
-                                    const block = sendVisiblePlayer(player.name, `${player.name} has gone ${state.exittxt[n]} ${state.out_ms}.\n`);
-                                    sendsys(state, state.globme, state.globme, -10000, state.curch, block);
+                                    const oldLocationId = state.curch;
                                     state.curch = newch;
-                                    const block1 = sendVisiblePlayer(player.name, `${player.name} ${state.in_ms}.\n`);
-                                    sendsys(state, state.globme, state.globme, -10000, newch, block1);
                                     trapch(state, state.curch);
+                                    return Promise.all([
+                                        sendLocalMessage(state, oldLocationId, state.globme, sendVisiblePlayer(player.name, `${player.name} has gone ${state.exittxt[n]} ${state.out_ms}.\n`)),
+                                        sendLocalMessage(state, oldLocationId, newch, sendVisiblePlayer(player.name, `${player.name} ${state.in_ms}.\n`)),
+                                    ]);
                                 });
                         });
                 })
@@ -1017,18 +990,17 @@ const gamrcv = (state: State, block: { locationId: number, code: number }): Prom
                 /* You are in the .... */
                 bprintf(state, 'A massive lightning bolt arcs down out of the sky to strike');
                 return sendWizards(state, `[ ${sendName(state.globme)} has just been zapped by ${sendName(name2)} and terminated ]\n`)
-                    .then(() => {
-                        state.zapped = true;
-                        const zb2 = sendVisiblePlayer(state.globme, `${state.globme} has just died.\\n\n`);
-                        sendsys(state, state.globme, state.globme, -10000, state.curch, zb2);
-                        loseme(state);
-                        bprintf(state, `You have been utterly destroyed by ${name2}\n`);
-                        return Promise.all([
-                            removePerson(state, state.globme),
-                            //
-                            endGame(state, 'Bye Bye.... Slain By Lightning'),
-                        ]);
-                    });
+                    .then(() => Promise.all([
+                        removePerson(state, state.globme),
+                        sendLocalMessage(state, state.curch, state.globme, sendVisiblePlayer(state.globme, `${state.globme} has just died.\n\n`)),
+                        new Promise((resolve) => {
+                            state.zapped = true;
+                            loseme(state);
+                            bprintf(state, `You have been utterly destroyed by ${name2}\n`);
+                            return resolve();
+                        }),
+                        endGame(state, 'Bye Bye.... Slain By Lightning'),
+                    ]));
             } else if (block.locationId === state.curch) {
                 bprintf(state, `${sendVisibleName('A massive lightning bolt strikes ')}${sendPlayerForVisible(name2)}${sendVisibleName('\n')}`);
                 return Promise.resolve();
@@ -1222,8 +1194,8 @@ const lightning = (state: State): Promise<void> => {
             if (player.playerId === -1) {
                 return bprintf(state, 'There is no one on with that name\n');
             }
-            sendsys(state, player.name, state.globme, -10001, player.locationId, null);
-            return logger.write(`${state.globme} zapped ${player.name}`)
+            return sendExorcise(state, state.globme, player, player.locationId)
+                .then(() => logger.write(`${state.globme} zapped ${player.name}`))
                 .then(() => sendBotDamage(state, player, 10000))
                 .then(() => broad(state, sendSound('You hear an ominous clap of thunder in the distance\n')));
         });
@@ -1247,8 +1219,7 @@ const eatcom = (state: State): Promise<void> => {
             } else if (item.itemId === 11) {
                 bprintf(state, 'You feel funny, and then pass out\n');
                 bprintf(state, 'You wake up elsewhere....\n');
-                teleport(state, -1076);
-                return;
+                return teleport(state, -1076);
             } else if (item.itemId === 75) {
                 return bprintf(state, 'very refreshing\n');
             } else if (item.itemId === 175) {
@@ -1377,7 +1348,7 @@ const shoutcom = (state: State): Promise<void> => checkDumb(state)
         if (isWizard(state)) {
             return sendShout(state, blob);
         } else {
-            return sendsys(state, state.globme, state.globme, -10002, state.curch, blob);
+            return sendSimpleShout(state, blob);
         }
     })
     .then(() => bprintf(state, 'Ok\n'));
@@ -1385,8 +1356,8 @@ const shoutcom = (state: State): Promise<void> => checkDumb(state)
 const saycom = (state: State): Promise<void> => checkDumb(state)
     .then(() => {
         const blob = getreinput(state);
-        sendsys(state, state.globme, state.globme, -10003, state.curch, blob);
-        return bprintf(state, `You say '${blob}'\n`)
+        return sendSay(state, blob)
+            .then(() => bprintf(state, `You say '${blob}'\n`));
     });
 
 const tellcom = (state: State): Promise<void> => checkDumb(state)
@@ -1401,8 +1372,7 @@ const tellcom = (state: State): Promise<void> => checkDumb(state)
                     return bprintf(state, 'No one with that name is playing\n');
                 }
                 const blob = getreinput();
-                sendsys(state, player.name, state.globme, -10004, state.curch, blob);
-                return;
+                return sendTell(state, player, blob);
             });
     });
 
@@ -1434,10 +1404,10 @@ const exorcom = (state: State): Promise<void> => {
             }
             return logger.write(`${state.globme} exorcised ${player.name}`)
                 .then(() => dropItems(state, player))
-                .then(() => {
-                    sendsys(state, player.name, state.globme, -10010, state.curch, null);
-                    return setPlayer(state, player.playerId, { exists: false });
-                });
+                .then(() => Promise.all([
+                    sendKick(state, player),
+                    setPlayer(state, player.playerId, { exists: false }),
+                ]));
         })
 };
 
@@ -1515,10 +1485,7 @@ const dogive = (state: State, itemId: number, playerId: number): Promise<void> =
             return bprintf(state, 'It doesn\'t wish to be given away.....\n');
         }
         return holdItem(state, item.itemId, player.playerId)
-            .then(() => {
-                const z = `${sendName(state.globme)} gives you the ${item.name}\n`;
-                sendsys(state, player.name, state.globme, -10011, state.curch, z);
-            });
+            .then(() => sendPrivate(state, player, `${sendName(state.globme)} gives you the ${item.name}\n`));
     });
 
 const stealcom = (state: State): Promise<void> => {
@@ -1567,10 +1534,11 @@ const stealcom = (state: State): Promise<void> => {
                     return roll()
                         .then((f) => {
                             if (f < e) {
-                                const tb = `${sendName(state.globme)} steals the ${item.name} from you !\n`;
                                 if (f & 1) {
-                                    sendsys(state, player.name, state.globme, -10011, state.curch, tb);
-                                    return sendBotDamage(state, player, 0);
+                                    return Promise.all([
+                                        sendPrivate(state, player, `${sendName(state.globme)} steals the ${item.name} from you !\n`),
+                                        sendBotDamage(state, player, 0),
+                                    ]);
                                 }
                                 return holdItem(state, item.itemId, state.mynum);
                             } else {
@@ -1583,15 +1551,15 @@ const stealcom = (state: State): Promise<void> => {
 };
 
 const dosumm = (state: State, locationId: number): Promise<void> => {
-    const ms1 = sendVisiblePlayer(state.globme, `${state.globme} vanishes in a puff of smoke\n`);
-    sendsys(state, state.globme, state.globme, -10000, state.curch, ms1);
-    return dropMyItems(state)
-        .then(() => {
-            state.curch = locationId;
-            const ms2 = sendVisiblePlayer(state.globme, `${state.globme} appears in a puff of smoke\n`);
-            sendsys(state, state.globme, state.globme, -10000, state.curch, ms2);
-            trapch(state, state.curch);
-        })
+    const oldLocationId = state.curch;
+    state.curch = locationId;
+    trapch(state, state.curch);
+    return Promise.all([
+        sendLocalMessage(state, oldLocationId, state.globme, sendVisiblePlayer(state.globme, `${state.globme} vanishes in a puff of smoke\n`)),
+        sendLocalMessage(state, locationId, state.globme, sendVisiblePlayer(state.globme, `${state.globme} appears in a puff of smoke\n`)),
+        dropMyItems(state),
+    ])
+        .then(() => {});
 };
 
 const tsscom = (state: State): Promise<void> => {

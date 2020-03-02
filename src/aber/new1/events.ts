@@ -11,16 +11,20 @@ import {
 import {sendName} from "../bprintf";
 import {Player} from "../support";
 import {sendMessage} from "../bprintf/bprintf";
-import {sendsys} from "../__dummies";
 import {logger} from "../files";
 import {dropMyItems} from "../objsys";
 import {endGame} from "../gamego/endGame";
 import {removePerson} from "../newuaf";
 import {getSexName, getStrength, isWizard, revertSex, updateStrength} from "../newuaf/reducer";
 import {loadWorld, saveWorld} from "../opensys";
+import {
+    sendLocalMessage,
+    Event as EventData,
+} from "../parse/events";
 
 const calibme = (state: State): void => undefined;
 const loseme = (state: State): void => undefined;
+const send2 = (state: State, event: EventData): Promise<void> => Promise.resolve();
 
 interface Event {
     sender: Player,
@@ -46,14 +50,7 @@ const receiveMagicDamage = (state: State, damage: number, message: string): Prom
                 sendMessage(state, message),
                 dropMyItems(state),
                 Promise.resolve(loseme(state)),
-                Promise.resolve(sendsys(
-                    state,
-                    state.globme,
-                    state.globme,
-                    -10000,
-                    state.curch,
-                    `${state.globme} has just died\n`,
-                )),
+                sendLocalMessage(state, state.curch, state.globme, `${state.globme} has just died\n`),
                 sendWizards(state, `[ ${state.globme} has just died ]\n`),
                 logger.write(`${state.globme} slain magically`),
                 removePerson(state, state.globme),
@@ -196,149 +193,97 @@ const receiveDeaf = (state: State, event: Event) => {
     }
 };
 
-export const sendCure = (state: State, target: Player): Promise<void> => {
-    sendsys(
-        state,
-        target.name,
-        null,
-        -10100,
-        null,
-        null,
-    );
-    return Promise.resolve();
-};
-export const sendCripple = (state: State, target: Player): Promise<void> => {
-    sendsys(
-        state,
-        target.name,
-        state.globme,
-        -10101,
-        null,
-        null,
-    );
-    return Promise.resolve();
-};
-export const sendDumb = (state: State, target: Player): Promise<void> => {
-    sendsys(
-        state,
-        target.name,
-        state.globme,
-        -10102,
-        null,
-        null,
-    );
-    return Promise.resolve();
-};
-export const sendForce = (state: State, target: Player, action: string): Promise<void> => {
-    sendsys(
-        state,
-        target.name,
-        state.globme,
-        -10103,
-        null,
-        action,
-    );
-    return Promise.resolve();
-};
-export const sendShout = (state: State, message: string): Promise<void> => {
-    sendsys(
-        state,
-        state.globme,
-        state.globme,
-        -10104,
-        null,
-        message,
-    );
-    return Promise.resolve();
-};
-export const sendBlind = (state: State, target: Player): Promise<void> => {
-    sendsys(
-        state,
-        target.name,
-        state.globme,
-        -10105,
-        null,
-        null,
-    );
-    return Promise.resolve();
-};
-export const sendMissile = (state: State, target: Player, damage: number): Promise<void> => {
-    sendsys(
-        state,
-        target.name,
-        state.globme,
-        -10106,
-        state.curch,
-        damage,
-    );
-    return Promise.resolve();
-};
-export const sendChangeSex = (state: State, target: Player): Promise<void> => {
-    sendsys(
-        state,
-        target.name,
-        null,
-        -10107,
-        null,
-        null,
-    );
-    return Promise.resolve();
-};
-export const sendFireball = (state: State, target: Player, damage: number): Promise<void> => {
-    sendsys(
-        state,
-        target.name,
-        state.globme,
-        -10109,
-        state.curch,
-        damage,
-    );
-    return Promise.resolve();
-};
-export const sendShock = (state: State, target: Player, damage: number): Promise<void> => {
-    sendsys(
-        state,
-        target.name,
-        state.globme,
-        -10110,
-        null,
-        damage,
-    );
-    return Promise.resolve();
-};
-export const sendSocial = (state: State, target: Player, message: string): Promise<void> => {
-    sendsys(
-        state,
-        target.name,
-        null,
-        -10111,
-        null,
-        message,
-    );
-    return Promise.resolve();
-};
-export const sendWizards = (state: State, message: string): Promise<void> => {
-    sendsys(
-        state,
-        null,
-        null,
-        -10113,
-        null,
-        message,
-    );
-    return Promise.resolve();
-};
-export const sendDeaf = (state: State, target: Player): Promise<void> => {
-    sendsys(
-        state,
-        target.name,
-        state.globme,
-        -10120,
-        null,
-        null,
-    );
-    return Promise.resolve();
-};
+export const sendCure = (state: State, target: Player): Promise<void> => send2(state, {
+    receiver: target.name,
+    sender: undefined,
+    code: -10100,
+    channelId: undefined,
+    payload: undefined,
+});
+export const sendCripple = (state: State, target: Player): Promise<void> => send2(state, {
+    receiver: target.name,
+    sender: state.globme,
+    code: -10101,
+    channelId: undefined,
+    payload: undefined,
+});
+export const sendDumb = (state: State, target: Player): Promise<void> => send2(state, {
+    receiver: target.name,
+    sender: state.globme,
+    code: -10102,
+    channelId: undefined,
+    payload: undefined,
+});
+export const sendForce = (state: State, target: Player, action: string): Promise<void> => send2(state, {
+    receiver: target.name,
+    sender: state.globme,
+    code: -10103,
+    channelId: undefined,
+    payload: action,
+});
+export const sendShout = (state: State, message: string): Promise<void> => send2(state, {
+    receiver: state.globme,
+    sender: state.globme,
+    code: -10104,
+    channelId: undefined,
+    payload: message,
+});
+export const sendBlind = (state: State, target: Player): Promise<void> => send2(state, {
+    receiver: target.name,
+    sender: state.globme,
+    code: -10105,
+    channelId: undefined,
+    payload: undefined,
+});
+export const sendMissile = (state: State, target: Player, damage: number): Promise<void> => send2(state, {
+    receiver: target.name,
+    sender: state.globme,
+    code: -10106,
+    channelId: state.curch,
+    payload: damage,
+});
+export const sendChangeSex = (state: State, target: Player): Promise<void> => send2(state, {
+    receiver: target.name,
+    sender: undefined,
+    code: -10107,
+    channelId: undefined,
+    payload: undefined,
+});
+export const sendFireball = (state: State, target: Player, damage: number): Promise<void> => send2(state, {
+    receiver: target.name,
+    sender: state.globme,
+    code: -10109,
+    channelId: state.curch,
+    payload: damage,
+});
+export const sendShock = (state: State, target: Player, damage: number): Promise<void> => send2(state, {
+    receiver: target.name,
+    sender: state.globme,
+    code: -10110,
+    channelId: undefined,
+    payload: damage,
+});
+export const sendSocial = (state: State, target: Player, message: string): Promise<void> => send2(state, {
+    receiver: target.name,
+    sender: undefined,
+    code: -10111,
+    channelId: undefined,
+    payload: message,
+});
+export const sendWizards = (state: State, message: string): Promise<void> => send2(state, {
+    receiver: undefined,
+    sender: undefined,
+    code: -10113,
+    channelId: undefined,
+    payload: message,
+});
+export const sendDeaf = (state: State, target: Player): Promise<void> => send2(state, {
+    receiver: target.name,
+    sender: state.globme,
+    code: -10120,
+    channelId: undefined,
+    payload: undefined,
+});
 
 export const newReceive = (state: State, isMe: boolean, locationId: number, receiver: Player, sender: Player, code: number, payload: any): Promise<void> => {
     const actions = {

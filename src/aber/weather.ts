@@ -6,6 +6,7 @@ import {sendSound, sendSoundPlayer, sendVisibleName, sendVisiblePlayer} from "./
 import {roll} from "./magic";
 import {checkDumb} from "./new1/reducer";
 import {isGod, isWizard} from "./newuaf/reducer";
+import {sendLocalMessage, sendWeather} from "./parse/events";
 
 /*
 #include "files.h"
@@ -79,7 +80,7 @@ const adjwthr = (state: State, weatherId: number): Promise<void> => getItem(stat
         return setItem(state, weather.itemId, { state: weatherId })
             .then(() => {
                 if (oldState !== weatherId) {
-                    sendsys(state, state.globme, state.globme, -10030, weatherId, null);
+                    return sendWeather(state, weatherId);
                 }
             });
     });
@@ -159,17 +160,8 @@ const showwthr = (state: State): Promise<void> => {
 
 */
  /* Silly Section */
-/*
- sillycom(txt)
- char *txt;
-    {
-    extern char globme[];
-    extern long curch;
-    char bk[256];
-    sprintf(bk,txt,globme,globme);
-    sendsys(globme,globme,-10000,curch,bk);
-    }
-*/
+
+const sillycom = (state: State, text: string): Promise<void> => sendLocalMessage(state, state.curch, state.globme, text.replace('%s', state.globme));
 
 const laughcom = (state: State): Promise<void> => checkDumb(state)
     .then(() => {

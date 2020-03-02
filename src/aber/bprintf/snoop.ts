@@ -1,8 +1,8 @@
 import State from "../state";
 import {getSnooped, startSnoop, stopSnoop} from "./reducer";
 import {Player} from "../support";
-import {sendsys} from "../__dummies";
 import Snoop from '../services/snoop';
+import {sendSnoop, sendStopSnoop} from "../parse/events";
 
 export const viewSnoop = (state: State, snooped: Player): Promise<void> => Snoop.connectSnoop(state.globme)
     .then(() => Snoop.readSnoop(state.globme))
@@ -19,11 +19,4 @@ export const writeSnoop = (name: string, text: string): Promise<void> => Snoop.c
     .then(() => Snoop.writeSnoop(name, text));
 
 export const checkSnoop = (state: State): Promise<void> => getSnooped(state)
-    .then(snooped => snooped && sendsys(
-        state,
-        snooped.name,
-        state.globme,
-        -400,
-        0,
-        null,
-    ));
+    .then(snooped => snooped && sendStopSnoop(state, snooped));

@@ -2,13 +2,13 @@ import State from './state';
 import Action from './action';
 import {
     brkword,
-    sendsys,
 } from './__dummies';
 import {findVisiblePlayer} from './objsys';
 import {showMessages} from './bprintf/output';
 import {sendMessage} from './bprintf/bprintf';
 import {getString} from "./gamego/input";
 import {loadWorld} from "./opensys";
+import {sendChangePerson} from "./parse/events";
 
 const getInput = (state: State, message: string, show: boolean): Promise<void> => sendMessage(state, message)
     .then(() => show && showMessages(state));
@@ -38,20 +38,18 @@ export class Frobnicate extends Action {
                     getInput(state, 'New Strength: ', true)
                         .then(() => getString(8)),
                 ]))
-                .then((values) => {
-                    return loadWorld(state)
-                        .then(() => {
-                            sendsys(
-                                state,
-                                player.name,
-                                player.name,
-                                -599,
-                                0,
-                                values,
-                            )
-                        })
-                        .then(() => true);
-                });
+                .then(([
+                    level,
+                    score,
+                    strength,
+]               ) => loadWorld(state)
+                    .then(() => sendChangePerson(state, player, {
+                        level,
+                        score,
+                        strength,
+                    }))
+                )
+                .then(() => true);
         });
     }
 

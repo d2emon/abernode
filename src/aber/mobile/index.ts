@@ -17,10 +17,10 @@ import {IS_LIT} from "../object";
 import {sendMessage} from "../bprintf/bprintf";
 import {sendVisibleName} from '../bprintf';
 import {hitPlayer} from "../blood";
-import {sendsys} from "../__dummies";
 import {endGame} from "../gamego/endGame";
 import {setPlayerDamage} from "../new1";
 import {getLevel, isWizard, updateScore} from "../newuaf/reducer";
+import {sendLocalMessage} from "../parse/events";
 
 const calibme = (state: State): Promise<void> => Promise.resolve();
 const loseme = (state: State): Promise<void> => Promise.resolve();
@@ -185,18 +185,11 @@ const dropPepper = (state: State): Promise<void> => {
             .then(() => endGame(state, 'Whoops.....   Frying tonight'));
     };
 
-    sendsys(
-        state,
-        null,
-        null,
-        -10000,
-        state.curch,
-        'You start sneezing ATISCCHHOOOOOO!!!!\n',
-    );
     return Promise.all([
         getPlayer(state, state.mynum),
         getPlayer(state, 32),
         getItem(state, 89),
+        sendLocalMessage(state, state.curch, undefined, 'You start sneezing ATISCCHHOOOOOO!!!!\n'),
     ])
         .then(([
             player,

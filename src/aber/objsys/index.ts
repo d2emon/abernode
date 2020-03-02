@@ -6,6 +6,7 @@ import {isWornBy} from "../new1";
 import {brkword} from "../__dummies";
 import {canSeePlayer, setName} from "../bprintf/player";
 import {sendMessage} from "../bprintf/bprintf";
+import {getDebugMode} from "../parse/reducer";
 
 const showwthr = (state: State): boolean => false;
 
@@ -95,7 +96,7 @@ export const itemsAt = (state: State, locationId: number, mode: number): Promise
     const getItemMessage = (owner?: Item | Player) => (item: Item) => {
         let message = [
             item.name,
-            state.debug_mode ? item.itemId : '',
+            getDebugMode(state) ? item.itemId : '',
             isWornBy(state, item, owner as Player) ? ' <worn>' : '',
         ].join('');
         return  item.isDestroyed
@@ -192,7 +193,7 @@ export const itemDescription = (item: Item, debugMode: boolean): string => {
 const listItems = (state: State, items: Item[]): string[] => items.map((item) => {
     /*OLONGT NOTE TO BE ADDED */
     state.wd_it = item.name;
-    return `${item.isDestroyed ? '--' : ''}${itemDescription(item, state.debug_mode)}`;
+    return `${item.isDestroyed ? '--' : ''}${itemDescription(item, getDebugMode(state))}`;
 });
 
 export const showItems = (state: State): Promise<void> => getItems(state)
@@ -268,7 +269,7 @@ export const listPeople = (state: State): Promise<string[]> => getPlayers(state)
             } else {
                 state.wd_him = player.name;
             }
-            const playerId = state.debug_mode ? `{${player.playerId}}` : '';
+            const playerId = getDebugMode(state) ? `{${player.playerId}}` : '';
             return `${player.name} ${playerId}${player.title} is here carrying\n${items}`;
         })
     ))

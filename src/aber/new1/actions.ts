@@ -16,7 +16,6 @@ import {
 } from "./index";
 import {
     brkword,
-    sendsys,
 } from "../__dummies";
 import {
     Item,
@@ -67,6 +66,7 @@ import {
 } from "./reducer";
 import {getLevel, getStrength, isWizard, updateScore, updateStrength} from "../newuaf/reducer";
 import {loadWorld} from "../opensys";
+import {sendLocalMessage} from "../parse/events";
 
 const broad = (state: State, message: string): void => undefined;
 const sillycom = (state: State, message: string): Promise<any> => Promise.resolve({});
@@ -368,8 +368,8 @@ export class Wave extends Action {
     }
 
     private static wave158(state: State): Promise<any> {
-        teleport(state, -114);
-        return Promise.resolve('You are teleported!\n');
+        return teleport(state, -114)
+            .then(() => 'You are teleported!\n');
     }
 
     action(state: State): Promise<any> {
@@ -452,17 +452,10 @@ export class Put extends Action {
             throw new Error('You can\'t let go of it!');
         }
         return getItem(state, 193)
-            .then((chute) => {
-                sendsys(
-                    state,
-                    null,
-                    null,
-                    -10000,
-                    chute.locationId,
-                    `The ${item.name} comes out of the chute!\n`,
-                );
-                return putItem(state, item.itemId, chute.locationId);
-            })
+            .then(chute => Promise.all([
+                sendLocalMessage(state, chute.locationId, undefined, `The ${item.name} comes out of the chute!\n`),
+                putItem(state, item.itemId, chute.locationId),
+            ]))
             .then(() => 'It vanishes down the chute....\n');
     }
 
@@ -486,15 +479,8 @@ export class Put extends Action {
                 if (item.itemId === 32) {
                     throw new Error('You can\'t let go of it!');
                 }
-                sendsys(
-                    state,
-                    state.globme,
-                    state.globme,
-                    -10000,
-                    state.curch,
-                    `${sendPlayerForVisible(state.globme)}${sendVisibleName(` puts the ${item.name} in the ${container.name}.\\n`)}`,
-                );
                 return Promise.all([
+                    sendLocalMessage(state, state.curch, state.globme, `${sendPlayerForVisible(state.globme)}${sendVisibleName(` puts the ${item.name} in the ${container.name}.\\n`)}`),
                     putItemIn(state, item.itemId, container.itemId),
                     item.changeStateOnTake
                         ? setItem(state, item.itemId, { state: 0 })
@@ -706,22 +692,10 @@ export class Push extends Action {
                 const message = isOpen
                     ? sendVisibleName('The portcullis falls\n')
                     : sendVisibleName('The portcullis rises\n');
-                sendsys(
-                    state,
-                    null,
-                    null,
-                    -10000,
-                    location1,
-                    message,
-                );
-                sendsys(
-                    state,
-                    null,
-                    null,
-                    -10000,
-                    location2,
-                    message,
-                );
+                return Promise.all([
+                    sendLocalMessage(state, location1, undefined, message),
+                    sendLocalMessage(state, location2, undefined, message),
+                ]);
             });
     }
 
@@ -747,22 +721,10 @@ export class Push extends Action {
                 const message = isOpen
                     ? sendVisibleName('The drawbridge rises\n')
                     : sendVisibleName('The drawbridge is lowered\n');
-                sendsys(
-                    state,
-                    null,
-                    null,
-                    -10000,
-                    location1,
-                    message,
-                );
-                sendsys(
-                    state,
-                    null,
-                    null,
-                    -10000,
-                    location2,
-                    message,
-                );
+                return Promise.all([
+                    sendLocalMessage(state, location1, undefined, message),
+                    sendLocalMessage(state, location2, undefined, message),
+                ]);
             });
     }
 

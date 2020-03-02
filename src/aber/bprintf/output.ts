@@ -25,6 +25,7 @@ import {
 } from '../key';
 import {getBlind, getDeaf} from "../new1/reducer";
 import {saveWorld} from "../opensys";
+import {getDebugMode} from "../parse/reducer";
 
 const f_listfl = (fileName: string): string => '';
 const isdark = (state: State, locationId: number): boolean => false;
@@ -41,7 +42,7 @@ const seePlayerName = (state: State, player: Player): boolean => {
 
 const replaceFile = (state: State) => (match, fileName: string): string => {
     let result = '';
-    if (state.debug_mode) {
+    if (getDebugMode(state)) {
         result += `[FILE ${fileName} ]\n`;
     }
     result += f_listfl(fileName);

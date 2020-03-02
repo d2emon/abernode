@@ -2,7 +2,6 @@ import Action from '../action';
 import State from '../state';
 import {
     brkword,
-    sendsys,
 } from "../__dummies";
 import {
     sendSound,
@@ -14,6 +13,7 @@ import {showMessages} from "../bprintf/output";
 import {getAvailablePlayer} from "../new1/actions";
 import {checkDumb} from "../new1/reducer";
 import {isWizard} from "../newuaf/reducer";
+import {sendEvil} from "../parse/events";
 
 const rescom = (state: State): Promise<any> => Promise.resolve({});
 const sillycom = (state: State, message: string): Promise<any> => Promise.resolve({});
@@ -24,15 +24,10 @@ export class Crash extends Action {
         if (!isWizard(state)) {
             throw new Error('Hmmm....\nI expect it will sometime');
         }
-        sendsys(
-            state,
-            null,
-            null,
-            -666,
-            null,
-            null,
-        );
-        return rescom(state);
+        return Promise.all([
+            sendEvil(state),
+            rescom(state),
+        ]);
     }
 
     decorate(result: any): void {

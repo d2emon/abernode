@@ -10,12 +10,12 @@ import {
 import {Player} from '../support';
 import {
     brkword,
-    sendsys,
 } from '../__dummies';
 import {findVisiblePlayer} from '../objsys';
 import {touchSnoop} from './snoop';
 import LogService from '../services/log';
 import {isGod, isWizard} from "../newuaf/reducer";
+import {sendSnoop, sendStopSnoop} from "../parse/events";
 
 const geteuid = (state: State): void => undefined;
 const getuid = (state: State): void => undefined;
@@ -69,18 +69,11 @@ export class Log extends Action {
 export class Snoop extends Action {
     private static stopSnoop(state: State, snooped: Player): Promise<any> {
         stopSnoop(state);
-        sendsys(
-            state,
-            snooped.name,
-            state.globme,
-            -400,
-            0,
-            null,
-        );
-        return Promise.resolve({
-            name: snooped.name,
-            stopped: true,
-        });
+        return sendStopSnoop(state, snooped)
+            .then(() => ({
+                name: snooped.name,
+                stopped: true,
+            }))
     }
 
     private static startSnoop(state: State): Promise<any> {
@@ -99,14 +92,7 @@ export class Snoop extends Action {
                 startSnoop(state, snooped);
                 return Promise.all([
                     Promise.resolve(snooped.name),
-                    Promise.resolve(sendsys(
-                        state,
-                        snooped.name,
-                        state.globme,
-                        -401,
-                        0,
-                        null,
-                    )),
+                    sendSnoop(state, snooped, state.globme),
                     touchSnoop(state.globme),
                 ])
             })

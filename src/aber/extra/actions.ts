@@ -1,7 +1,6 @@
 import State from "../state";
 import {
     brkword,
-    sendsys,
 } from "../__dummies";
 import {
     findAvailableItem,
@@ -41,6 +40,7 @@ import {checkRoll, roll} from "../magic";
 import {teleport} from "../new1";
 import {getLevel, getStrength, isGod, isWizard, updateStrength} from "../newuaf/reducer";
 import {loadWorld, saveWorld} from "../opensys";
+import {sendLocalMessage, sendPrivate} from "../parse/events";
 
 const fopen = (name: string, permissions: string): Promise<any> => Promise.resolve({});
 const fclose = (file: any): Promise<void> => Promise.resolve();
@@ -86,26 +86,16 @@ export class Help extends Action {
                     throw new Error('You can\'t help yourself.');
                 }
                 if (me.helping !== -1) {
-                    sendsys(
-                        state,
-                        player.name,
-                        player.name,
-                        -10011,
-                        state.curch,
-                        `${sendVisibleName(state.globme)} has stopped helping you\n`,
-                    );
-                    return getPlayer(state, player.helping)
-                        .then(helper => this.output(`Stopped helping ${helper.name}\n`));
+                    return Promise.all([
+                        getPlayer(state, player.helping),
+                        sendPrivate(state, player, `${sendVisibleName(state.globme)} has stopped helping you\n`),
+                    ])
+                        .then(([helper]) => this.output(`Stopped helping ${helper.name}\n`));
                 } else {
-                    sendsys(
-                        state,
-                        player.name,
-                        player.name,
-                        -10011,
-                        state.curch,
-                        `${sendVisibleName(state.globme)} has offered to help you\n`,
-                    );
-                    return setPlayer(state, me.playerId, {helping: player.playerId})
+                    return Promise.all([
+                        setPlayer(state, me.playerId, {helping: player.playerId}),
+                        sendPrivate(state, player, `${sendVisibleName(state.globme)} has offered to help you\n`),
+                    ])
                         .then(() => this.output('OK...\n'));
                 }
             });
@@ -508,25 +498,12 @@ export class Jump extends Action {
     }
 
     private static withUmbrella(state: State, locationId: number): Promise<any> {
-        sendsys(
-            state,
-            state.globme,
-            state.globme,
-            -10000,
-            state.curch,
-            sendVisiblePlayer(state.globme, `${state.globme} has just left\n`),
-        );
+        const oldLocationId = state.curch;
         state.curch = locationId;
-        sendsys(
-            state,
-            state.globme,
-            state.globme,
-            -10000,
-            state.curch,
-            sendVisiblePlayer(state.globme, `${state.globme} has just dropped in\n`),
-        );
         trapch(state, locationId);
-        return Promise.resolve({});
+        return sendLocalMessage(state, oldLocationId, state.globme, sendVisiblePlayer(state.globme, `${state.globme} has just left\n`))
+            .then(() => sendLocalMessage(state, locationId, state.globme, sendVisiblePlayer(state.globme, `${state.globme} has just dropped in\n`)))
+            .then(() => ({}))
     }
 
     action(state: State): Promise<any> {

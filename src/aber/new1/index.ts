@@ -1,7 +1,6 @@
 import State from "../state";
 import {
     brkword,
-    sendsys,
 } from "../__dummies";
 import {
     dropItems,
@@ -20,6 +19,7 @@ import {roll} from "../magic";
 import {sendVisiblePlayer} from "../bprintf";
 import {getLevel, isWizard} from "../newuaf/reducer";
 import {loadWorld} from "../opensys";
+import {sendDamage, sendLocalMessage} from "../parse/events";
 
 const trapch = (state: State, locationId: number): void => undefined;
 
@@ -80,17 +80,10 @@ export const setPlayerDamage = (state: State, enemy: Player, player: Player): Pr
                     .then(damageRoll => damageRoll % enemy.damage)
                 : -1;
         })
-        .then((damage) => sendsys(
-            state,
-            state.globme,
-            enemy.name,
-            -10021,
-            enemy.locationId,
-            {
-                characterId: enemy.playerId,
-                damage,
-            },
-        ));
+        .then(damage => sendDamage(state, player, {
+            characterId: enemy.playerId,
+            damage,
+        }));
 };
 
 export const sendBotDamage = (state: State, player: Player, damage: number): Promise<void> => {
@@ -118,23 +111,13 @@ export const sendBotDamage = (state: State, player: Player, damage: number): Pro
     }
 };
 
-export const teleport = (state: State, locationId: number): void => {
-    sendsys(
-        state,
-        state.globme,
-        state.globme,
-        -10000,
-        state.curch,
-        sendVisiblePlayer(state.globme, `${state.globme} has left.\n`),
-    );
+export const teleport = (state: State, locationId: number): Promise<void> => {
+    const oldLocationId = state.curch;
     state.curch = locationId;
     trapch(state, state.curch);
-    sendsys(
-        state,
-        state.globme,
-        state.globme,
-        -10000,
-        state.curch,
-        sendVisiblePlayer(state.globme, `${state.globme} has arrived.\n`),
-    );
+    return Promise.all([
+        sendLocalMessage(state, oldLocationId, state.globme, sendVisiblePlayer(state.globme, `${state.globme} has left.\n`)),
+        sendLocalMessage(state, locationId, state.globme, sendVisiblePlayer(state.globme, `${state.globme} has arrived.\n`)),
+    ])
+        .then(() => {});
 };

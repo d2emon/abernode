@@ -2,7 +2,6 @@ import State from '../state';
 import Action from '../action';
 import {
     brkword,
-    sendsys,
 } from '../__dummies';
 import {
     sendName,
@@ -30,6 +29,7 @@ import {roll} from "./index";
 import {sendWizards} from "../new1/events";
 import {isWornBy} from "../new1";
 import {getLevel, getStrength, isAdmin, isGod, isWizard, updateStrength} from "../newuaf/reducer";
+import {sendLocalMessage, sendSummon, sendVisibility} from "../parse/events";
 
 const roomnum = (state: State, roomId: string, zoneId: string): number => 0;
 const sillycom = (state: State, message: string): void => undefined;
@@ -52,23 +52,14 @@ export class Summon extends Action {
             throw new Error('You can only summon people');
         }
         return Summon.ownerLocationId(state, item)
-            .then((locationId) => {
-                sendsys(
-                    state,
-                    state.globme,
-                    state.globme,
-                    -10000,
-                    locationId,
-                    `${sendName(state.globme)} has summoned the ${item.name}\n`,
-                );
-                return holdItem(state, item.itemId, state.mynum);
-            })
+            .then(locationId => sendLocalMessage(state, locationId, state.globme, `${sendName(state.globme)} has summoned the ${item.name}\n`))
+            .then(() => holdItem(state, item.itemId, state.mynum))
             .then(() => ({
                 item: {
                     name: item.name,
                     location: showLocation(state, item.locationId, item.carryFlag),
                 },
-            }));
+            }))
     }
 
     private static getSummonChance(state: State, me: Player): Promise<number> {
@@ -138,30 +129,17 @@ export class Summon extends Action {
             })
             .then(() => {
                 if (!player.isBot) {
-                    return sendsys(
-                        state,
-                        player.name,
-                        state.globme,
-                        -10020,
-                        state.curch,
-                        null,
-                    );
+                    return sendSummon(state, player, state.globme, state.curch);
                 }
                 if ((player.playerId === 17) || (player.playerId === 23)) {
                     return;
                 }
                 return Promise.all([
                     dropItems(state, player),
-                    Promise.resolve(sendsys(
-                        state,
-                        null,
-                        null,
-                        -10000,
-                        state.curch,
-                        sendVisiblePlayer(player.name, `${player.name} has arrived\n`),
-                    )),
+                    sendLocalMessage(state, state.curch, undefined, sendVisiblePlayer(player.name, `${player.name} has arrived\n`)),
                     setPlayer(state, player.playerId, {locationId: state.curch}),
-                ]);
+                ])
+                    .then(() => {});
             })
             .then(() => ({
                 player: {},
@@ -283,20 +261,16 @@ export class Visible extends Action {
                 if (!me.visibility) {
                     throw new Error('You already are visible');
                 }
-                sendsys(
-                    state,
-                    null,
-                    null,
-                    -9900,
-                    0,
-                    {
+                return Promise.all([
+                    sendVisibility(state, {
                         playerId: me.playerId,
                         visibility: 0,
-                    },
-                );
-                sillycom(state, sendVisiblePlayer('%s', '%s suddenely appears in a puff of smoke\n'))
-                return setPlayer(state, me.playerId, { visibility: 0 })
-            });
+                    }),
+                    Promise.resolve(sillycom(state, sendVisiblePlayer('%s', '%s suddenely appears in a puff of smoke\n'))),
+                    setPlayer(state, me.playerId, { visibility: 0 }),
+                ])
+            })
+            .then(() => {});
     }
 
     decorate(result: any): void {
@@ -324,21 +298,16 @@ export class Invisible extends Action {
                     visibility = Number(state.wordbuf);
                 }
 
-
-                sendsys(
-                    state,
-                    null,
-                    null,
-                    -9900,
-                    0,
-                    {
+                return Promise.all([
+                    sendVisibility(state, {
                         playerId: me.playerId,
                         visibility,
-                    },
-                );
-                sillycom(state, sendVisibleName('%s vanishes!\n'));
-                return setPlayer(state, me.playerId, { visibility });
-            });
+                    }),
+                    Promise.resolve(sillycom(state, sendVisibleName('%s vanishes!\n'))),
+                    setPlayer(state, me.playerId, { visibility }),
+                ]);
+            })
+            .then(() => {});
     }
 
     decorate(result: any): void {
@@ -364,16 +333,9 @@ export class Ressurect extends Action {
                 }
                 return createItem(state, item.itemId);
             })
-            .then((item) => {
-                sendsys(
-                    state,
-                    null,
-                    null,
-                    -10000,
-                    state.curch,
-                    `The ${item.name} suddenly appears`,
-                );
-                return putItem(state, item.itemId, state.curch);
-            });
+            .then((item) => Promise.all([
+                sendLocalMessage(state, state.curch, undefined, `The ${item.name} suddenly appears`),
+                putItem(state, item.itemId, state.curch),
+            ]));
     }
 }

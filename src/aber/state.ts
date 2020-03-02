@@ -139,10 +139,11 @@ export default interface State {
     my_str: number,
     // opensys
     filrf: any,
+    // parse
+    debug_mode: boolean,
     //
     brmode: boolean,
     curch: number,
-    debug_mode: boolean,
     ex_dat: number[],
     exittxt: string[],
     globme: string,

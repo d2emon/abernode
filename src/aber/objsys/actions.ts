@@ -12,7 +12,7 @@ import {
     putItem,
     setItem
 } from "../support";
-import {brkword, sendsys} from "../__dummies";
+import {brkword} from "../__dummies";
 import {getDragon} from "../mobile";
 import {sendPlayerForVisible, sendVisibleName} from "../bprintf";
 import {getLevel, isWizard, updateScore} from "../newuaf/reducer";
@@ -27,6 +27,7 @@ import {
     SHIELD_IDS
 } from "./index";
 import {sendMessage} from "../bprintf/bprintf";
+import {sendLocalMessage} from "../parse/events";
 
 const calibme = (state: State): boolean => false;
 const cancarry = (state: State, playerId: number): boolean => false;
@@ -142,17 +143,7 @@ export class GetItem extends Action {
             .then((item) => {
                 const results = [
                     holdItem(state, item.itemId, state.mynum),
-                    new Promise((resolve) => {
-                        sendsys(
-                            state,
-                            state.globme,
-                            state.globme,
-                            -10000,
-                            state.curch,
-                            `${sendPlayerForVisible(state.globme)}${sendVisibleName(` takes the ${item.name}\n`)}`,
-                        );
-                        return resolve();
-                    })
+                    sendLocalMessage(state, state.curch, state.globme, `${sendPlayerForVisible(state.globme)}${sendVisibleName(` takes the ${item.name}\n`)}`),
                 ];
                 const messages = [];
                 if (item.changeStateOnTake) {
@@ -193,17 +184,7 @@ export class DropItem extends Action {
                 }
                 return Promise.all([
                     putItem(state, item.itemId, state.curch),
-                    new Promise((resolve) => {
-                        sendsys(
-                            state,
-                            state.globme,
-                            state.globme,
-                            -10000,
-                            state.curch,
-                            `${sendPlayerForVisible(state.globme)}${sendVisibleName(` drops the ${item.name}\n`)}`,
-                        );
-                        return resolve();
-                    })
+                    sendLocalMessage(state, state.curch, state.globme, `${sendPlayerForVisible(state.globme)}${sendVisibleName(` drops the ${item.name}\n`)}`),
                 ]).then(() => item)
             })
             .then((item) => {
@@ -214,17 +195,7 @@ export class DropItem extends Action {
                 }
 
                 return Promise.all([
-                    new Promise((resolve) => {
-                        sendsys(
-                            state,
-                            state.globme,
-                            state.globme,
-                            -10000,
-                            state.curch,
-                            `The ${state.wordbuf} disappears into the bottomless pit.\n`,
-                        );
-                        return resolve();
-                    }),
+                    sendLocalMessage(state, state.curch, state.globme, `The ${state.wordbuf} disappears into the bottomless pit.\n`),
                     new Promise((resolve) => {
                         updateScore(state, item.value);
                         calibme(state);

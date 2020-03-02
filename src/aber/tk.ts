@@ -16,6 +16,8 @@ import {sendWizards} from "./new1/events";
 import {getLevel, getSex, getStrength, isGod, isWizard} from "./newuaf/reducer";
 import {initPerson, savePerson} from "./newuaf";
 import {loadWorld, saveWorld} from "./opensys";
+import {getDebugMode} from "./parse/reducer";
+import {sendLocalMessage} from "./parse/events";
 
 /*
  *
@@ -84,22 +86,22 @@ long offd,offs,len;
        c++;
        }
     }
+*/
 
- mstoout(block,name)
- long *block;char *name;
-    {
-    extern long debug_mode;
-    char luser[40];
-    char *x;
-    x=(char *)block;
-    *//* Print appropriate stuff from data block *//*
-    strcpy(luser,name);lowercase(luser);
-if(debug_mode)    bprintf("\n<%d>",block[1]);
-    if (block[1]<-3) sysctrl(block,luser);
-    else
-       bprintf("%s", (x+2*sizeof(long)));
+const mstoout = (state: State, block: { v0: number, code: number, payload: any }, name: string): void => {
+    /* Print appropriate stuff from data block */
+    const luser = name.toLowerCase();
+    if (getDebugMode(state)) {
+        bprintf(state, `\n<${block.code}>`);
     }
+    if (block.code < -3) {
+        return sysctrl(state, block, user.toLowerCase())
+    } else {
+        return bprintf(state, block.payload);
+    }
+};
 
+ /*
 long gurum=0;
 long convflg=0;
 */
@@ -117,7 +119,7 @@ const sendmsg = (state: State, name: string): Promise<boolean> => Promise.all([
         if (me.visibility) {
             prmpt += '(';
         }
-        if (state.debug_mode) {
+        if (getDebugMode(state)) {
             prmpt += '#';
         }
         if (isWizard(state)) {
@@ -349,16 +351,14 @@ const special = (state: State, word: string, name: string): Promise<boolean> => 
                     .then(roll)
                     .then((locationRoll) => {
                         state.curmode = 1;
-                        state.curch = -5;
-                        const xy = sendVisiblePlayer(name, `${name}  has entered the game\n`);
                         rte(state, name);
                         if (locationRoll > 50) {
-                            trapch(state, state.curch);
+                            state.curch = -5;
                         } else {
                             state.curch = -183;
-                            trapch(state, state.curch);
                         }
-                        sendsys(state, name, name, -10000, state.curch, xy);
+                        trapch(state, state.curch);
+                        return sendLocalMessage(state, state.curch, name, sendVisiblePlayer(name, `${name}  has entered the game\n`));
                     })
             })
             .then(() => true);
