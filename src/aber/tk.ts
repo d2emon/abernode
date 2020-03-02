@@ -14,6 +14,7 @@ import {onLook} from "./mobile";
 import {cureBlind, getBlind} from "./new1/reducer";
 import {sendWizards} from "./new1/events";
 import {getLevel, getSex, getStrength, isGod, isWizard} from "./newuaf/reducer";
+import {initPerson, savePerson} from "./newuaf";
 
 /*
  *
@@ -342,21 +343,21 @@ const special = (state: State, word: string, name: string): Promise<boolean> => 
     if (bk[1] === 'g') {
         return getPlayer(state, state.mynum)
             .then((player) => {
-                state.curmode = 1;
-                state.curch = -5;
-                initme(state);
-                openworld(state);
-                return setPlayer(state, player.playerId, {
-                    strength: getStrength(state),
-                    level: getLevel(state),
-                    visibility: isGod(state) ? 0 : 10000,
-                    flags: { sex: getSex(state) },
-                    weaponId: -1,
-                    helping: -1,
-                })
+                initPerson(state)
+                    .then(() => openworld(state))
+                    .then(() => setPlayer(state, player.playerId, {
+                        strength: getStrength(state),
+                        level: getLevel(state),
+                        visibility: isGod(state) ? 0 : 10000,
+                        flags: { sex: getSex(state) },
+                        weaponId: -1,
+                        helping: -1,
+                    }))
                     .then(() => sendWizards(state, sendVisiblePlayer(name, `[ ${name}  has entered the game ]\n`)))
                     .then(roll)
                     .then((locationRoll) => {
+                        state.curmode = 1;
+                        state.curch = -5;
                         const xy = sendVisiblePlayer(name, `${name}  has entered the game\n`);
                         rte(state, name);
                         if (locationRoll > 50) {
@@ -508,11 +509,9 @@ const loseme = (state: State, name: string): Promise<void> => getPlayer(state, s
             })
             .then(() => {
                 closeworld(state);
-                if (!state.zapped) {
-                    saveme(state);
-                }
-                return checkSnoop(state);
-            });
+                return savePerson(state);
+            })
+            .then(() => checkSnoop(state));
     });
 
 /*

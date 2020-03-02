@@ -31,7 +31,7 @@ import {getAvailableItem, isWornBy, sendBotDamage, teleport} from "./new1";
 import {checkCrippled, checkDumb, clearForce, getDumb, getForce} from "./new1/reducer";
 import {newReceive, sendShout, sendWizards} from "./new1/events";
 import {resetPlayers} from "./new1/bots";
-import {removePerson} from "./newuaf";
+import {removePerson, savePerson} from "./newuaf";
 import {
     getLevel,
     getScore,
@@ -329,8 +329,8 @@ const doaction = (state: State, actionId: number): Promise<void> => {
                     closeworld(state);
                     state.curmode = 0;
                     state.curch = 0;
-                    saveme(state);
-                    return endGame(state, 'Goodbye');
+                    return savePerson(state)
+                        .then(() => endGame(state, 'Goodbye'));
                 })
         }),
         /*
@@ -373,9 +373,9 @@ const doaction = (state: State, actionId: number): Promise<void> => {
        case 20:
           tellcom();
           break;
-       case 21:
-          saveme();
-          break;
+          */
+        21: () => savePerson(state),
+        /*
        case 22:
           scorecom();
           break;

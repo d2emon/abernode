@@ -1,10 +1,19 @@
 import State from "../state";
+import {Person} from "../services/persons";
 
 export const getLevel = (state: State): number => state.my_lev;
 export const getScore = (state: State): number => state.my_sco;
 export const getSex = (state: State): number => state.my_sex;
 export const getSexName = (state: State): string => !state.my_sex ? 'Male' : 'Female';
 export const getStrength = (state: State): number => state.my_str;
+export const getPerson = (state: State, newPerson: {}): Person => ({
+    name: state.globme,
+    strength: state.my_str,
+    score: state.my_sco,
+    level: state.my_lev,
+    sex: state.my_sex,
+    ...newPerson,
+});
 
 export const setLevel = (state: State, value: number): void => {
     state.my_lev = value;
@@ -17,6 +26,12 @@ export const setSex = (state: State, value: number): void => {
 };
 export const setStrength = (state: State, value: number): void => {
     state.my_str = value;
+};
+export const setPerson = (state: State, person: Person): void => {
+    state.my_str = person.strength;
+    state.my_sco = person.score;
+    state.my_lev = person.level;
+    state.my_sex = person.sex;
 };
 
 export const updateScore = (state: State, value: number): void => {
