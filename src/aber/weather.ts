@@ -2,7 +2,7 @@ import State from "./state";
 import {getItem, getItems, getPlayer, Item, setItem, setPlayer} from "./support";
 import {bprintf, brkword} from "./__dummies";
 import {findAvailableItem, findVisiblePlayer, isCarriedBy, isLocatedIn} from "./objsys";
-import {sendSound, sendSoundPlayer, sendVisibleName, sendVisiblePlayer} from "./bprintf/bprintf";
+import {sendSound, sendSoundPlayer, sendVisibleName, sendVisiblePlayer} from "./bprintf";
 import {roll} from "./magic";
 import {checkDumb} from "./new1/reducer";
 import {isGod, isWizard} from "./newuaf/reducer";

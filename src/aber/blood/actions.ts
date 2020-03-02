@@ -4,7 +4,8 @@ import {brkword} from '../__dummies';
 import {
     getPlayer,
     Item,
-    Player, scale,
+    Player,
+    scale,
 } from '../support';
 import {
     findAvailableItem,

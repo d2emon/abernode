@@ -11,7 +11,9 @@ import {
     findItem,
     dropItems,
     dropMyItems,
-    findVisiblePlayer, findPlayer, isContainedIn
+    findVisiblePlayer,
+    findPlayer,
+    isContainedIn,
 } from "./objsys";
 import {hitPlayer} from "./blood";
 import {receiveDamage} from './blood/events';
