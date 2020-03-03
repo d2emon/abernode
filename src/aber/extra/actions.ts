@@ -1,8 +1,5 @@
 import State from "../state";
 import {
-    brkword,
-} from "../__dummies";
-import {
     findAvailableItem,
     findItem,
     findVisiblePlayer,
@@ -101,12 +98,7 @@ export class Help extends Action {
             });
     }
 
-    action(state: State): Promise<any> {
-        const name = brkword(state);
-        if (name) {
-            return this.helpSomeone(state, name);
-        }
-
+    private helpMessage(state: State): Promise<any> {
         return saveWorld(state)
             .then(() => {
                 const parts = [showFile(HELP1)];
@@ -126,6 +118,16 @@ export class Help extends Action {
                 }))]);
             })
     }
+
+    action(state: State): Promise<any> {
+        return Action.nextWord(state)
+            .catch(() => '')
+            .then((name) => (
+                name
+                    ? this.helpSomeone(state, name)
+                    : this.helpMessage(state)
+            ));
+    }
 }
 
 export class Levels extends Action {
@@ -137,16 +139,14 @@ export class Levels extends Action {
 
 export class Value extends Action {
     action(state: State): Promise<any> {
-        const name = brkword(state);
-        if (!name) {
-            throw new Error('Value what ?');
-        }
-        return findAvailableItem(state, name)
+        return Action.nextWord(state)
+            .catch(() => Promise.reject(new Error('Value what ?')))
+            .then((name) => findAvailableItem(state, name))
             .then((item) => {
                 if (!item) {
                     throw new Error('There isn\'t one of those here.');
                 }
-                return `${name} : ${item.value} points\n`;
+                return `${item.name} : ${item.value} points\n`;
             })
     }
 }
@@ -202,15 +202,13 @@ export class Stats extends Action {
     }
 
     action(state: State): Promise<any> {
-        const name = brkword(state);
-        if (!name) {
-            throw new Error('STATS what ?');
-        }
         if (!isWizard(state)) {
             throw new Error('Sorry, this is a wizard command buster...');
         }
-        return findItem(state, name)
-            .then((item: Item) => (item ? Stats.statItem(state, item) : Stats.statPlayer(state, name)));
+        return Action.nextWord(state)
+            .catch(() => Promise.reject(new Error('STATS what ?')))
+            .then(name => findItem(state, name)
+                .then((item: Item) => (item ? Stats.statItem(state, item) : Stats.statPlayer(state, name))));
     }
 
     decorate(result: any): void {
@@ -388,11 +386,9 @@ export class Examine extends Action {
     }
 
     action(state: State): Promise<any> {
-        const name = brkword(state);
-        if (!name) {
-            throw new Error('Examine what ?\n');
-        }
-        return findAvailableItem(state, name)
+        return Action.nextWord(state)
+            .catch(() => Promise.reject(new Error('Examine what ?')))
+            .then(name => findAvailableItem(state, name))
             .then((item: Item) => {
                 if (!item) {
                     throw new Error( 'You see nothing special at all\n');
@@ -439,39 +435,44 @@ export class InLocation extends Action {
             throw new Error('Huh');
         }
         const exBk = [...state.ex_dat];
-        const rn = brkword(state);
-        if (!rn) {
-            throw new Error('In where ?');
-        }
-        const rv = brkword(state);
-        if (!rv) {
-            throw new Error('In where ?');
-        }
-        const oldLocationId = state.curch;
-        const locationId = roomnum(state, rn, rv);
-        if (locationId === 0) {
-            throw new Error('Where is that ?');
-        }
-        const toPerform = getreinput(state);
-        state.curch = locationId;
-        return saveWorld(state)
-            .then(() => openroom(state, state.curch, 'r'))
-            .then((unit) => {
-                lodex(state, unit);
-                return fclose(unit);
-            })
-            .then(() => loadWorld(state))
-            .then(() => executeCommand(state, toPerform))
-            .then(() => loadWorld(state))
-            .then(() => {
-                if (state.curch === locationId) {
-                    state.ex_dat = [...exBk];
+        return Action.nextWord(state)
+            .catch(() => Promise.reject(new Error('In where ?')))
+            .then((rn) => Promise.all([
+                Promise.resolve(rn),
+                Action.nextWord(state),
+            ]))
+            .catch(() => Promise.reject(new Error('In where ?')))
+            .then(([
+                rn,
+                rv,
+            ]) => {
+                const oldLocationId = state.curch;
+                const locationId = roomnum(state, rn, rv);
+                if (locationId === 0) {
+                    throw new Error('Where is that ?');
                 }
-                state.curch = oldLocationId;
-            })
-            .catch(() => {
-                state.curch = oldLocationId;
-                throw new Error('No such room');
+                const toPerform = getreinput(state);
+                state.curch = locationId;
+                return saveWorld(state)
+                    .then(() => openroom(state, state.curch, 'r'))
+                    .then((unit) => {
+                        lodex(state, unit);
+                        return fclose(unit);
+                    })
+                    .then(() => loadWorld(state))
+                    .then(() => executeCommand(state, toPerform))
+                    .then(() => loadWorld(state))
+                    .then(() => {
+                        if (state.curch === locationId) {
+                            state.ex_dat = [...exBk];
+                        }
+                        state.curch = oldLocationId;
+                    })
+                    .catch(() => {
+                        state.curch = oldLocationId;
+                        throw new Error('No such room');
+                    });
+
             });
     }
 }
@@ -589,16 +590,12 @@ export class Where extends Action {
                 }
                 return saveWorld(state);
             })
-            .then(() => {
-                const name = brkword(state);
-                if (!name) {
-                    throw new Error('What is that ?');
-                }
-                return Promise.all([
-                    Where.showItems(state, name),
-                    Where.showPlayer(state, name),
-                ]);
-            })
+            .then(() => Action.nextWord(state))
+            .catch(() => Promise.reject(new Error('What is that ?')))
+            .then(name =>  Promise.all([
+                Where.showItems(state, name),
+                Where.showPlayer(state, name),
+            ]))
             .then(([
                 items,
                 player,
@@ -626,53 +623,105 @@ export class Where extends Action {
 }
 
 export class EditWorld extends Action {
-    private static getNumber(state: State, minValue: number = 0, maxValue?: number): number {
-        const word = brkword(state);
-        if (!word) {
-            throw new Error('Missing numeric argument');
-        }
-        const value = Number(word);
-        if (value < minValue) {
-            throw new Error('Invalid range');
-        }
-        if (maxValue && (value > maxValue)) {
-            throw new Error('Invalid range');
-        }
-        return value;
+    private static getNumber(state: State, minValue: number = 0, maxValue?: number): Promise<number> {
+        return Action.nextWord(state)
+            .catch(() => Promise.reject(new Error('Missing numeric argument')))
+            .then(Number)
+            .then((value) => {
+                if (value < minValue) {
+                    throw new Error('Invalid range');
+                }
+                if (maxValue && (value > maxValue)) {
+                    throw new Error('Invalid range');
+                }
+                return value;
+            });
     }
 
     private static editPlayer (state: State): Promise<any> {
-        const playerId = EditWorld.getNumber(state, 0, 47);
-        if (playerId === -1) {
-            return Promise.resolve(false);
-        }
-        const key = EditWorld.getNumber(state, 0, 15);
-        if (key === -1) {
-            return Promise.resolve(false);
-        }
-        const value = EditWorld.getNumber(state);
-        if (value === -1) {
-            return Promise.resolve(false);
-        }
-        return setPlayer(state, playerId, { [key]: value })
-            .then(() => true);
+        return EditWorld.getNumber(state, 0, 47)
+            .then((playerId) => {
+                if (playerId === -1) {
+                    return Promise.resolve([]);
+                }
+                return Promise.all([
+                    Promise.resolve(playerId),
+                    EditWorld.getNumber(state, 0, 15),
+                ]);
+            })
+            .then(([
+                playerId,
+                key,
+            ]) => {
+                if (playerId === undefined) {
+                    return Promise.resolve([]);
+                }
+                if (key === -1) {
+                    return Promise.resolve([]);
+                }
+                return Promise.all([
+                    Promise.resolve(playerId),
+                    Promise.resolve(key),
+                    EditWorld.getNumber(state),
+                ]);
+            })
+            .then(([
+                playerId,
+                key,
+                value,
+            ]) => {
+                if (playerId === undefined) {
+                    return Promise.resolve(false);
+                }
+                if (value === -1) {
+                    return Promise.resolve(false);
+                }
+                return setPlayer(state, playerId, { [key]: value })
+                    .then(() => true);
+            });
     }
 
     private static editItem (state: State): Promise<any> {
-        const itemId = EditWorld.getNumber(state, 0, state.numobs - 1);
-        if (itemId === -1) {
-            return Promise.resolve(false);
-        }
-        const key = EditWorld.getNumber(state, 0, 3);
-        if (key === -1) {
-            return Promise.resolve(false);
-        }
-        const value = EditWorld.getNumber(state);
-        if (value === -1) {
-            return Promise.resolve(false);
-        }
-        return setItem(state, itemId, { [key]: value })
-            .then(() => true);
+        return EditWorld.getNumber(state, 0, state.numobs - 1)
+            .then((itemId) => {
+                if (itemId === -1) {
+                    return Promise.resolve([]);
+                }
+                return Promise.all([
+                    Promise.resolve(itemId),
+                    EditWorld.getNumber(state, 0, 3)
+                ]);
+            })
+            .then(([
+                itemId,
+                key,
+            ]) => {
+                if (itemId === undefined) {
+                    return Promise.resolve([]);
+                }
+                if (key === -1) {
+                    return Promise.resolve([]);
+                }
+                return Promise.all([
+                    Promise.resolve(itemId),
+                    Promise.resolve(key),
+                    EditWorld.getNumber(state),
+                ]);
+            })
+            .then(([
+                itemId,
+                key,
+                value,
+            ]) => {
+                if (itemId === undefined) {
+                    return Promise.resolve(false);
+                }
+                if (value === -1) {
+                    return Promise.resolve(false);
+                }
+                return setItem(state, itemId, { [key]: value })
+                    .then(() => true);
+            });
     }
 
     action(state: State): Promise<any> {
@@ -681,10 +730,10 @@ export class EditWorld extends Action {
                 if (!editor.canEditWorld) {
                     throw new Error('Must be Game Administrator');
                 }
-                const name = brkword(state);
-                if (!name) {
-                    throw new Error('Must Specify Player or Object');
-                }
+                return Action.nextWord(state);
+            })
+            .catch(() => Promise.reject(new Error('Must Specify Player or Object')))
+            .then((name) => {
                 if (name === 'player') {
                     return EditWorld.editPlayer(state);
                 } else if (name !== 'object') {

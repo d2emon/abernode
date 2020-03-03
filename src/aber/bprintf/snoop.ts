@@ -2,7 +2,7 @@ import State from "../state";
 import {getSnooped, startSnoop, stopSnoop} from "./reducer";
 import {Player} from "../support";
 import Snoop from '../services/snoop';
-import {sendSnoop, sendStopSnoop} from "../parse/events";
+import {sendStopSnoop} from "../parse/events";
 
 export const viewSnoop = (state: State, snooped: Player): Promise<void> => Snoop.connectSnoop(state.globme)
     .then(() => Snoop.readSnoop(state.globme))

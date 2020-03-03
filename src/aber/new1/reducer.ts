@@ -50,6 +50,6 @@ export const checkBlind = (state: State): Promise<boolean> => getBlind(state)
 export const checkDeaf = (state: State): Promise<boolean> => getDeaf(state)
     ? Promise.reject(new Error())
     : Promise.resolve(false);
-export const checkIsForced = (state: State): Promise<boolean> => getIsForced(state)
-    ? Promise.reject(new Error('You can\'t be forced to do that'))
+export const checkIsForced = (state: State, message?: string): Promise<boolean> => getIsForced(state)
+    ? Promise.reject(new Error(message || 'You can\'t be forced to do that'))
     : Promise.resolve(false);

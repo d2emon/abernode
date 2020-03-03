@@ -1,6 +1,5 @@
 import Action from '../action';
 import State from '../state';
-import {brkword} from '../__dummies';
 import {
     getPlayer,
     Item,
@@ -63,13 +62,10 @@ const sysReset = (state: State): Promise<void> => {
 };
 
 export class Weapon extends Action {
-    action(state: State): Promise<any> {
-        const name = brkword(state);
-        if (!name) {
-            throw new Error('Which weapon do you wish to select though');
-        }
-        return getPlayer(state, state.mynum)
-            .then(player => findCarriedItem(state, name, player))
+    action(state: State, actor: Player): Promise<any> {
+        return Action.nextWord(state)
+            .catch(() => Promise.reject(new Error('Which weapon do you wish to select though')))
+            .then(name => findCarriedItem(state, name, actor))
             .then((item) => {
                 if (!item) {
                     throw new Error('Whats one of those ?');
@@ -89,36 +85,22 @@ export class Weapon extends Action {
 }
 
 export class Kill extends Action {
-    getVictim(state: State, name: string): Promise<Player> {
-        return findVisiblePlayer(state, name)
-            .then((player) => {
-                if (!player) {
-                    throw new Error('You can\'t do that');
-                }
-                if (player.playerId === state.mynum) {
-                    throw new Error('Come on, it will look better tomorrow...');
-                }
-                if (player.locationId !== state.curch) {
-                    throw new Error('They aren\'t here');
-                }
-                return player;
-            });
+    getVictim(state: State, player: Player): Promise<Player> {
+        if (!player) {
+            throw new Error('You can\'t do that');
+        }
+        if (player.playerId === state.mynum) {
+            throw new Error('Come on, it will look better tomorrow...');
+        }
+        if (player.locationId !== state.curch) {
+            throw new Error('They aren\'t here');
+        }
+        return Promise.resolve(player);
     }
 
-    getWeapon(state: State): Promise<Item> {
-        let name = brkword(state);
-        if (!name) {
-            return getWeapon(state);
-        }
-        if (name !== 'with') {
-            return this.getWeapon(state);
-        }
-        name = brkword(state);
-        if (!name) {
-            throw new Error('with what ?\n');
-        }
-        return getPlayer(state, state.mynum)
-            .then(me => findCarriedItem(state, name, me))
+    getWeapon(state: State, actor: Player): Promise<Item> {
+        return Action.nextWord(state)
+            .then((name) => findCarriedItem(state, name, actor))
             .then((weapon) => {
                 if (!weapon) {
                     throw new Error('with what ?\n');
@@ -137,29 +119,33 @@ export class Kill extends Action {
         throw new Error('You can\'t do that');
     }
 
-    killPlayer(state: State): Promise<any> {
+    killPlayer(state: State, actor: Player, player: Player): Promise<any> {
         return Promise.all([
-            this.getVictim(state),
-            this.getWeapon(state),
+            this.getVictim(state, player),
+            this.getWeapon(state, actor),
         ])
-            .then(([player, weapon]) => {
-                return hitPlayer(state, player, weapon);
-            });
+            .then(([player, weapon]) => hitPlayer(state, player, weapon));
     };
 
-    action(state: State): Promise<any> {
-        const name = brkword(state);
-        if (!name) {
-            throw new Error('Kill who');
-        }
-        if (name === 'door') {
-            throw new Error('Who do you think you are , Moog?');
-        }
-        return findAvailableItem(state, name)
-            .then((item) => (
+    action(state: State, actor: Player): Promise<any> {
+        return Action.nextWord(state)
+            .catch(() => Promise.reject(new Error('Kill who')))
+            .then((name) => {
+                if (name === 'door') {
+                    throw new Error('Who do you think you are , Moog?');
+                }
+                return Promise.all([
+                    findAvailableItem(state, name),
+                    findVisiblePlayer(state, name),
+                ]);
+            })
+            .then(([
+                item,
+                player,
+            ]) => (
                 item
-                    ? this.breakItem(state, item)
-                    : this.killPlayer(state)
+                    ? this.breakItem(state, item as Item)
+                    : this.killPlayer(state, actor, player as Player)
             ));
     }
 }

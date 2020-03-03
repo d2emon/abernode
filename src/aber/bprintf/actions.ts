@@ -8,9 +8,6 @@ import {
     stopSnoop,
 } from './reducer';
 import {Player} from '../support';
-import {
-    brkword,
-} from '../__dummies';
 import {findVisiblePlayer} from '../objsys';
 import {touchSnoop} from './snoop';
 import LogService from '../services/log';
@@ -76,11 +73,7 @@ export class Snoop extends Action {
             }))
     }
 
-    private static startSnoop(state: State): Promise<any> {
-        const name = brkword(state);
-        if (!name) {
-            return Promise.resolve();
-        }
+    private static startSnoop(state: State, name: string): Promise<any> {
         return findVisiblePlayer(state, name)
             .then((snooped) => {
                 if (!snooped) {
@@ -103,12 +96,25 @@ export class Snoop extends Action {
             }));
     }
 
+    private static trySnoop(state: State): Promise<any> {
+        return Action.nextWord(state)
+            .then(name => (
+                name
+                    ? Snoop.startSnoop(state, name)
+                    : Promise.resolve()
+            ));
+    }
+
     action(state: State): Promise<any> {
         if (!isWizard(state)) {
             throw new Error('Ho hum, the weather is nice isn\'t it');
         }
         return getSnooped(state)
-            .then(snooped => (snooped ? Snoop.stopSnoop(state, snooped) : Snoop.startSnoop(state)));
+            .then(snooped => (
+                snooped
+                    ? Snoop.stopSnoop(state, snooped)
+                    : Snoop.trySnoop(state)
+            ));
     }
 
     decorate(result: any): void {

@@ -29,7 +29,7 @@ import {showMessages} from "../bprintf/output";
 import {endGame} from "../gamego/endGame";
 import {checkRoll, roll} from "../magic";
 import {getAvailableItem, isWornBy, sendBotDamage, teleport} from "../new1";
-import {checkCrippled, checkDumb, clearForce, getDumb, getForce} from "../new1/reducer";
+import {checkDumb, clearForce, getDumb, getForce} from "../new1/reducer";
 import {newReceive, sendShout, sendWizards} from "../new1/events";
 import {resetPlayers} from "../new1/bots";
 import {removePerson, savePerson} from "../newuaf";
@@ -46,14 +46,9 @@ import {
 } from "../newuaf/reducer";
 import {loadWorld, saveWorld} from "../opensys";
 import {
-    addWordChar, applyPronouns,
     changeDebugMode,
     getCurrentChar,
-    getStringBuffer, getWordBuffer,
     nextStop,
-    resetStop,
-    resetWordBuffer,
-    setStringBuffer
 } from "./reducer";
 import {
     sendEndFight,
@@ -105,93 +100,9 @@ const onFlee = (state: State): Promise<void> => Promise.all([
  * Stam:state:loc:flag
  */
 
-/*
-char *verbtxt[]={"go","climb","n","e","s","w","u","d",
-    "north","east","south","west","up","down",
-    "quit",
-    "get","take","drop","look","i","inv","inventory","who",
-    "reset","zap","eat","drink","play",
-    "shout","say","tell","save","score"
-    ,"exorcise","give","steal","pinch","levels","help","value"
-    ,"stats","examine","read","delete","pass","password",
-    "summon","weapon","shoot","kill","hit","fire","launch","smash","break",
-    "laugh","cry","burp","fart","hiccup","grin","smile","wink","snigger"
-    ,"pose","set","pray","storm","rain","sun","snow","goto",
-    "wear","remove","put","wave","blizzard","open","close",
-    "shut","lock","unlock","force","light","extinguish","where","turn",
-    "invisible","visible","pull","press","push","cripple","cure","dumb",
-    "change","missile","shock","fireball","translocate","blow",
-    "sigh","kiss","hug","slap","tickle","scream","bounce","wiz"
-    ,"stare","exits","crash","sing","grope","spray"
-    ,"groan","moan","directory","yawn","wizlist","in","smoke"
-    ,"deafen","resurrect","log","tss","rmedit","loc","squeeze","users"
-    ,"honeyboard","inumber","update","become","systat","converse"
-    ,"snoop","shell","raw","purr","cuddle","sulk","roll","credits"
-    ,"brief","debug","jump","wield","map","flee","bug","typo","pn"
-    ,"blind","patch","debugmode","pflags","frobnicate","strike"
-    ,"setin","setout","setmin","setmout","emote","dig","empty"
-    ,0 };
-int verbnum[]={1,1,2,3,4,5,6,7,2,3,4,5,6,7,8,9,9,10,11,12,12,12,13,14
-    ,15,16,16,17,18,19,20,21,22,23,24,25,25,26,27,28,29,30,30,31,32,32,33,34,35,35,35,35,35
-    ,35,35,50,51,52,53,54,55,56,57,58,59,60,61,62,63,64,65,66
-    ,100,101,102,103,104,105,106,106,107,108,109,110,111,112,117,114,115,117,117,117
-    ,118,119,120,121,122,123,124,125,126,127,128,129,130,131,132,133
-    ,134,135,136,137,138,139,140,141,142,143,144,145,146,147,148,149
-    ,150,151,152,153,154,155,156,157,158,159,160,161,162,163,164,165,166,167,168,169,170
-    ,171,172,34,173,174,175,176,177,178,179,180,181,182,35,183,184,185,186,187,188,189};
-
-char *exittxt[]={"north","east","south","west","up","down","n","e","s","w","u","d",0};
-long exitnum[]={1,2,3,4,5,6,1,2,3,4,5,6};
-
-*/
 
 const doaction = (state: State, actionId: number): Promise<void> => {
     const actions = {
-        /*
-       case 1:
-          dogocom();
-          break;
-       case 139:
-          if(in_fight)
-             {
-             bprintf("Not in a fight!\n");break;
-             }
-          gropecom();
-          break;
-          */
-        8: () => new Promise((resolve) => {
-            if (state.isforce) {
-                bprintf(state, 'You can\'t be forced to do that\n');
-                return resolve();
-            }
-            rte(state, state.globme);
-            return loadWorld(state)
-                .then(() => {
-                    if (state.in_fight) {
-                        bprintf(state, 'Not in the middle of a fight!\n');
-                        return resolve();
-                    }
-                    const xx1 = `${state.globme} has left the game\n`;
-                    bprintf(state, 'Ok');
-                    return Promise.all([
-                        sendLocalMessage(state, state.curch, state.globme, xx1),
-                        sendWizards(state, `[ Quitting Game : ${state.globme} ]\n`),
-                        dropMyItems(state),
-                        setPlayer(state, state.mynum, {
-                            exists: false,
-                            isDead: true,
-                        }),
-                    ])
-                        .then(() => {})
-                })
-                .then(() => saveWorld(state))
-                .then(() => {
-                    state.curmode = 0;
-                    state.curch = 0;
-                    return savePerson(state)
-                        .then(() => endGame(state, 'Goodbye'));
-                })
-        }),
         /*
        case 9:
           getobj();
@@ -643,127 +554,6 @@ char mout_ms[81]="vanishes in a puff of smoke.";
 char min_ms[81]="appears with an ear-splitting bang.";
 char here_ms[81]="is here";
     */
-
-const dogocom = (state: State, n: number): Promise<void> => {
-    const word = brkword(state);
-    if (!word) {
-        throw new Error('GO where ?');
-    }
-    return Promise.resolve((word === 'rope') ? 'up' : word)
-        .then((word) => checkList(state, word.toLowerCase(), exittxt, exitnum))
-        .then((a) => {
-            if (a === -1) {
-                throw new Error('Thats not a valid direction');
-            }
-            return dodirn(state, a + 1);
-        });
-};
-
-const dodirn = (state: State, n: number): Promise<void> => {
-    if (state.in_fight > 0) {
-        bprintf(state, 'You can\'t just stroll out of a fight!\n');
-        bprintf(state, 'If you wish to leave a fight, you must FLEE in a direction\n');
-        return Promise.resolve();
-    }
-
-    return  Promise.all([
-        getPlayer(state, state.mynum),
-        getItem(state, 32),
-        getPlayer(state, 25),
-    ])
-        .then(([
-            player,
-            runeSword,
-            player25,
-        ]) => {
-            if (isCarriedBy(runeSword, player, !isWizard(state)) && (player25.locationId === state.curch) && player25.exists) {
-                bprintf(state, `${sendVisibleName('The Golem')} bars the doorway!`);
-                return;
-            }
-            n -= 2;
-            return checkCrippled(state)
-                .then(() => state.ex_dat[n])
-                .then((newch) => {
-                    if ((newch > 999) && (newch < 2000)) {
-                        const drnum = newch - 1000;
-                        return Promise.all([
-                            getItem(state, drnum /* other door side */),
-                            getItem(state, drnum ^ 1 /* other door side */),
-                        ])
-                            .then(([drnum, droff]) => {
-                                if (drnum.state !== 0) {
-                                    if ((drnum.name === "door") || isdark(state) || !drnum.description.length) {
-                                        throw new Error('You can\'t go that way\n');
-                                        /* Invis doors */
-                                    } else {
-                                        throw new Error('The door is not open\n');
-                                    }
-                                }
-                                return droff.locationId;
-                            });
-                    }
-                    return newch;
-                })
-                .then((newch) => {
-                    if (newch === -139) {
-                        Promise.all([
-                            89,
-                            113,
-                            114,
-                        ].map(itemId => getItem(state, itemId)))
-                            .then((shields) => {
-                                if (shields.some(shield => isWornBy(state, shield, player))) {
-                                    bprintf(state, 'The shield protects you from the worst of the lava stream\'s heat\n');
-                                } else {
-                                    return bprintf(state, 'The intense heat drives you back\n');
-                                }
-                            });
-                    }
-                    let p = Promise.resolve(true);
-                    if (n === 2) {
-                        p = Promise.all([
-                            findPlayer(state, 'figure'),
-                            Promise.all([
-                                101,
-                                102,
-                                103,
-                            ].map(itemId => getItem(state, itemId))),
-                        ])
-                            .then(([
-                                figure,
-                                items,
-                            ]) => {
-                                if (figure && (figure.playerId !== state.mynum) && (figure.locationId === state.curch) && !items.some(item => isWornBy(state, item, player))) {
-                                    bprintf(state, `${sendName('The Figure')} holds you back\n`);
-                                    bprintf(state, `${sendName('The Figure')} says \'Only true sorcerors may pass\'\n`);
-                                    return false;
-                                }
-                                return true;
-                            });
-                    }
-                    return p
-                        .then((result) => {
-                            if (!result) {
-                                return;
-                            }
-                            if (newch >= 0) {
-                                throw new Error('You can\'t go that way\n');
-                            }
-                            return getPlayer(state, state.mynum)
-                                .then((player) => {
-                                    const oldLocationId = state.curch;
-                                    state.curch = newch;
-                                    trapch(state, state.curch);
-                                    return Promise.all([
-                                        sendLocalMessage(state, oldLocationId, state.globme, sendVisiblePlayer(player.name, `${player.name} has gone ${state.exittxt[n]} ${state.out_ms}.\n`)),
-                                        sendLocalMessage(state, oldLocationId, newch, sendVisiblePlayer(player.name, `${player.name} ${state.in_ms}.\n`)),
-                                    ]);
-                                });
-                        });
-                })
-                .catch(err => bprintf(state, err));
-        });
-};
 
 /*
 long tdes=0;

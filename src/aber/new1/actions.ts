@@ -15,9 +15,6 @@ import {
     teleport,
 } from "./index";
 import {
-    brkword,
-} from "../__dummies";
-import {
     Item,
     Player,
     getHelper,
@@ -62,7 +59,6 @@ import {
 } from "./events";
 import {
     checkDumb,
-    checkIsForced,
 } from "./reducer";
 import {getLevel, getStrength, isWizard, updateScore, updateStrength} from "../newuaf/reducer";
 import {loadWorld} from "../opensys";
@@ -76,26 +72,22 @@ const trapch = (state: State, locationId: number): void => undefined;
 
 /* This one isnt for magic */
 
-const getTargetPlayer = (state: State): Promise<Player> => {
-    const name = brkword(state);
-    if (!name) {
-        throw new Error('Who ?');
-    }
-    return loadWorld(state)
-        .then(() => {
-            if (name === 'at') {
-                /* STARE AT etc */
-                return getTargetPlayer(state);
-            }
-            return findVisiblePlayer(state, name)
-                .then((player) => {
-                    if (!player) {
-                        throw new Error('Who ?');
-                    }
-                    return player;
-                })
-        });
-};
+const getTargetPlayer = (state: State): Promise<Player> => loadWorld(state)
+    .then(() => Action.nextWord(state))
+    .catch(() => Promise.reject(new Error('Who ?')))
+    .then((name) =>{
+        if (name === 'at') {
+            /* STARE AT etc */
+            return getTargetPlayer(state);
+        }
+        return findVisiblePlayer(state, name)
+            .then((player) => {
+                if (!player) {
+                    throw new Error('Who ?');
+                }
+                return player;
+            })
+    });
 
 export const getAvailablePlayer = (state: State): Promise<Player> => getTargetPlayer(state)
     .then((player) => {
@@ -175,6 +167,44 @@ const socialInteraction = (state: State, player: Player, message: string, visibl
         : `${sendName(state.globme)} ${message}\n`,
 )
     .then(() => output);
+
+export class Grope extends Action {
+    check(state: State, actor: Player): Promise<void> {
+        return Promise.all([
+            Action.checkFight(
+                state,
+                'Not in a fight!',
+            ),
+            Action.checkIsForced(state),
+        ])
+            .then(() => super.check(state, actor));
+    }
+
+    private static gropeMyself = (state: State): Promise<void> => Promise.all([
+        sendMessage(state, 'With a sudden attack of morality the machine edits your persona\n'),
+        loseme(state),
+        endGame(state, 'Bye....... LINE TERMINATED - MORALITY REASONS'),
+    ])
+        .then(() => null);
+
+    private static gropePlayer = (state: State, player: Player): Promise<void> => socialInteraction(
+        state,
+        player, 'gropes you',
+       false,
+       '<Well what sort of noise do you want here ?>\n',
+    );
+
+    private static grope = (state: State) => (player: Player): Promise<void> => (
+        (player.playerId === state.mynum)
+            ? Grope.gropeMyself(state)
+            : Grope.gropePlayer(state, player)
+    );
+
+    action(state: State): Promise<any> {
+        return getAvailablePlayer(state)
+            .then(Grope.grope(state));
+    }
+}
 
 export class Bounce extends Action {
     action(state: State): Promise<any> {
@@ -501,21 +531,37 @@ export class Put extends Action {
     action(state: State): Promise<any> {
         return getAvailableItem(state)
             .then((item) => {
-                let name = brkword(state);
-                if (!name) {
-                    throw new Error('where ?');
-                }
-                if ((name === 'on') || (name === 'in')) {
-                    name = brkword(state);
-                    if (!name) {
-                        throw new Error('What ?');
-                    }
-                }
-                return Promise.all([
-                    Promise.resolve(item),
-                    findAvailableItem(state, name),
-                ])
+                return Action.nextWord(state)
+                    .catch(() => Promise.reject(new Error('where ?')))
+                    .then((name) => [
+                        item,
+                        name,
+                    ]);
             })
+            .then(([
+                item,
+                name,
+            ]) => {
+                if ((name === 'on') || (name === 'in')) {
+                    return Action.nextWord(state)
+                        .catch(() => Promise.reject(new Error('What ?')))
+                        .then((name) => [
+                            item,
+                            name,
+                        ]);
+                }
+                return [
+                    item,
+                    name,
+                ];
+            })
+            .then(([
+                item,
+                name,
+            ]) => Promise.all([
+                Promise.resolve(item as Item),
+                findAvailableItem(state, name as string),
+            ]))
             .then(([
                 item,
                 container,
@@ -759,11 +805,9 @@ export class Push extends Action {
     }
 
     action(state: State): Promise<any> {
-        const name = brkword(state);
-        if (!name) {
-            throw new Error('Push what ?');
-        }
-        return findAvailableItem(state, name)
+        return Action.nextWord(state)
+            .catch(() => Promise.reject(new Error('Push what ?')))
+            .then(name => findAvailableItem(state, name))
             .then((item) => {
                 if (!item) {
                     throw new Error('That is not here');
@@ -861,14 +905,14 @@ export class Missile extends Action {
 
 export class Change extends Action {
     action(state: State): Promise<any> {
-        const name = brkword(state);
-        if (!name) {
-            throw new Error('change what (Sex ?) ?\n');
-        }
-        if (name !== 'sex') {
-            throw new Error('I don\'t know how to change that\n');
-        }
-        return getSpellTarget(state)
+        return Action.nextWord(state)
+            .catch(() => Promise.reject(new Error('change what (Sex ?) ?')))
+            .then((name) => {
+                if (name !== 'sex') {
+                    throw new Error('I don\'t know how to change that\n');
+                }
+                return getSpellTarget(state)
+            })
             .then((player) => {
                 const promises = [sendChangeSex(state, player)];
                 if (player.isBot) {
@@ -976,29 +1020,6 @@ export class Stare extends Action {
                     true,
                     `You stare at ${sendName(player.name)}\n`,
                  );
-            });
-    }
-}
-
-export class Grope extends Action {
-    action(state: State): Promise<any> {
-        return checkIsForced(state)
-            .then(() => getAvailablePlayer(state))
-            .then((player) => {
-                if (player.playerId === state.mynum) {
-                    return sendMessage(state, 'With a sudden attack of morality the machine edits your persona\n')
-                        .then(() => {
-                            loseme(state);
-                            return endGame(state, 'Bye....... LINE TERMINATED - MORALITY REASONS')
-                                .then(() => null);
-                        });
-                }
-                return socialInteraction(
-                    state,
-                    player, 'gropes you',
-                    false,
-                    '<Well what sort of noise do you want here ?>\n',
-                );
             });
     }
 }

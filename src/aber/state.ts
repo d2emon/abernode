@@ -157,6 +157,7 @@ export default interface State {
     globme: string,
     hasfarted: boolean,
     i_setup: boolean,
+    in_ms: string,
     jumtb: number[],
     maxu: number,
     me_cal: number,
