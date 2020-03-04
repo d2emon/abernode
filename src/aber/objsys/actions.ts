@@ -1,21 +1,16 @@
 import Action from "../action";
 import State from "../state";
 import {
-    createItem,
-    getHelper,
-    getItem,
+    Item,
+    Player,
     getPlayer,
     getPlayers,
     holdItem,
-    Item,
-    Player,
     putItem,
-    setItem
 } from "../support";
-import {brkword} from "../__dummies";
 import {getDragon} from "../mobile";
 import {sendPlayerForVisible, sendVisibleName} from "../bprintf";
-import {getLevel, isWizard, updateScore} from "../newuaf/reducer";
+import {getLevel, isWizard} from "../newuaf/reducer";
 import {HELD_BY} from "../object";
 import {
     findAvailableItem,
@@ -23,18 +18,166 @@ import {
     findContainedItem,
     findHereItem,
     itemsAt,
-    SHIELD_BASE_ID,
-    SHIELD_IDS
 } from "./index";
 import {sendMessage} from "../bprintf/bprintf";
-import {sendLocalMessage} from "../parse/events";
-import {getStop, setStop} from "../parse/reducer";
+import {sendLocalMessage, sendMyMessage} from "../parse/events";
+import * as ChannelEvents from "../events/channel";
+import * as ItemEvents from "../events/item";
 
-const calibme = (state: State): boolean => false;
 const cancarry = (state: State, playerId: number): boolean => false;
 
 const itemsCarriedBy = (state: State, player: Player): Promise<void> => itemsAt(state, player.playerId, HELD_BY)
     .then((result) => sendMessage(state, result));
+
+interface ItemRequest {
+    state: State,
+    item?: string,
+    container?: string,
+}
+
+export class GetItem extends Action {
+    getArgs = (state: State): Promise<ItemRequest> => {
+        const getItemName = Action.nextWord(state, 'Get what?');
+        const getFrom = (itemName: string) => Promise.all([
+            Promise.resolve(itemName),
+            Action.nextWord(state),
+        ]);
+        const getContainerName = ([
+            itemName,
+            containerName,
+        ]) => {
+            /* Hold */
+            if (!containerName) {
+                return [
+                    itemName,
+                ];
+            } else if ((containerName !== 'from') && (containerName !== 'out')) {
+                return [
+                    itemName,
+                ];
+            } else {
+                return Promise.all([
+                    Promise.resolve(itemName),
+                    Action.nextWord(state, 'From what ?'),
+                ])
+            }
+        };
+        const getRequest = ([
+            item,
+            container,
+        ]) => ({
+            state,
+            item,
+            container,
+        });
+        return getItemName
+            .then(getFrom)
+            .then(getContainerName)
+            .then(getRequest);
+    };
+
+    private static getItem = (request: ItemRequest) => {
+        const {
+            item,
+            container,
+            state,
+        } = request;
+
+        const getFromContainer = (container?: Item) => container
+            ? findContainedItem(state, item, container)
+            : Promise.reject(new Error('You can\'t take things from that - it\'s not here'));
+
+        return container
+            ? findAvailableItem(state, container)
+                .then(getFromContainer)
+            : findHereItem(state, item);
+    };
+
+    private static checkGet = (state: State, actor: Player) => (item: Item): Promise<Item> => {
+        const checkDragon = (): Promise<boolean> => getDragon(state)
+            .then((dragon) => (dragon ? Promise.reject() : true));
+        const checkCarry = (): Promise<boolean> => cancarry(state, state.mynum)
+            ? Promise.resolve(true)
+            : Promise.reject(new Error('You can\'t carry any more'));
+        const checkAll = (item: Item): Promise<Item> => Promise.all([
+            checkDragon(),
+            checkCarry(),
+        ])
+            .then(() => item);
+
+        if (!item) {
+            return Promise.reject(new Error('That is not here.'));
+        }
+
+        return ItemEvents.onGet(item)(state, actor, item)
+            .then(checkAll);
+    };
+
+    private static onAfterGet = (item: Item, channelId: number) => ([
+        ItemEvents.onAfterGet(item),
+        ChannelEvents.onAfterGet(channelId),
+    ]);
+
+    private static take = (state: State, actor: Player) => (item: Item): Promise<any> => Promise.all([
+        holdItem(state, item.itemId, state.mynum),
+        sendMyMessage(state, `${sendPlayerForVisible(state.globme)}${sendVisibleName(` takes the ${item.name}\n`)}`),
+        Promise.all(GetItem.onAfterGet(item, state.curch).map(event => event(state, actor, item))),
+    ])
+       .then(() => ({}));
+
+    action(state: State, actor: Player, args: ItemRequest): Promise<any> {
+        return GetItem.getItem(args)
+            .then(GetItem.checkGet(args.state, actor))
+            .then(GetItem.take(args.state, actor));
+    }
+
+    decorate(result: any): void {
+        this.output('Ok...\n');
+    }
+}
+
+export class DropItem extends Action {
+    getArgs(state: State): Promise<ItemRequest> {
+        return Action.nextWord(state, 'Drop what ?')
+            .then(item => ({
+                state,
+                item,
+            }));
+    }
+
+    private static getItem = (request: ItemRequest, actor: Player): Promise<Item> => {
+        const {
+            state,
+            item,
+        } = request;
+        return findCarriedItem(state, item, actor)
+    };
+
+    private static checkItem = (state: State, actor: Player) => (item: Item): Promise<Item> => {
+        if (!item) {
+            return Promise.reject(new Error('You are not carrying that.'));
+        }
+        return ItemEvents.onDrop(item)(state, actor, item)
+            .then(() => item);
+    };
+
+    private static drop = (state: State, actor: Player) => (item: Item): Promise<any> => Promise.all([
+        putItem(state, item.itemId, state.curch),
+        sendLocalMessage(state, state.curch, state.globme, `${sendPlayerForVisible(state.globme)}${sendVisibleName(` drops the ${item.name}\n`)}`),
+        ChannelEvents.onDrop(state.curch)(state, actor, item),
+    ])
+        .then(() => ({}));
+
+    action(state: State, actor: Player, request: ItemRequest): Promise<any> {
+        return DropItem.getItem(request, actor)
+            .then(DropItem.checkItem(request.state, actor))
+            .then(DropItem.drop(request.state, actor));
+    }
+
+    decorate(result: any): void {
+        this.output('OK..\n');
+    }
+}
 
 export class Inventory extends Action {
     action(state: State): Promise<any> {
@@ -45,182 +188,6 @@ export class Inventory extends Action {
     decorate(result: any): void {
         this.output( 'You are carrying\n');
         this.output(result);
-    }
-}
-
-export class GetItem extends Action {
-    fromContainer(state: State, name:string): Promise<Item[]> {
-        const fromName = brkword(state);
-        if (!fromName) {
-            return Promise.reject(new Error('From what ?'));
-        }
-        return findAvailableItem(state, fromName)
-            .then((container) => {
-                if (!container) {
-                    return Promise.reject(new Error('You can\'t take things from that - it\'s not here'));
-                }
-                return Promise.all([
-                    findContainedItem(state, name, container),
-                    Promise.resolve(container),
-                ])
-            });
-    }
-
-    getShield(state: State): Promise<Item> {
-        return Promise.all(SHIELD_IDS.map(shieldId => getItem(state, shieldId)))
-            .then(shields => shields.find(shield => shield.isDestroyed))
-            .then((shield) => {
-                if (!shield) {
-                    return Promise.reject(new Error('The shields are all to firmly secured to the walls'));
-                }
-                return createItem(state, shield.itemId);
-            })
-    }
-
-    getRuneSword(state: State, item: Item): Promise<Item> {
-        return getPlayer(state, state.mynum)
-            .then(getHelper(state))
-            .then((helper) => {
-                if ((item.state === 1) && !helper) {
-                    throw new Error('Its too well embedded to shift alone.\n');
-                }
-            })
-            .then(() => item);
-
-    }
-
-    private static checkDragon(state: State): Promise<boolean> {
-        return getDragon(state)
-            .then((isDragon) => {
-                if (isDragon) {
-                    return Promise.reject();
-                }
-                return true;
-            })
-    }
-
-    private static checkCarry(state: State): Promise<boolean> {
-        if (!cancarry(state, state.mynum)) {
-            return Promise.reject(new Error('You can\'t carry any more'));
-        }
-        return Promise.resolve(true);
-    }
-
-    private checkCanGet(state: State, item: Item): Promise<Item> {
-        if (item.flannel) {
-            throw new Error('You can\'t take that!');
-        }
-        return Promise.all([
-            GetItem.checkDragon(state),
-            GetItem.checkCarry(state),
-        ])
-            .then(() => (item.itemId === 32) ? this.getRuneSword(state, item) : item);
-    }
-
-    action(state: State): Promise<any> {
-        const name = brkword(state);
-        if (!name) {
-            return Promise.reject(new Error('Get what ?'));
-        }
-        const stop = getStop(state);
-        return findHereItem(state, name)
-            .then((item: Item) => {
-                /* Hold */
-                const fromName = brkword(state);
-                if (!fromName) {
-                    return [item, undefined];
-                }
-                if ((fromName !== 'from') && (fromName !== 'out')) {
-                    return [item, undefined];
-                }
-                return this.fromContainer(state, name);
-            })
-            .then(([item, container]) => {
-                setStop(state, stop);
-                if (!item) {
-                    return Promise.reject(new Error('That is not here.'));
-                }
-                return (!container && (item.itemId === SHIELD_BASE_ID)) ? this.getShield(state) : item;
-            })
-            .then(item => this.checkCanGet(state, item))
-            .then((item) => {
-                const results = [
-                    holdItem(state, item.itemId, state.mynum),
-                    sendLocalMessage(state, state.curch, state.globme, `${sendPlayerForVisible(state.globme)}${sendVisibleName(` takes the ${item.name}\n`)}`),
-                ];
-                const messages = [];
-                if (item.changeStateOnTake) {
-                    results.push(setItem(state, item.itemId, { state: 0 }));
-                }
-                if (state.curch === -1081) {
-                    messages.push('The door clicks shut....\n');
-                    results.push(setItem(state, 20, { state: 1 }));
-                }
-                return Promise.all(results).then(() => ({
-                    messages,
-                }));
-            });
-    }
-
-    decorate(result: any): void {
-        const {
-            messages,
-        } = result;
-        this.output('Ok...\n');
-        messages.forEach(message => this.output(`${message}\n`));
-    }
-}
-
-export class DropItem extends Action {
-    action(state: State): Promise<any> {
-        const name = brkword(state);
-        if (!name) {
-            return Promise.reject(new Error('Drop what ?'));
-        }
-        return getPlayer(state, state.mynum)
-            .then(player => findCarriedItem(state, name, player))
-            .then((item) => {
-                if (!item) {
-                    return Promise.reject(new Error('You are not carrying that.'));
-                }
-                if ((item.itemId === 32) && !isWizard(state)) {
-                    return Promise.reject(new Error('You can\'t let go of it!'));
-                }
-                return Promise.all([
-                    putItem(state, item.itemId, state.curch),
-                    sendLocalMessage(state, state.curch, state.globme, `${sendPlayerForVisible(state.globme)}${sendVisibleName(` drops the ${item.name}\n`)}`),
-                ]).then(() => item)
-            })
-            .then((item) => {
-                if (state.curch !== -183) {
-                    return {
-                        messages: [],
-                    };
-                }
-
-                return Promise.all([
-                    sendLocalMessage(state, state.curch, state.globme, `The ${name} disappears into the bottomless pit.\n`),
-                    new Promise((resolve) => {
-                        updateScore(state, item.value);
-                        calibme(state);
-                        return resolve();
-                    }),
-                    putItem(state, item.itemId, -6),
-                ])
-                    .then(() => ({
-                        messages: [
-                            'It disappears down into the bottomless pit.....\n',
-                        ],
-                    }));
-            });
-    }
-
-    decorate(result: any): void {
-        const {
-            messages,
-        } = result;
-        this.output('OK..\n');
-        messages.forEach(message => this.output(`${message}\n`));
     }
 }
 

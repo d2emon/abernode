@@ -61,6 +61,7 @@ import {
     sendTell
 } from "./events";
 import {executeCommand} from "./parser";
+import Action from "../action";
 
 const debug2 = (state: State): Promise<void> => Promise.resolve(bprintf(state, 'No debugger available\n'));
 
@@ -104,15 +105,6 @@ const onFlee = (state: State): Promise<void> => Promise.all([
 const doaction = (state: State, actionId: number): Promise<void> => {
     const actions = {
         /*
-       case 9:
-          getobj();
-          break;
-       case 137:
-          crashcom();
-          break;
-       case 10:
-          dropitem();
-          break;
        case 11:
           look_cmd();
           break;
@@ -472,9 +464,7 @@ const doaction = (state: State, actionId: number): Promise<void> => {
                             sendEndFight(state, state.globme),
                         ])
                             .then(() => {
-                                updateScore(state, getScore(state) / 33);
-                                /* loose 3% */
-                                calibme(state);
+                                updateScore(state, getScore(state) / 33, true); /* loose 3% */
                                 state.in_fight = 0;
                                 return onFlee(state);
                             })
@@ -849,12 +839,8 @@ const lightning = (state: State): Promise<void> => {
         bprintf(state, 'Your spell fails.....\n');
         return Promise.resolve();
     }
-    const word = brkword(state);
-    if (!word) {
-        bprintf(state, 'But who do you wish to blast into pieces....\n');
-        return Promise.resolve();
-    }
-    return findVisiblePlayer(state, word)
+    return Action.nextWord(state, 'But who do you wish to blast into pieces....')
+        .then(name => findVisiblePlayer(state, name))
         .then((player) => {
             if (player.playerId === -1) {
                 return bprintf(state, 'There is no one on with that name\n');
@@ -867,18 +853,13 @@ const lightning = (state: State): Promise<void> => {
 };
 
 const eatcom = (state: State): Promise<void> => {
-    const word = brkword(state);
-    if (!word) {
-        bprintf(state, 'What\n');
-        return Promise.resolve();
-    }
-    return Promise.resolve(word)
+    return Action.nextWord(state, 'What')
         .then((word) => {
             if ((state.curch === -609) && (word === 'water')) {
                 return 'spring';
             }
             if (word === 'from') {
-                return brkword(state);
+                return Action.nextWord(state);
             }
             return word;
         })
@@ -894,8 +875,7 @@ const eatcom = (state: State): Promise<void> => {
                 return bprintf(state, 'very refreshing\n');
             } else if (item.itemId === 175) {
                 if (getLevel(state) < 3) {
-                    updateScore(state, 40);
-                    calibme(state);
+                    updateScore(state, 40, true);
                     bprintf(state, 'You feel a wave of energy sweeping through you.\n');
                 } else {
                     bprintf(state, 'Faintly magical by the taste.\n');
@@ -983,15 +963,11 @@ const levelof = (state: State, score: number): number => {
 };
 
 const playcom = (state: State): Promise<void> => {
-    const word = brkword(state);
-    if (!word) {
-        bprintf(state, 'Play what ?\n');
-        return Promise.resolve();
-    }
-    return Promise.all([
-        getPlayer(state, state.mynum),
-        findAvailableItem(state, word),
-    ])
+    return Action.nextWord(state, 'Play what ?')
+        .then(word => Promise.all([
+            getPlayer(state, state.mynum),
+            findAvailableItem(state, word),
+        ]))
         .then(([
             player,
             item,
@@ -1033,20 +1009,14 @@ const saycom = (state: State): Promise<void> => checkDumb(state)
     });
 
 const tellcom = (state: State): Promise<void> => checkDumb(state)
-    .then(() => {
-        const word = brkword(state);
-        if (!word) {
-            bprintf(state, 'Tell who ?\n');
-            return Promise.resolve();
+    .then(() => Action.nextWord(state, 'Tell who ?\n'))
+    .then(word => findVisiblePlayer(state, word))
+    .then((player) => {
+        if (player.playerId === -1) {
+            return bprintf(state, 'No one with that name is playing\n');
         }
-        return findVisiblePlayer(state, word)
-            .then((player) => {
-                if (player.playerId === -1) {
-                    return bprintf(state, 'No one with that name is playing\n');
-                }
-                const blob = getreinput();
-                return sendTell(state, player, blob);
-            });
+        const blob = getreinput();
+        return sendTell(state, player, blob);
     });
 
 const scorecom = (state: State): Promise<void> => {
@@ -1063,12 +1033,8 @@ const exorcom = (state: State): Promise<void> => {
         bprintf(state, 'No chance....\n');
         return Promise.resolve();
     }
-    const word = brkword(state);
-    if (!word) {
-        bprintf(state, 'Exorcise who ?\n');
-        return Promise.resolve();
-    }
-    return findVisiblePlayer(state, word)
+    return Action.nextWord(state, 'Exorcise who ?\n')
+        .then(word => findVisiblePlayer(state, word))
         .then((player) => {
             if (!player) {
                 return bprintf(state, 'They aren\'t playing\n');
@@ -1090,11 +1056,8 @@ const givecom = (state: State): Promise<void> => {
         if (!player) {
             return bprintf(state, `Who is ${name}\n`);
         }
-        const word = brkword(state);
-        if (!word) {
-            return bprintf(state, 'Give them what ?\n');
-        }
-        return findAvailableItem(state, word)
+        return Action.nextWord(state, 'Give them what ?\n')
+            .then(word => findAvailableItem(state, word))
             .then((item) => {
                 if (item.itemId === -1) {
                     return bprintf(state, 'You are not carrying that\n');
@@ -1103,12 +1066,8 @@ const givecom = (state: State): Promise<void> => {
             })
     };
 
-    const word = brkword(state);
-    if (!word) {
-        bprintf(state, 'Give what to who ?\n');
-        return Promise.resolve();
-    }
-    findVisiblePlayer(state, word)
+    return Action.nextWord(state, 'Give what to who ?')
+        .then(word => findVisiblePlayer(state, word))
         .then((player) => {
             if (player) {
                 return obfrst(player, word);
@@ -1119,25 +1078,45 @@ const givecom = (state: State): Promise<void> => {
                         return bprintf(state, 'You aren\'t carrying that\n');
                     }
                     /* a = item giving */
-                    let whom = brkword(state);
-                    if (!whom) {
-                        return bprintf(state, 'But to who ?\n');
-                    }
+                    return Promise.all([
+                        Promise.resolve(item),
+                        Action.nextWord(state, 'But to who ?'),
+                    ]);
+                })
+                .then(([
+                    item,
+                    whom,
+                ]) => {
                     if (whom === 'to') {
-                        whom = brkword(state);
-                        if (!whom) {
-                            return bprintf(state, 'But to who ?\n');
-                        }
+                        return Promise.all([
+                            Promise.resolve(item),
+                            Action.nextWord(state, 'But to who ?'),
+                        ]);
                     }
-                    return findVisiblePlayer(state, whom)
-                        .then((player) => {
-                            if (!player) {
-                                return bprintf(state, `I don't know who ${whom} is\n`);
-                            }
-                            return dogive(state, item.itemId, player.playerId);
-                        });
+                    return [
+                        item,
+                        whom,
+                    ];
+                })
+                .then(([
+                    item,
+                    whom,
+                ]) => Promise.all([
+                    Promise.resolve(item),
+                    findVisiblePlayer(state, whom),
+                    Promise.resolve(whom),
+                ]))
+                .then(([
+                    item,
+                    player,
+                    whom,
+                ]) => {
+                    if (!player) {
+                        return bprintf(state, `I don't know who ${whom} is\n`);
+                    }
+                    return dogive(state, item.itemId, player.playerId);
                 });
-        })
+        });
 };
 
 const dogive = (state: State, itemId: number, playerId: number): Promise<void> => Promise.all([
@@ -1167,25 +1146,28 @@ const dogive = (state: State, itemId: number, playerId: number): Promise<void> =
     });
 
 const stealcom = (state: State): Promise<void> => {
-    const x = brkword(state);
-    if (!x) {
-        bprintf(state, 'Steal what from who ?\n');
-        return Promise.resolve();
-    }
-    let word = brkword(state);
-    if (!word) {
-        bprintf(state, 'From who ?\n');
-        return Promise.resolve();
-    }
-    if (word === 'from') {
-        word = brkword(state);
-        if (!word) {
-            bprintf(state, 'From who ?\n');
-            return Promise.resolve();
-        }
-    }
-    return findVisiblePlayer(state, word)
-        .then((player) => {
+    return Action.nextWord(state, 'Steal what from who ?')
+        .then(x => Promise.all([
+            Promise.resolve(x),
+            Action.nextWord(state, 'From who ?')
+        ]))
+        .then(([x, word]) => {
+            if (word === 'from') {
+                return Promise.all([
+                    Promise.resolve(x),
+                    Action.nextWord(state, 'From who ?')
+                ]);
+            }
+            return [
+                x,
+                word,
+            ];
+        })
+        .then(([x, word]) => Promise.all([
+            Promise.resolve(x),
+            findVisiblePlayer(state, word),
+        ]))
+        .then(([x, player]) => {
             if (!player) {
                 return bprintf(state, 'Who is that ?\n');
             }
@@ -1325,12 +1307,8 @@ const inumcom = (state: State): Promise<void> => {
         bprintf(state, 'Huh ?\n');
         return;
     }
-    const word = brkword(state);
-    if (!word) {
-        bprintf(state, 'What...\n');
-        return;
-    }
-    return findItem(state, word)
+    return Action.nextWord(state, 'What...')
+        .then(word => findItem(state, word))
         .then(item => bprintf(state, `Item Number is ${item.itemId}\n`));
 };
 
@@ -1435,44 +1413,41 @@ const typocom = (state: State): Promise<void> => {
     return logger.write(`Typo by ${y} : ${x}`);
 };
 
-const look_cmd = (state: State): Promise<void> => {
-    let word = brkword(state);
-    if (!word) {
-        const brhold = state.brmode;
-        state.brmode = false;
-        lookin(state, state.curch);
-        state.brmode = brhold;
-        return Promise.resolve();
-    }
+const look_cmd = (state: State): Promise<void> => Action.nextWord(state)
+    .then((word) => {
+        if (!word) {
+            const brhold = state.brmode;
+            state.brmode = false;
+            lookin(state, state.curch);
+            state.brmode = brhold;
+            return Promise.resolve();
+        }
 
-    if (word === 'at') {
-        examcom(state);
-        return Promise.resolve();
-    }
-    if ((word !== 'in') && (word !== 'into')) {
-        return Promise.resolve();
-    }
-    word = brkword(state);
-    if (!word) {
-        bprintf(state, 'In what ?\n');
-        return Promise.resolve();
-    }
-    return findAvailableItem(state, word)
-        .then((item) => {
-            if (item.itemId === -1) {
-                return bprintf(state, 'What ?\n');
-            }
-            if (!item.isContainer) {
-                return bprintf(state, 'That isn\'t a container\n');
-            }
-            if (item.canBeOpened && (item.state !== 0)) {
-                return bprintf(state, 'It\'s closed!\n');
-            }
-            bprintf(state, `The ${item.name} contains:\n`);
-            return itemsAt(state, item.itemId, CONTAINED_IN)
-                .then((result) => bprintf(state, result));
-        });
-};
+        if (word === 'at') {
+            examcom(state);
+            return Promise.resolve();
+        }
+
+        if ((word !== 'in') && (word !== 'into')) {
+            return Promise.resolve();
+        }
+        return Action.nextWord(state, 'In what ?')
+            .then(word => findAvailableItem(state, word))
+            .then((item) => {
+                if (item.itemId === -1) {
+                    return bprintf(state, 'What ?\n');
+                }
+                if (!item.isContainer) {
+                    return bprintf(state, 'That isn\'t a container\n');
+                }
+                if (item.canBeOpened && (item.state !== 0)) {
+                    return bprintf(state, 'It\'s closed!\n');
+                }
+                bprintf(state, `The ${item.name} contains:\n`);
+                return itemsAt(state, item.itemId, CONTAINED_IN);
+            })
+            .then((result) => bprintf(state, result));
+    });
 
 const set_ms = (state: State): string => {
     if (!isWizard(state) && (state.globme !== 'Lorry')) {

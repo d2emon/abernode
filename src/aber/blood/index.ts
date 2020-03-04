@@ -113,8 +113,7 @@ export const hitPlayer = (state: State, victim: Player, weapon?: Item): Promise<
                         promises.push(setPlayer(state, victim.playerId, { isDead: true }));
                     }
                     promises.push(new Promise((resolve) => {
-                        updateScore(state, attack.damage * 2);
-                        calibme(state);
+                        updateScore(state, attack.damage * 2, true);
                         return resolve();
                     }));
                 } else {

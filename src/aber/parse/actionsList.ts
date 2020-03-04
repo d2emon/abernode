@@ -1,10 +1,13 @@
 import Action from "../action";
 import {
     DefaultAction,
-    GoDirection, Quit,
+    GoDirection,
+    Quit,
 } from "./actions";
 import {searchList, SearchResult} from "./helpers";
 import {Grope} from "../new1/actions";
+import {GetItem} from "../objsys/actions";
+import {Crash} from "../mobile/actions";
 
 const NORTH = 0;
 const EAST = 1;
@@ -32,7 +35,7 @@ const actions = {
 
     //
     'quit': new Quit(8),
-    'get': new DefaultAction(9),
+    'get': new GetItem(9),
     'take': new DefaultAction(9),
     'drop': new DefaultAction(10),
 
@@ -139,7 +142,7 @@ const actions = {
     'wiz': new DefaultAction(134),
     'stare': new DefaultAction(135),
     'exits': new DefaultAction(136),
-    'crash': new DefaultAction(137),
+    'crash': new Crash(137),
     'sing': new DefaultAction(138),
     'grope': new Grope(139),
     'spray': new DefaultAction(140),

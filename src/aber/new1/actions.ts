@@ -171,10 +171,7 @@ const socialInteraction = (state: State, player: Player, message: string, visibl
 export class Grope extends Action {
     check(state: State, actor: Player): Promise<void> {
         return Promise.all([
-            Action.checkFight(
-                state,
-                'Not in a fight!',
-            ),
+            Action.checkFight(state, 'Not in a fight!'),
             Action.checkIsForced(state),
         ])
             .then(() => super.check(state, actor));

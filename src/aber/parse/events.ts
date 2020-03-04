@@ -147,3 +147,10 @@ export const sendEndFight = (state: State, receiver: string): Promise<void> => s
     channelId: undefined,
     payload: undefined,
 });
+
+export const sendMyMessage = (state: State, message: string): Promise<void> => sendLocalMessage(
+    state,
+    state.curch,
+    state.globme,
+    message,
+);

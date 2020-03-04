@@ -1,9 +1,6 @@
 import State from '../state';
 import Action from '../action';
 import {
-    brkword,
-} from '../__dummies';
-import {
     sendName,
     sendVisiblePlayer,
     sendVisibleName,
@@ -147,14 +144,11 @@ export class Summon extends Action {
     }
 
     action(state: State): Promise<any> {
-        const name = brkword(state);
-        if (!name) {
-            throw new Error('Summon who ?');
-        }
-        return Promise.all([
-            findItem(state, name),
-            findVisiblePlayer(state, name),
-        ])
+        return Action.nextWord(state, 'Summon who ?')
+            .then(name => Promise.all([
+                findItem(state, name),
+                findVisiblePlayer(state, name),
+            ]))
             .then(([
                 item,
                 player,
@@ -195,11 +189,8 @@ export class DeleteUser extends Action {
         if (getLevel(state) < 11) {
             throw new Error('What ?');
         }
-        const name = brkword(state);
-        if (!name) {
-            throw new Error('Who ?');
-        }
-        return DeleteUser.deleteUser(name)
+        return Action.nextWord(state, 'Who ?')
+            .then(name => DeleteUser.deleteUser(name))
             .catch((e) => {
                 this.output(e);
                 throw new Error('failed');
@@ -218,20 +209,31 @@ export class GoToLocation extends Action {
         if (!isWizard(state)) {
             throw new Error('huh ?');
         }
-        const roomId = brkword(state);
-        if (!roomId) {
-            throw new Error('Go where ?');
-        }
-        const name = brkword(state) || '';
-        const locationId = roomnum(state, roomId, name);
-        return openroom(locationId, 'r')
-            .then((room) => {
+        return Action.nextWord(state, 'Go where ?')
+            .then(roomId => Promise.all([
+                Promise.resolve(roomId),
+                Action.nextWord(state),
+            ]))
+            .then(([
+                roomId,
+                name,
+            ]) => {
+                const locationId = roomnum(state, roomId, name || '');
+                return Promise.all([
+                    Promise.resolve(locationId),
+                    openroom(locationId, 'r'),
+                ])
+            })
+            .then(([
+                locationId,
+                room,
+            ]) => {
                 if ((locationId >= 0) || !room) {
                     throw new Error('Unknown Room')
                 }
-                return fclose(room);
+                return fclose(room).then(() => locationId);
             })
-            .then(() => {
+            .then((locationId) => {
                 sillycom(state, sendVisiblePlayer('%s', `%s ${state.mout_ms}\n`));
                 state.curch = locationId;
                 trapch(state, state.curch);
@@ -279,35 +281,32 @@ export class Visible extends Action {
 }
 
 export class Invisible extends Action {
-    action(state: State): Promise<any> {
+    action(state: State, actor: Player): Promise<any> {
         if (!isWizard(state)) {
             throw new Error('You can\'t just turn invisible like that!\n');
         }
+        if (actor.visibility) {
+            throw new Error('You are already invisible');
+        }
 
-        return getPlayer(state, state.mynum)
-            .then((me) => {
-                if (me.visibility) {
-                    throw new Error('You are already invisible');
-                }
-
-                let visibility = 10;
+        return Action.nextWord(state)
+            .then((value) => {
                 if (isGod(state)) {
-                    visibility = 10000;
+                    return 10000;
+                } else if (isAdmin(state) && value) {
+                    return Number(value);
+                } else {
+                    return 10;
                 }
-                const value = brkword(state);
-                if (isAdmin(state) && value) {
-                    visibility = Number(value);
-                }
-
-                return Promise.all([
-                    sendVisibility(state, {
-                        playerId: me.playerId,
-                        visibility,
-                    }),
-                    Promise.resolve(sillycom(state, sendVisibleName('%s vanishes!\n'))),
-                    setPlayer(state, me.playerId, { visibility }),
-                ]);
             })
+            .then(visibility => Promise.all([
+                sendVisibility(state, {
+                    playerId: actor.playerId,
+                    visibility,
+                }),
+                Promise.resolve(sillycom(state, sendVisibleName('%s vanishes!\n'))),
+                setPlayer(state, actor.playerId, { visibility }),
+            ]))
             .then(() => {});
     }
 
@@ -321,11 +320,8 @@ export class Ressurect extends Action {
         if (!isWizard(state)) {
             throw new Error('Huh ?');
         }
-        const name = brkword(state);
-        if (!name) {
-            throw new Error('Yes but what ?');
-        }
-        return findItem(state, name)
+        return Action.nextWord(state, 'Yes but what ?')
+            .then(name => findItem(state, name))
             .then((item) => {
                 if (!item) {
                     throw new Error('You can only ressurect objects');

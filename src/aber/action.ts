@@ -3,9 +3,12 @@ import {getPlayer, Player} from "./support";
 import {addWordChar, applyPronouns, getCurrentChar, getWordBuffer, nextStop, resetWordBuffer} from "./parse/reducer";
 import {checkCrippled, checkIsForced} from "./new1/reducer";
 
+type Validator = (state: State, actor: Player, actionId: number) => Promise<boolean>;
+
 export interface ActionInterface {
     actionId: number,
-    action(state: State, actor: Player): Promise<any>,
+    validators: Validator[],
+    action(state: State, actor: Player, args:any): Promise<any>,
     check(state: State, actor: Player): Promise<void>,
     decorate(result: any): void,
     output(message: string): void,
@@ -14,6 +17,8 @@ export interface ActionInterface {
 
 class Action implements ActionInterface {
     actionId = undefined;
+
+    validators = [];
 
     constructor(actionId?: number) {
         this.actionId = actionId;
@@ -31,7 +36,7 @@ class Action implements ActionInterface {
             : Promise.resolve()
     );
 
-    static nextWord(state: State): Promise<string> {
+    static nextWord(state: State, message?: string): Promise<string> {
         resetWordBuffer(state);
         while(getCurrentChar(state) === ' ') {
             nextStop(state);
@@ -41,22 +46,27 @@ class Action implements ActionInterface {
         }
         applyPronouns(state);
         const word = getWordBuffer(state);
-        return word
+        return (word || (message === undefined))
             ? Promise.resolve(word)
-            : Promise.reject(new Error());
+            : Promise.reject(new Error(message));
     }
 
-    action(state: State, actor: Player): Promise<any> {
+    action(state: State, actor: Player, args:any): Promise<any> {
         return Promise.reject(new Error('Not implemented'));
     };
 
     check(state: State, actor: Player): Promise<void> {
-        return Promise.resolve();
+        return Promise.all(this.validators.map(validator => validator(state, actor, this.actionId)))
+            .then(() => null);
     }
 
     decorate(result: any): void {
         return;
     };
+
+    getArgs(state: State): any {
+        return {};
+    }
 
     output(message: string): void {
         console.log(message)
@@ -64,7 +74,8 @@ class Action implements ActionInterface {
 
     perform(state: State, actor: Player): Promise<void> {
         return this.check(state, actor)
-            .then(() => this.action(state, actor))
+            .then(() => this.getArgs(state))
+            .then(args => this.action(state, actor, args))
             .then(this.decorate)
             .catch(e => this.output(`${e}\n`));
     }

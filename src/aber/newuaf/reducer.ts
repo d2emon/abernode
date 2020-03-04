@@ -1,6 +1,8 @@
 import State from "../state";
 import {Person} from "../services/persons";
 
+const calibme = (state: State): void => undefined;
+
 export const getLevel = (state: State): number => state.my_lev;
 export const getScore = (state: State): number => state.my_sco;
 export const getSex = (state: State): number => state.my_sex;
@@ -34,10 +36,13 @@ export const setPerson = (state: State, person: Person): void => {
     state.my_sex = person.sex;
 };
 
-export const updateScore = (state: State, value: number): void => {
+export const updateScore = (state: State, value: number, calibrate: boolean = false): void => {
     state.my_sco += value;
     if (state.my_sco < 0) {
         state.my_str = -1;
+    }
+    if (calibrate) {
+        calibme(state);
     }
 };
 export const revertSex = (state: State): void => {

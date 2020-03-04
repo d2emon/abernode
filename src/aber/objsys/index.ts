@@ -3,13 +3,14 @@ import State from "../state";
 import {isWizard} from "../newuaf/reducer";
 import {CONTAINED_IN, HELD_BY} from "../object";
 import {isWornBy} from "../new1";
-import {brkword} from "../__dummies";
 import {canSeePlayer} from "../bprintf/player";
 import {sendMessage} from "../bprintf/bprintf";
 import {getDebugMode, setHer, setHim, setIt, setName} from "../parse/reducer";
+import Action from "../action";
 
 const showwthr = (state: State): boolean => false;
 
+export const RUNE_SWORD_ID = 32;
 export const SHIELD_BASE_ID = 112;
 export const SHIELD_IDS = [113, 114];
 
@@ -132,14 +133,14 @@ export const itemsAt = (state: State, locationId: number, mode: number): Promise
 const baseFindItem = (state: State, name: string): Promise<Item> => {
     const byName = (name: string): Promise<Item> => {
         if (name === 'red') {
-            brkword(state);
-            return getItem(state, 4);
+            return Action.nextWord(state)
+                .then(() => getItem(state, 4));
         } else if (name === 'blue') {
-            brkword(state);
-            return getItem(state, 5);
+            return Action.nextWord(state)
+                .then(() => getItem(state, 5));
         } else if (name === 'green') {
-            brkword(state);
-            return getItem(state, 6);
+            return Action.nextWord(state)
+                .then(() => getItem(state, 6));
         }
         return getItems(state)
            .then(items => items.find(item => item.name.toLowerCase() === name));
@@ -177,8 +178,10 @@ export const findCarriedItem = (state: State, name: string, player: Player): Pro
 export const findHereItem = (state: State, name: string): Promise<Item> => baseFindItem(state, name.toLowerCase())
     .then(item => isLocatedIn(item, state.curch, !isWizard(state)) && item);
 
-export const findContainedItem = (state: State, name: string, container: Item): Promise<Item> => baseFindItem(state, name.toLowerCase())
-    .then(item => isContainedIn(item, container, !isWizard(state)) && item);
+export const findContainedItem = (state: State, name: string, container: Item): Promise<Item> => (container
+    ? baseFindItem(state, name.toLowerCase())
+        .then(item => isContainedIn(item, container, !isWizard(state)) && item)
+    : Promise.reject(new Error()));
 
 export const findItem = (state: State, name: string): Promise<Item> => findAvailableItem(state, name)
     .then((item) => item || baseFindItem(state, name.toLowerCase()));

@@ -9,9 +9,10 @@ import {
 } from "../newuaf/reducer";
 import {
     Player,
-    getPlayers, setPlayer,
+    getPlayers,
+    setPlayer, getItem,
 } from "../support";
-import {sendLocalMessage} from "./events";
+import {sendLocalMessage, sendMyMessage} from "./events";
 import {getPronoun} from "./reducer";
 import {
     OnEnterEvent,
@@ -28,7 +29,8 @@ import {savePerson} from "../newuaf";
 import {endGame} from "../gamego/endGame";
 import {sendMessage} from "../bprintf/bprintf";
 
-const trapch = (state: State, channelId): void => undefined;
+const trapch = (state: State, channelId: number): void => undefined;
+const rte = (state: State, name: string): void => undefined;
 
 export class DefaultAction extends Action {
     key: string | number = undefined;
@@ -74,38 +76,32 @@ export class GoDirection extends Action {
         'd': 5,
     };
 
-    private static onExit = (state: State): Promise<OnExitEvent[]>  => getPlayers(state)
+    private static checkExit = (state: State, actor: Player, actionId: number): Promise<boolean> => getPlayers(state)
         .then(players => players.filter(player => (player.locationId === state.curch)))
-        .then(players => Promise.all(players.map(player => CharacterEvents.onExit(player))));
+        .then(players => Promise.all(players.map(player => CharacterEvents.onExit(player))))
+        .then(events => Promise.all(events.map(event => event(state, actor, actionId))))
+        .then(() => true);
 
-    private static onEnter = (locationId: number): OnEnterEvent  => (
-        ((locationId > 999) && (locationId < 2000))
-            ? ItemEvents.onEnter(locationId - 1000)
-            : ChannelEvents.onEnter(locationId)
-    );
+    validators = [
+        (state: State) => Action.checkFight(
+            state,
+            'You can\'t just stroll out of a fight!\n'
+                + 'If you wish to leave a fight, you must FLEE in a direction',
+        ),
+        Action.checkCrippled,
+        GoDirection.checkExit,
+    ];
 
-    private static checkExit = (state: State, actor: Player, directionId: number): Promise<void[]> => GoDirection
-        .onExit(state)
-        .then((events) => Promise.all(
-            events.map(event => event(state, actor, directionId))
-        ));
+    private static onDoor = (state: State, itemId: number): Promise<OnEnterEvent> => getItem(state, itemId)
+        .then(ItemEvents.onEnter);
 
-    private static checkEnter = (state: State, actor: Player, locationId: number): Promise<number> => Promise
-        .resolve(GoDirection.onEnter(locationId))
+    private static onEnter = (state: State, locationId: number): Promise<OnEnterEvent>  => ((locationId > 999) && (locationId < 2000))
+        ? GoDirection.onDoor(state, locationId - 1000)
+        : Promise.resolve(ChannelEvents.onEnter(locationId));
+
+    private static checkEnter = (state: State, actor: Player, locationId: number): Promise<number> => GoDirection
+        .onEnter(state, locationId)
         .then(event => event(state, actor));
-
-    check(state: State, actor: Player): Promise<void> {
-        return Promise.all([
-            Action.checkFight(
-                state,
-                'You can\'t just stroll out of a fight!\n'
-                    + 'If you wish to leave a fight, you must FLEE in a direction',
-            ),
-            Action.checkCrippled(state),
-            GoDirection.checkExit(state, actor, this.actionId),
-        ])
-            .then(() => super.check(state, actor));
-    }
 
     private static getLocations = (state: State) => (locationId: number): { oldLocation: number, newLocation: number } => {
         if (locationId >= 0) {
@@ -194,13 +190,7 @@ export class Quit extends Action {
         return loadWorld(state)
             .then(() => Action.checkFight(state, 'Not in the middle of a fight!'))
             .then(() => Promise.all([
-                sendMessage(state, 'Ok'),
-                sendLocalMessage(
-                    state,
-                    state.curch,
-                    state.globme,
-                    `${state.globme} has left the game\n`,
-                ),
+                sendMyMessage(state, `${state.globme} has left the game\n`),
                 sendWizards(state, `[ Quitting Game : ${state.globme} ]\n`),
                 dropMyItems(state),
                 setPlayer(state, state.mynum, {
@@ -217,7 +207,10 @@ export class Quit extends Action {
                 }),
                 savePerson(state),
             ]))
-            .then(() => endGame(state, 'Goodbye'));
+            .then(() => endGame(state, 'Goodbye'))
+            .then(() => ({
+                message: 'Ok',
+            }));
     }
 }
 

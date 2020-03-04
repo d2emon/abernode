@@ -1,13 +1,28 @@
 import State from "../state";
 import {
     Player,
-    getItem,
+    getItem, setItem, Item, putItem,
 } from "../support";
 import {isWornBy} from "../new1";
 import {sendMessage} from "../bprintf/bprintf";
-import {OnEnterEvent} from "./index";
+import {OnDropEvent, OnEnterEvent, OnGetEvent} from "./index";
+import {RUNE_SWORD_ID} from "../objsys";
+import {isWizard, updateScore} from "../newuaf/reducer";
+import {sendLocalMessage} from "../parse/events";
 
 const SHIELD_IDS = [89, 113, 114];
+
+const noChannel = {
+    onAfterGet: () => Promise.resolve(undefined),
+    onDrop: () => Promise.resolve(),
+    onEnter: () => Promise.resolve(undefined),
+};
+
+const defaultEvents = {
+    onAfterGet: (state: State, actor: Player, item: Item): Promise<Item> => Promise.resolve(item),
+    onDrop: () => Promise.resolve(),
+    onEnter: (channelId: number) => () => Promise.resolve(channelId),
+};
 
 const channel139 = {
     onEnter: (state: State, actor: Player): Promise<number> => Promise.all(
@@ -23,10 +38,51 @@ const channel139 = {
         .then(() => -139),
 };
 
+const channel183 = {
+    onDrop: (state: State, actor: Player, item: Item): Promise<void> => Promise.all([
+        sendLocalMessage(state, state.curch, state.globme, `The ${item.name} disappears into the bottomless pit.\n`),
+        Promise.resolve(updateScore(state, item.value, true)),
+        putItem(state, item.itemId, -6),
+        sendMessage(state, 'It disappears down into the bottomless pit.....\n')
+    ])
+        .then(() => null),
+};
+
+const channel1081 = {
+    onAfterGet: (state: State, actor: Player, item: Item): Promise<Item> => Promise.all([
+        sendMessage(state, 'The door clicks shut....\n'),
+        setItem(state, 20, {state: 1}),
+    ])
+        .then(() => item),
+};
+
+
+export const onAfterGet = (channelId: number): OnGetEvent => {
+    if (!channelId) {
+        return noChannel.onAfterGet;
+    } else if (channelId === -1081) {
+        return channel1081.onAfterGet;
+    } else {
+        return defaultEvents.onAfterGet;
+    }
+};
+
+export const onDrop = (channelId: number): OnDropEvent => {
+    if (!channelId) {
+        return noChannel.onDrop;
+    } else if (channelId === -183) {
+        return channel183.onDrop;
+    } else {
+        return defaultEvents.onDrop;
+    }
+};
+
 export const onEnter = (channelId: number): OnEnterEvent => {
-    if (channelId === -139) {
+    if (!channelId) {
+        return noChannel.onEnter;
+    } else if (channelId === -139) {
         return channel139.onEnter;
     } else {
-        return () => Promise.resolve(channelId);
+        return defaultEvents.onEnter(channelId);
     }
 };

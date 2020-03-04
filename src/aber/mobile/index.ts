@@ -22,7 +22,6 @@ import {setPlayerDamage} from "../new1";
 import {getLevel, isWizard, updateScore} from "../newuaf/reducer";
 import {sendLocalMessage} from "../parse/events";
 
-const calibme = (state: State): Promise<void> => Promise.resolve();
 const loseme = (state: State): Promise<void> => Promise.resolve();
 
 const moveBot = (state: State, player: Player): Promise<void> => Promise.resolve();
@@ -171,11 +170,7 @@ export const getDragon = (state: State): Promise<Player> => {
 const dropPepper = (state: State): Promise<void> => {
     /* Fried dragon */
     const fried = (dragon: Player) => setPlayer(state, dragon.playerId, { exists: false })
-        .then(() => {
-            /* No dragon */
-            updateScore(state, 100);
-            return calibme(state);
-        });
+        .then(() => updateScore(state, 100, true)); /* No dragon */
 
     /* Whoops !*/
     const dragonSneeze = () => {

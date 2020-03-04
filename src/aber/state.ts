@@ -152,6 +152,7 @@ export default interface State {
     //
     brmode: boolean,
     curch: number,
+    curmode: number,
     ex_dat: number[],
     exittxt: string[],
     globme: string,

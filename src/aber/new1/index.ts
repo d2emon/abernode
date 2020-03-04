@@ -1,8 +1,5 @@
 import State from "../state";
 import {
-    brkword,
-} from "../__dummies";
-import {
     dropItems,
     findAvailableItem,
     isCarriedBy,
@@ -20,6 +17,7 @@ import {sendVisiblePlayer} from "../bprintf";
 import {getLevel, isWizard} from "../newuaf/reducer";
 import {loadWorld} from "../opensys";
 import {sendDamage, sendLocalMessage} from "../parse/events";
+import Action from "../action";
 
 const trapch = (state: State, locationId: number): void => undefined;
 
@@ -30,12 +28,9 @@ const trapch = (state: State, locationId: number): void => undefined;
 /* Door is 6 panel 49 */
 
 export const getAvailableItem = (state: State): Promise<Item> => {
-    const name = brkword(state);
-    if (!name) {
-        throw new Error('Tell me more ?');
-    }
-    return loadWorld(state)
-        .then(() => findAvailableItem(state, name))
+    return Action.nextWord(state, 'Tell me more ?')
+        .then(name => loadWorld(state).then(() => name))
+        .then(name => findAvailableItem(state, name))
         .then((item) => {
             if (!item) {
                 throw new Error('There isn\'t one of those here');

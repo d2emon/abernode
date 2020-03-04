@@ -1,14 +1,11 @@
 import Action from '../action';
 import State from '../state';
 import {
-    brkword,
-} from "../__dummies";
-import {
     sendSound,
     sendSoundPlayer,
 } from "../bprintf";
 import {findAvailableItem} from "../objsys";
-import {getItems} from "../support";
+import {getItems, Item, Player} from "../support";
 import {showMessages} from "../bprintf/output";
 import {getAvailablePlayer} from "../new1/actions";
 import {checkDumb} from "../new1/reducer";
@@ -20,10 +17,14 @@ const sillycom = (state: State, message: string): Promise<any> => Promise.resolv
 const findzone = (state: State, locationId: number): number[] => [0, 0];
 
 export class Crash extends Action {
-    action(state: State): Promise<any> {
+    check(state: State, actor: Player): Promise<void> {
         if (!isWizard(state)) {
-            throw new Error('Hmmm....\nI expect it will sometime');
+            return Promise.reject(new Error('Hmmm....\nI expect it will sometime'));
         }
+        return Promise.resolve();
+    }
+
+    action(state: State): Promise<any> {
         return Promise.all([
             sendEvil(state),
             rescom(state),
@@ -50,26 +51,19 @@ export class Sing extends Action {
 
 export class Spray extends Action {
     action(state: State): Promise<any> {
+        const getWithItem = (): Promise<Item> => Action.nextWord(state, 'With what ?')
+            .then((name) => ((name === 'with')
+                ? Action.nextWord(state, 'With what ?')
+                : name
+            ))
+            .then(name => findAvailableItem(state, name))
+            .then(item => item || Promise.reject(new Error('With what ?')));
         return getAvailablePlayer(state)
-            .then((player) => {
-                let name = brkword(state);
-                if (!name) {
-                    throw new Error('With what ?');
-                }
-                if (name === 'with') {
-                    name = brkword(state);
-                    if (!name) {
-                        throw new Error('With what ?');
-                    }
-                }
-                return findAvailableItem(state, name);
-            })
-            .then((item) => {
-                if (!item) {
-                    throw new Error('With what ?');
-                }
-                throw new Error('You can\'t do that');
-            })
+            .then(player => Promise.all([
+                getWithItem(),
+                Promise.resolve(player),
+            ]))
+            .then(() => Promise.reject(new Error('You can\'t do that')));
     }
 }
 

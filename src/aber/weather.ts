@@ -1,12 +1,12 @@
 import State from "./state";
 import {getItem, getItems, getPlayer, Item, setItem, setPlayer} from "./support";
-import {bprintf, brkword} from "./__dummies";
 import {findAvailableItem, findVisiblePlayer, isCarriedBy, isLocatedIn} from "./objsys";
 import {sendSound, sendSoundPlayer, sendVisibleName, sendVisiblePlayer} from "./bprintf";
 import {roll} from "./magic";
 import {checkDumb} from "./new1/reducer";
 import {isGod, isWizard} from "./newuaf/reducer";
 import {sendLocalMessage, sendWeather} from "./parse/events";
+import Action from "./action";
 
 /*
 #include "files.h"
@@ -317,84 +317,91 @@ const setcom = (state: State): Promise<void> => {
             if (player.playerId < 16) {
                 return bprintf(state, 'Mobiles only\n');
             }
-            const value = brkword(state);
-            if (!value) {
-                return bprintf(state, 'To what value ?\n');
-            }
-            return setPlayer(state, player.playerId, { strength: Number(value) });
+            return Action.nextWord(state, 'To what value ?')
+                .then(value => setPlayer(state, player.playerId, { strength: Number(value) }));
         });
 
-    const bitset = (item: Item) => {
-        const bitId = brkword(state);
-        if (!bitId) {
-            return bprintf(state, 'Which bit ?\n');
-        }
-        const b = Number(bitId);
-
-        const bitValue = brkword(state);
-        if (!bitValue) {
-            return bprintf(state, `The bit is ${item.flags[b] ? 'TRUE' : 'FALSE'}\n`);
-        }
-        const c = Number(bitValue);
-
-        if ((c < 0) || (c > 1) || (b < 0) || (b > 15)) {
-            return bprintf(state, 'Number out of range\n');
-        }
-        return setItem(state, item.itemId, { flags: { [b]: !!c } });
-    };
-
-    const byteset = (item: Item) => {
-        const byteId = brkword(state);
-        if (!byteId) {
-            return bprintf(state, 'Which byte ?\n');
-        }
-        const b = Number(byteId);
-
-        const byteValue = brkword(state);
-        if (!byteValue) {
-            return bprintf(state, `Current Value is : ${item.payload[b]}\n`);
-        }
-        const c = Number(byteValue);
-        if ((c < 0) || (c > 255) || (b < 0) || (b > 1)) {
-            return bprintf(state, 'Number out of range\n');
-        }
-        return setItem(state, item.itemId, { payload: { [b]: c } });
-    };
-
-    const word = brkword(state);
-    if (!word) {
-        bprintf(state, 'set what\n');
-        return Promise.resolve();
-    }
-    if (!isWizard(state)) {
-        bprintf(state, 'Sorry, wizards only\n');
-        return Promise.resolve();
-    }
-    return findAvailableItem(state, word)
-        .then((item) => {
-            if (item.itemId === -1) {
-                return setmobile(word);
+    const bitset = (item: Item) => Action.nextWord(state, 'Which bit ?')
+        .then((bitId) => {
+            const b = Number(bitId);
+            return Promise.all([
+                Promise.resolve(b),
+                Action.nextWord(state),
+            ]);
+        })
+        .then(([
+            b,
+            bitValue,
+        ]) => {
+            if (!bitValue) {
+                return bprintf(state, `The bit is ${item.flags[b] ? 'TRUE' : 'FALSE'}\n`);
             }
-            const value = brkword(state);
-            if (!value) {
-                bprintf(state, 'Set to what value ?\n');
+            const c = Number(bitValue);
+
+            if ((c < 0) || (c > 1) || (b < 0) || (b > 15)) {
+                return bprintf(state, 'Number out of range\n');
+            }
+            return setItem(state, item.itemId, { flags: { [b]: !!c } });
+        });
+
+    const byteset = (item: Item) => Action.nextWord(state, 'Which byte ?')
+        .then((byteId) => {
+            const b = Number(byteId);
+            return Promise.all([
+                Promise.resolve(b),
+                Action.nextWord(state),
+            ]);
+        })
+        .then(([
+            b,
+            byteValue,
+        ]) => {
+            if (!byteValue) {
+                return bprintf(state, `Current Value is : ${item.payload[b]}\n`);
+            }
+            const c = Number(byteValue);
+            if ((c < 0) || (c > 255) || (b < 0) || (b > 1)) {
+                return bprintf(state, 'Number out of range\n');
+            }
+            return setItem(state, item.itemId, { payload: { [b]: c } });
+        });
+
+    return Action.nextWord(state, 'set what')
+        .then((word) => {
+            if (!isWizard(state)) {
+                bprintf(state, 'Sorry, wizards only\n');
                 return Promise.resolve();
             }
-            if (value === 'bit') {
-                return bitset(item);
-            }
-            if (value === 'byte') {
-                return byteset(item);
-            }
-            const b = Number(value);
-            if (b > item.maxState) {
-                return bprintf(state, `Sorry max state for that is ${item.maxState}\n`);
-            }
-            if (b < 0) {
-                return bprintf(state, 'States start at 0\n');
-            }
-            return setItem(state, item.itemId, { state: b });
+            return Promise.all([
+                Promise.resolve(word),
+                findAvailableItem(state, word),
+            ]);
         })
+        .then(([
+            word,
+            item,
+        ]) => {
+            if (!item) {
+                return setmobile(word);
+            }
+            return Action.nextWord(state, 'Set to what value ?')
+                .then((value) => {
+                    if (value === 'bit') {
+                        return bitset(item);
+                    }
+                    if (value === 'byte') {
+                        return byteset(item);
+                    }
+                    const b = Number(value);
+                    if (b > item.maxState) {
+                        return bprintf(state, `Sorry max state for that is ${item.maxState}\n`);
+                    }
+                    if (b < 0) {
+                        return bprintf(state, 'States start at 0\n');
+                    }
+                    return setItem(state, item.itemId, {state: b});
+                });
+        });
 };
 
 const isdark = (state: State): Promise<boolean> => {
@@ -467,35 +474,30 @@ const setpflags = (state: State): Promise<void> => getPlayer(state, state.mynum)
             bprintf(state, 'You can\'t do that\n');
             return Promise.resolve();
         }
-        const name = brkword(state);
-        if (!name) {
-            bprintf(state, 'Whose PFlags ?\n');
-            return Promise.resolve();
-        }
-        return findVisiblePlayer(state, name)
+        return Action.nextWord(state, 'Whose PFlags ?')
+            .then(name => findVisiblePlayer(state, name))
             .then((player) => {
                 if (!player) {
                     return bprintf(state, 'Who is that ?\n');
                 }
+                return Action.nextWord(state, 'Flag number ?')
+                    .then(flagId => Promise.all([
+                        Number(flagId),
+                        Action.nextWord(state),
+                    ]))
+                    .then(([b, value]) => {
+                        if (!value) {
+                            return bprintf(state, `Value is ${player.flags[b] ? 'TRUE' : 'FALSE'}\n`);
+                        }
+                        const c = Number(value);
 
-                const flagId = brkword(state);
-                if (!flagId) {
-                    return bprintf(state, 'Flag number ?\n');
-                }
-                const b = Number(flagId);
-
-                const value = brkword(state);
-                if (!value) {
-                    return bprintf(state, `Value is ${player.flags[b] ? 'TRUE' : 'FALSE'}\n`);
-                }
-                const c = Number(value);
-
-                if ((c < 0) || (c > 1) || (b < 0) || (b > 31)) {
-                    return bprintf(state, 'Out of range\n');
-                }
-                return setPlayer(state, player.playerId, { flags: {
-                        ...player.flags,
-                        [b]: c !== 0,
-                    }})
+                        if ((c < 0) || (c > 1) || (b < 0) || (b > 31)) {
+                            return bprintf(state, 'Out of range\n');
+                        }
+                        return setPlayer(state, player.playerId, { flags: {
+                                ...player.flags,
+                                [b]: c !== 0,
+                            }})
+                    });
             });
     });
