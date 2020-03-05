@@ -1,4 +1,5 @@
 import State from "../state";
+import Events from '../tk/events';
 import {createItem, getItem, getItems, getPlayer, getTitle, holdItem, putItem, setItem, setPlayer} from "../support";
 import {CREDITS, GWIZ, logger, RESET_DATA, ROOMS} from "../files";
 import {CONTAINED_IN, IS_DESTROYED} from "../object";
@@ -73,6 +74,7 @@ import {
     setLocationId
 } from "../tk/reducer";
 import {sendMessage} from "../bprintf/bprintf";
+import {processEvents} from "../tk";
 
 const debug2 = (state: State): Promise<void> => Promise.resolve(bprintf(state, 'No debugger available\n'));
 
@@ -832,13 +834,12 @@ const rescom = (state: State): Promise<void> => {
         bprintf(state, 'What ?\\n');
         return Promise.resolve();
     }
-    broad(state, 'Reset in progress....\\nReset Completed....\\n');
-    return openlock(RESET_DATA, 'r')
-        .then((b) => {
-            return Promise.all(sec_read(state, b, 0, 4 * state.numobs))
-                .then(items => items.map((data, itemId) => setItem(state, itemId, data)))
-                .then(() => fcloselock(b));
-        })
+    return Events.broadcast(state, 'Reset in progress....\nReset Completed....\n')
+        .then(() => openlock(RESET_DATA, 'r'))
+        .then((b) => Promise.all(sec_read(state, b, 0, 4 * state.numobs))
+            .then(items => items.map((data, itemId) => setItem(state, itemId, data)))
+            .then(() => fcloselock(b))
+        )
         .then(() => fopen(RESET_T, 'w'))
         .then((s) => fprintf(state, s, `Last Reset At ${ctime(time())}\n`).then(() => fclose(a)))
         .then(() => fopen(RESET_N, 'w'))
@@ -860,7 +861,7 @@ const lightning = (state: State): Promise<void> => {
             return sendExorcise(state, getName(state), player, player.locationId)
                 .then(() => logger.write(`${getName(state)} zapped ${player.name}`))
                 .then(() => sendBotDamage(state, player, 10000))
-                .then(() => broad(state, sendSound('You hear an ominous clap of thunder in the distance\n')));
+                .then(() => Events.broadcast(state, sendSound('You hear an ominous clap of thunder in the distance\n')));
         });
 };
 
@@ -1274,7 +1275,7 @@ const rmedit = (state: State): Promise<void> => getPlayer(state, state.mynum)
                 resetEvents(state);
             })
             .then(() => loadWorld(state))
-            .then(() => findPlayer(state, getName(state)))
+            .then(newState => findPlayer(newState, getName(newState)))
             .then((me) => {
                 if (!me) {
                    loseme(state);
@@ -1282,7 +1283,7 @@ const rmedit = (state: State): Promise<void> => getPlayer(state, state.mynum)
                 }
                 return sendWizards(state, sendVisiblePlayer(getName(state), `${getName(state)} re-enters the normal universe\n`));
             })
-            .then(() => rte(state));
+            .then(() => processEvents(state));
     });
 
 const u_system = (state: State): Promise<void> => getPlayer(state, state.mynum)
@@ -1296,19 +1297,19 @@ const u_system = (state: State): Promise<void> => getPlayer(state, state.mynum)
             .then(() => saveWorld(state))
             .then(() => system(state, '/cs_d/aberstudent/yr2/iy7/bt'))
             .then(() => loadWorld(state))
-            .then(() => {
-                resetEvents(state);
-                return findPlayer(state, getName(state));
+            .then((newState) => {
+                resetEvents(newState);
+                return findPlayer(newState, getName(newState));
             })
             .then((me) => {
                 if (!me) {
                     loseme(state);
                     return endGame(state, 'You have been kicked off');
                 }
-                rte(state);
+                return processEvents(state);
             })
             .then(() => loadWorld(state))
-            .then(() => sendWizards(state, sendVisiblePlayer(getName(state), `${getName(state)} has returned to AberMud\n`)));
+            .then(newState => sendWizards(newState, sendVisiblePlayer(getName(newState), `${getName(newState)} has returned to AberMud\n`)));
     });
 
 const inumcom = (state: State): Promise<void> => {
@@ -1378,11 +1379,10 @@ const rawcom = (state: State): Promise<void> => {
     }
     const x = getreinput(state);
     if (isAdmin(state) && (x[0] === '!')) {
-        broad(state, x.substr(1));
-        return Promise.resolve();
+        return Events.broadcast(state, x.substr(1));
+    } else {
+        return Events.broadcast(state, `** SYSTEM : ${x}\n`);
     }
-    broad(state, `** SYSTEM : ${x}\n`);
-    return Promise.resolve();
 };
 
 const rollcom = (state: State): Promise<void> => getAvailableItem(state)
@@ -1520,9 +1520,9 @@ const emptycom = (state: State): Promise<void> => {
                     return holdItem(state, item.itemId, state.mynum)
                         .then(() => {
                             bprintf(state, `You empty the ${item.name} from the ${container.name}\n`);
-                            return executeCommand(state, `drop ${item.name}`)
-                                .then(() => showMessages(state));
+                            return executeCommand(state, `drop ${item.name}`);
                         })
+                        .then(() => showMessages(state))
                         .then(() => loadWorld(state));
                 }));
         });

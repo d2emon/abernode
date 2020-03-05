@@ -30,8 +30,14 @@ const trapch = (state: State, locationId: number): void => undefined;
 
 export const getAvailableItem = (state: State): Promise<Item> => {
     return Action.nextWord(state, 'Tell me more ?')
-        .then(name => loadWorld(state).then(() => name))
-        .then(name => findAvailableItem(state, name))
+        .then(name => loadWorld(state).then(newState => Promise.all([
+            newState,
+            name,
+        ]))
+        .then(([
+            newState,
+            name,
+        ]) => findAvailableItem(newState, name))
         .then((item) => {
             if (!item) {
                 throw new Error('There isn\'t one of those here');

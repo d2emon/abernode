@@ -6,7 +6,7 @@ import {
 } from "../bprintf";
 import {findAvailableItem} from "../objsys";
 import {getItems, Item, Player} from "../support";
-import {showMessages} from "../bprintf/output";
+import {sendAndShow, showMessages} from "../bprintf/output";
 import {getAvailablePlayer} from "../new1/actions";
 import {checkDumb} from "../new1/reducer";
 import {isWizard} from "../newuaf/reducer";
@@ -96,12 +96,11 @@ export class Direction extends Action {
             items,
         } = result;
         items.forEach((item, itemId) => {
-            this.output(item);
-            if ((itemId % 3) === 2) {
-                this.output('\n');
-            }
+            const message = ((itemId % 3) === 2) ? `${item}\n` : item;
             if ((itemId % 18) === 17) {
-                return showMessages(state);
+                return sendAndShow(state, message);
+            } else {
+                this.output(message);
             }
         });
         this.output('\n');

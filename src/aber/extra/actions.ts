@@ -27,7 +27,7 @@ import {
     HELP3,
     LEVELS, WIZLIST,
 } from "../files";
-import {showMessages} from "../bprintf/output";
+import {sendAndShow, showMessages} from "../bprintf/output";
 import Action from "../action";
 import {IS_DESTROYED} from "../object";
 import {sendVisiblePlayer} from "../bprintf";
@@ -112,8 +112,7 @@ export class Help extends Action {
                 return Promise.all([parts.map((text, textId) => new Promise((resolve) => {
                     this.output(`${text}\n`);
                     if (textId < parts.length - 1) {
-                        this.output('Hit <Return> For More....\n');
-                        return showMessages(state)
+                        return sendAndShow(state, 'Hit <Return> For More....\n')
                             .then(() => getchar(state));
                     }
                 }))]);
@@ -458,13 +457,13 @@ export class InLocation extends Action {
                         return fclose(unit);
                     })
                     .then(() => loadWorld(state))
-                    .then(() => executeCommand(state, toPerform))
+                    .then(newState => executeCommand(newState, toPerform))
                     .then(() => loadWorld(state))
-                    .then(() => {
-                        if (isHere(state, locationId)) {
-                            state.ex_dat = [...exBk];
+                    .then(newState => {
+                        if (isHere(newState, locationId)) {
+                            newState.ex_dat = [...exBk];
                         }
-                        setChannelId(state, oldLocationId);
+                        setChannelId(newState, oldLocationId);
                     })
                     .catch(() => {
                         setChannelId(state, oldLocationId);

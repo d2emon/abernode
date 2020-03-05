@@ -1,4 +1,5 @@
 import State from "../state";
+import {Event as EventData} from '../services/world';
 import {
     cureAll,
     getForce,
@@ -17,15 +18,12 @@ import {endGame} from "../gamego/endGame";
 import {removePerson} from "../newuaf";
 import {getSexName, getStrength, isWizard, revertSex, updateStrength} from "../newuaf/reducer";
 import {loadWorld, saveWorld} from "../opensys";
-import {
-    sendLocalMessage,
-    Event as EventData, sendMyMessage,
-} from "../parse/events";
+import {sendMyMessage} from "../parse/events";
 import {getLocationId, getName, isHere} from "../tk/reducer";
+import {emitEvent} from "../tk/events";
 
 const calibme = (state: State): void => undefined;
 const loseme = (state: State): void => undefined;
-const send2 = (state: State, event: EventData): Promise<void> => Promise.resolve();
 
 interface Event {
     sender: Player,
@@ -47,17 +45,17 @@ const receiveMagicDamage = (state: State, damage: number, message: string): Prom
         .then(() => loadWorld(state))
         .then(() => {
             state.zapped = true;
-            return Promise.all([
-                sendMessage(state, message),
-                dropMyItems(state),
-                Promise.resolve(loseme(state)),
-                sendMyMessage(state, `${getName(state)} has just died\n`),
-                sendWizards(state, `[ ${getName(state)} has just died ]\n`),
-                logger.write(`${getName(state)} slain magically`),
-                removePerson(state, getName(state)),
-                endGame(state, 'Oh dear you just died'),
-            ])
         })
+        .then(() => Promise.all([
+            sendMessage(state, message),
+            dropMyItems(state),
+            Promise.resolve(loseme(state)),
+            sendMyMessage(state, `${getName(state)} has just died\n`),
+            sendWizards(state, `[ ${getName(state)} has just died ]\n`),
+            logger.write(`${getName(state)} slain magically`),
+            removePerson(state, getName(state)),
+            endGame(state, 'Oh dear you just died'),
+        ]))
         .then(() => {});
 };
 
@@ -194,91 +192,91 @@ const receiveDeaf = (state: State, event: Event) => {
     }
 };
 
-export const sendCure = (state: State, target: Player): Promise<void> => send2(state, {
+export const sendCure = (state: State, target: Player): Promise<void> => emitEvent(state, {
     receiver: target.name,
     sender: undefined,
     code: -10100,
     channelId: undefined,
     payload: undefined,
 });
-export const sendCripple = (state: State, target: Player): Promise<void> => send2(state, {
+export const sendCripple = (state: State, target: Player): Promise<void> => emitEvent(state, {
     receiver: target.name,
     sender: getName(state),
     code: -10101,
     channelId: undefined,
     payload: undefined,
 });
-export const sendDumb = (state: State, target: Player): Promise<void> => send2(state, {
+export const sendDumb = (state: State, target: Player): Promise<void> => emitEvent(state, {
     receiver: target.name,
     sender: getName(state),
     code: -10102,
     channelId: undefined,
     payload: undefined,
 });
-export const sendForce = (state: State, target: Player, action: string): Promise<void> => send2(state, {
+export const sendForce = (state: State, target: Player, action: string): Promise<void> => emitEvent(state, {
     receiver: target.name,
     sender: getName(state),
     code: -10103,
     channelId: undefined,
     payload: action,
 });
-export const sendShout = (state: State, message: string): Promise<void> => send2(state, {
+export const sendShout = (state: State, message: string): Promise<void> => emitEvent(state, {
     receiver: getName(state),
     sender: getName(state),
     code: -10104,
     channelId: undefined,
     payload: message,
 });
-export const sendBlind = (state: State, target: Player): Promise<void> => send2(state, {
+export const sendBlind = (state: State, target: Player): Promise<void> => emitEvent(state, {
     receiver: target.name,
     sender: getName(state),
     code: -10105,
     channelId: undefined,
     payload: undefined,
 });
-export const sendMissile = (state: State, target: Player, damage: number): Promise<void> => send2(state, {
+export const sendMissile = (state: State, target: Player, damage: number): Promise<void> => emitEvent(state, {
     receiver: target.name,
     sender: getName(state),
     code: -10106,
     channelId: getLocationId(state),
     payload: damage,
 });
-export const sendChangeSex = (state: State, target: Player): Promise<void> => send2(state, {
+export const sendChangeSex = (state: State, target: Player): Promise<void> => emitEvent(state, {
     receiver: target.name,
     sender: undefined,
     code: -10107,
     channelId: undefined,
     payload: undefined,
 });
-export const sendFireball = (state: State, target: Player, damage: number): Promise<void> => send2(state, {
+export const sendFireball = (state: State, target: Player, damage: number): Promise<void> => emitEvent(state, {
     receiver: target.name,
     sender: getName(state),
     code: -10109,
     channelId: getLocationId(state),
     payload: damage,
 });
-export const sendShock = (state: State, target: Player, damage: number): Promise<void> => send2(state, {
+export const sendShock = (state: State, target: Player, damage: number): Promise<void> => emitEvent(state, {
     receiver: target.name,
     sender: getName(state),
     code: -10110,
     channelId: undefined,
     payload: damage,
 });
-export const sendSocial = (state: State, target: Player, message: string): Promise<void> => send2(state, {
+export const sendSocial = (state: State, target: Player, message: string): Promise<void> => emitEvent(state, {
     receiver: target.name,
     sender: undefined,
     code: -10111,
     channelId: undefined,
     payload: message,
 });
-export const sendWizards = (state: State, message: string): Promise<void> => send2(state, {
+export const sendWizards = (state: State, message: string, force: boolean = false): Promise<void> => emitEvent(state, {
     receiver: undefined,
     sender: undefined,
     code: -10113,
     channelId: undefined,
     payload: message,
-});
-export const sendDeaf = (state: State, target: Player): Promise<void> => send2(state, {
+}, force);
+export const sendDeaf = (state: State, target: Player): Promise<void> => emitEvent(state, {
     receiver: target.name,
     sender: getName(state),
     code: -10120,

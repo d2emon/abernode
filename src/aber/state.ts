@@ -156,6 +156,7 @@ export default interface State {
     curmode: boolean,
     globme: string,
     i_setup: boolean,
+    rd_qd: boolean,
     //
     brmode: boolean,
     ex_dat: number[],
@@ -171,7 +172,9 @@ export default interface State {
     objects: Item[],
     objinfo: ItemData[],
     out_ms: string,
-    rd_qd: boolean,
+    rdes: number,
+    tdes: number,
+    vdes: number,
     zapped: boolean,
     //
     me: {},

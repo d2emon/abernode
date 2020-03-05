@@ -1,13 +1,12 @@
 import State from "../state";
+import Events from "./events";
 import {logger} from "../files";
 import {getPlayer, getPlayers, setPlayer} from "../support";
 import {dropItems, dropMyItems, findPlayer, findVisiblePlayer, listPeople, showItems} from "../objsys";
-import {resetMessages, sendKeyboard, sendMessage, sendVisiblePlayer} from "../bprintf/bprintf";
-import {showMessages} from "../bprintf/output";
+import {sendVisiblePlayer} from "../bprintf";
 import {checkSnoop} from "../bprintf/snoop";
 import {endGame} from "../gamego/endGame";
-import {asyncUnsetAlarm, setProgramName, withAlarm} from "../gamego/reducer";
-import {keyInput} from "../key";
+import {asyncUnsetAlarm} from "../gamego/reducer";
 import {roll} from "../magic";
 import {onLook} from "../mobile";
 import {cureBlind, getBlind} from "../new1/reducer";
@@ -15,19 +14,16 @@ import {sendWizards} from "../new1/events";
 import {getLevel, getSex, getStrength, isGod, isWizard} from "../newuaf/reducer";
 import {initPerson, savePerson} from "../newuaf";
 import {loadWorld, saveWorld} from "../opensys";
-import {getDebugMode} from "../parse/reducer";
-import {sendLocalMessage} from "../parse/events";
-import {executeCommand} from "../parse/parser";
 import {
     disableCalibrate,
-    enableCalibrate,
     getEventId,
-    getEventUnset, getGameMode, getLocationId, getName, isConversationOff, isConversationOn, isConversationShell,
-    isHere,
-    resetEvents,
-    setChannelId, setConversationOff,
-    setEventId, setGameOn, setLocationId
+    getGameMode,
+    getLocationId,
+    getName,
+    setGameOn,
+    setLocationId,
 } from "./reducer";
+import {processEvents} from "./index";
 
 /**
  * AberMUD II   C
@@ -37,6 +33,7 @@ import {
  *
  * This file holds the basic communications routines
  */
+
 
 /**
  * Data format for mud packets
@@ -54,93 +51,6 @@ import {
  * - 1 = general request
  */
 
-const send2 = (state: State, block: {}): Promise<void> => loadWorld(state)
-    .then(() => {
-        const inpbk = sec_read(state, unit, 0, 64);
-        const number = 2 * inpbk[1] - inpbk[0];
-        inpbk[1] += 1;
-        sec_write(state, unit, block, number, 128);
-        sec_write(state, unit, inpbk, 0, 64);
-        if (number >= 199) {
-            cleanup(state, inpbk);
-        }
-        if (number >= 199) {
-            longwthr(state);
-        }
-    })
-    .catch(() => {
-        loseme(state);
-        return endGame(state, 'AberMUD: FILE_ACCESS : Access failed');
-    });
-
-/*
- readmsg(channel,block,num)
- long channel;
- long *block;
- int num;
-    {
-    long buff[64],actnum;
-    sec_read(channel,buff,0,64);
-    actnum=num*2-buff[0];
-    sec_read(channel,block,actnum,128);
-    }
-
-FILE *fl_com;
-extern long findstart();
-extern long findend();
-*/
-
-const rte = (state: State, name: string): Promise<void> => loadWorld(state)
-    .then(() => {
-        let eventId = getEventUnset(state) ? findend(state, unit) : getEventId(state);
-        const too = findend(state, unit);
-        setEventId(state, eventId);
-        for (eventId = getEventId(state); eventId < too; eventId += 1) {
-            const block = readmsg(state, unit, eventId);
-            processEvent(state, block, name.toLowerCase());
-        }
-        setEventId(state, eventId);
-        update(state, name);
-        eorte(state);
-        state.rdes = 0;
-        state.tdes = 0;
-        state.vdes = 0;
-    })
-    .catch(() => endGame(state, 'AberMUD: FILE_ACCESS : Access failed'));
-
-/*
-long findstart(unit)
- FILE *unit;
-    {
-    long bk[2];
-    sec_read(unit,bk,0,1);
-    return(bk[0]);
-    }
-
-long findend(unit)
- FILE *unit;
-    {
-    long bk[3];
-    sec_read(unit,bk,0,2);
-    return(bk[1]);
-    }
-*/
-
-/*
-long rd_qd=0;
-*/
-
-const cleanup = (state: State, inpbk: number[]): Promise<void> => loadWorld(state)
-    .then((unit) => {
-        for(let i = 1; i < 100; i += 20) {
-            const bk = sec_read(state, unit, 100 + i, 1280);
-            sec_write(state, unit, bk, i, 1280);
-        }
-        inpbk[0] = inpbk[0] + 100;
-        sec_write(unit, inpbk, 0, 64);
-        return revise(state, inpbk[0]);
-    });
-
 const special = (state: State, word: string, name: string): Promise<boolean> => {
     const bk = word.toLowerCase();
     if (bk[0] !== '.') {
@@ -151,7 +61,7 @@ const special = (state: State, word: string, name: string): Promise<boolean> => 
             .then((player) => {
                 initPerson(state)
                     .then(() => loadWorld(state))
-                    .then(() => setPlayer(state, player.playerId, {
+                    .then(newState => setPlayer(newState, player.playerId, {
                         strength: getStrength(state),
                         level: getLevel(state),
                         visibility: isGod(state) ? 0 : 10000,
@@ -160,16 +70,22 @@ const special = (state: State, word: string, name: string): Promise<boolean> => 
                         helping: -1,
                     }))
                     .then(() => sendWizards(state, sendVisiblePlayer(name, `[ ${name}  has entered the game ]\n`)))
-                    .then(roll)
-                    .then((locationRoll) => {
+                    .then(() => {
                         setGameOn(state);
-                        rte(state, name);
+                        return Promise.all([
+                            roll(),
+                            processEvents(state),
+                        ])
+                    })
+                    .then(([
+                        locationRoll,
+                    ]) => {
                         if (locationRoll > 50) {
                             setLocationId(state, -5);
                         } else {
                             setLocationId(state, -183);
                         }
-                        return sendLocalMessage(state, getLocationId(state), name, sendVisiblePlayer(name, `${name}  has entered the game\n`));
+                        return Events.sendLocalMessage(state, getLocationId(state), name, sendVisiblePlayer(name, `${name}  has entered the game\n`));
                     })
             })
             .then(() => true);
@@ -185,28 +101,9 @@ long dsdb=0;
 long moni=0;
 */
 
-const broad = (state: State, message: string): Promise<void> => {
-    state.rd_qd = true;
-    return send2(state, {
-        v0: null,
-        code: -1,
-        payload: message,
-    });
-};
+const tbroad = Events.broadcast;
 
 /*
-tbroad(message)
-char *message;
-    {
-    broad(message);
-    }
-
- sysctrl(block,luser)
- long *block;
- char *luser;
-    {
-    gamrcv(block);
-    }
 long  bound=0;
 long  tmpimu=0;
 char  *echoback="*e";
@@ -226,7 +123,7 @@ const split = (state: State, block: { payload: string }, name1: string, name2: s
 };
 
 const trapch = (state: State, locationId: number): Promise<void> => loadWorld(state)
-    .then(() => setPlayer(state, state.mynum, { locationId }))
+    .then(newState => setPlayer(newState, newState.mynum, { locationId }))
     .then(() => lookin(state, locationId));
 
 /*
@@ -236,7 +133,7 @@ long mynum=0;
 const putmeon = (state: State, name: string): Promise<void> => {
     state.iamon = false;
     return loadWorld(state)
-        .then(() => findVisiblePlayer(state, name))
+        .then(newState => findVisiblePlayer(newState, name))
         .then((player) => {
             if (player) {
                 return endGame(state, 'You are already on the system - you may only be on once at a time');
@@ -284,13 +181,13 @@ const loseme = (state: State, name: string): Promise<void> => getPlayer(state, s
                 disableCalibrate(state);
                 return loadWorld(state);
             })
-            .then(() => {
+            .then(newState => {
                 const promises = [
-                    dropMyItems(state),
-                    setPlayer(state, player.playerId, { exists: false }),
+                    dropMyItems(newState),
+                    setPlayer(newState, player.playerId, { exists: false }),
                 ];
                 if (player.visibility < 10000) {
-                    promises.push(sendWizards(state, `${getName(state)} has departed from AberMUDII\n`));
+                    promises.push(sendWizards(newState, `${getName(newState)} has departed from AberMUDII\n`));
                 }
                 return Promise.all(promises)
             })
@@ -310,24 +207,14 @@ const update = (state: State, name: string): Promise<void> => {
         return Promise.resolve();
     }
     return loadWorld(state)
-        .then(() => {
-            state.lasup = eventId;
-            return setPlayer(state, state.mynum, { eventId });
+        .then(newState => {
+            newState.lasup = eventId;
+            return setPlayer(newState, newState.mynum, { eventId });
         });
 };
 
-const revise = (state: State, cutoff: number): Promise<void> => loadWorld(state)
-    .then(() => getPlayers(state, state.maxu))
-    .then(players => players.forEach((player) => {
-        if (!player.exists && (player.eventId < (cutoff / 2)) && !player.isAbsent) {
-            broad(state, `${player.name} has been timed out\n`);
-            return dropItems(state, player)
-                .then(() => setPlayer(state, player.playerId, { name: '' }));
-        }
-    }));
-
 const lookin = (state: State, roomId: number): Promise<void> => loadWorld(state)
-    .then(() => saveWorld(state))
+    .then(newState => saveWorld(newState))
     .then(() => {
         /* Lords ???? */
         if (getBlind(state)) {
@@ -347,7 +234,7 @@ const lookin = (state: State, roomId: number): Promise<void> => loadWorld(state)
                                 bprintf(state, 'It is dark\n');
                                 return loadWorld(state);
                             })
-                            .then(() => onLook(state));
+                            .then(newState => onLook(newState));
                     }
                     return getstr(un1)
                         .then((content) => {
@@ -384,14 +271,14 @@ const lookin = (state: State, roomId: number): Promise<void> => loadWorld(state)
                 bprintf(state, `\nYou are on channel ${roomId}\n`);
             })
             .then(() => loadWorld(state))
-            .then(() => {
-                if (getBlind(state)) {
+            .then(newState => {
+                if (getBlind(newState)) {
                     return;
                 }
-                return showItems(state)
+                return showItems(newState)
                     .then(
-                        () => getGameMode(state) && listPeople(state)
-                            .then(messages => messages.forEach(message => bprintf(state, message)))
+                        () => getGameMode(newState) && listPeople(newState)
+                            .then(messages => messages.forEach(message => bprintf(newState, message)))
                     )
             })
             .then(() => {

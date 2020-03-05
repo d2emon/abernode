@@ -1,14 +1,11 @@
 import State from './state';
 import Action from './action';
 import {findVisiblePlayer} from './objsys';
-import {showMessages} from './bprintf/output';
+import {sendAndShow, showMessages} from './bprintf/output';
 import {sendMessage} from './bprintf/bprintf';
 import {getString} from "./gamego/input";
 import {loadWorld} from "./opensys";
 import {sendChangePerson} from "./parse/events";
-
-const getInput = (state: State, message: string, show: boolean): Promise<void> => sendMessage(state, message)
-    .then(() => show && showMessages(state));
 
 export class Frobnicate extends Action {
     action(state: State): Promise<any> {
@@ -26,11 +23,11 @@ export class Frobnicate extends Action {
                 }
                 return showMessages(state)
                     .then(() => Promise.all([
-                        getInput(state, 'New Level: ', false)
+                        sendAndShow(state, 'New Level: ')
                             .then(() => getString(6)),
-                        getInput(state, 'New Score: ', true)
+                        sendAndShow(state, 'New Score: ')
                             .then(() => getString(8)),
-                        getInput(state, 'New Strength: ', true)
+                        sendAndShow(state, 'New Strength: ')
                             .then(() => getString(8)),
                     ]))
                     .then(([
@@ -38,7 +35,7 @@ export class Frobnicate extends Action {
                         score,
                         strength,
     ]               ) => loadWorld(state)
-                        .then(() => sendChangePerson(state, player, {
+                        .then(newState => sendChangePerson(state, player, {
                             level,
                             score,
                             strength,

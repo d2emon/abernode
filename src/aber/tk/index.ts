@@ -1,155 +1,81 @@
 import State from "../state";
+import {Event} from '../services/world';
 import {getDebugMode} from "../parse/reducer";
-import {sendKeyboard} from "../bprintf";
-import {resetMessages, sendMessage} from "../bprintf/bprintf";
-import {getPlayer, Player} from "../support";
-import {showMessages} from "../bprintf/output";
-import {isWizard} from "../newuaf/reducer";
+import {sendMessage} from "../bprintf/bprintf";
+import {loadEvent, loadMeta, loadWorld, saveWorld} from "../opensys";
 import {
-    enableCalibrate,
-    getGameMode, getPrompt,
-    isConversationOff,
-    isConversationOn,
-    isConversationShell,
-    isHere, resetEvents,
-    setConversationOff, setName
+    getEventId,
+    getEventUnset,
+    getName,
+    isEventsUnprocessed,
+    setEventId,
+    setEventsProcessed,
+    setEventsUnprocessed
 } from "./reducer";
-import {setProgramName, withAlarm} from "../gamego/reducer";
-import {keyInput} from "../key";
-import {loadWorld, saveWorld} from "../opensys";
-import {executeCommand} from "../parse/parser";
-import {resetFight} from "../blood/reducer";
 import {endGame} from "../gamego/endGame";
 
-interface Event {
-    v0: number,
-    code: number,
-    payload: any,
-}
+const eorte = (state: State, interrupt: boolean = false) => (): Promise<void> => Promise.resolve();
+const gamrcv = (state: State, event: Event) => (): Promise<void> => Promise.resolve();
+const update = (state: State, name: string) => (): Promise<void> => Promise.resolve();
 
-const putmeon = (state: State, name: string): Promise<void> => Promise.resolve();
-const rte = (state: State, name: string): Promise<void> => Promise.resolve();
-const special = (state: State, action: string, name: string): Promise<void> => Promise.resolve();
-const sysctrl = (state: State, event: Event, name: string): Promise<void> => Promise.resolve();
+const processEvent = (state: State) => (event: Event): Promise<void> => {
+    const systemEvent = (state: State, event: Event, message: string): Promise<void> => sendMessage(state, message)
+        .then(gamrcv(state, event));
 
-const cleanRte = (state: State, name: string) => (): Promise<void> => loadWorld(state)
-    .then(() => rte(state, name))
-    .then(() => saveWorld(state));
-
-const processEvent = (state: State, event: Event, name: string): Promise<void> => {
     /* Print appropriate stuff from data block */
     const eventCode = getDebugMode(state) ? `\n<${event.code}>` : '';
     if (event.code < -3) {
-        return sendMessage(state, eventCode)
-            .then(() => sysctrl(state, event, name));
+        return systemEvent(state, event, eventCode);
     } else {
         return sendMessage(state, `${eventCode}${event.payload}`);
     }
-
 };
 
-const getInput = (state: State, name: string, player: Player): Promise<boolean> => {
-    const prompt = getPrompt(state, player);
-
-    const beforeBottom = (): Promise<void> => showMessages(state);
-    const beforeHeader = (): Promise<void> => showMessages(state);
-    const showTitle = (): Promise<void> => new Promise((resolve) => {
-        if (player.visibility > 9999) {
-            setProgramName(state, '-csh');
-        } else if (player.visibility === 0) {
-            setProgramName(state, `   --}----- ABERMUD -----{--     Playing as ${name}`);
-        }
-        return resolve();
-    });
-    const beforeTop = (): Promise<string> => sendMessage(state, prompt)
-        .then(() => showMessages(state))
-        .then(() => withAlarm(state)(
-            () => keyInput(prompt, 80)
-        ))
-        .then(() => '');
-
-    const applyConversation = (input: string) => (): string => {
-        if (!input) {
-            return '';
-        } else if (!isConversationOff(state) && (input === '**')) {
-            setConversationOff(state);
-            return '';
-        } else if ((input !== '*') && (input[0] === '*')) {
-            return input.substr(1);
-        } else if (isConversationOn(state)) {
-            return `say ${input}`;
-        } else if (isConversationShell(state)) {
-            return `tss ${input}`;
-        }
-    };
-
-    const executeInput = (input: string) => (): Promise<void> => {
-        if (getGameMode(state)) {
-            return executeCommand(state, input);
-        } else if (input && (input.toLowerCase() !== '.q')) {
-            return special(state, input, name);
-        }
-        return Promise.resolve();
-    };
-
-    const checkFightRound = () => Promise.resolve(state.fighting)
-        .then(enemyId => (enemyId > -1)
-            ? getPlayer(state, enemyId)
-            : undefined
-        )
-        .then((enemy) => {
-            if (enemy && (!enemy.exists || !isHere(state, enemy.locationId))) {
-                resetFight(state);
-            }
-            if (state.in_fight) {
-                state.in_fight -= 1;
-            }
-        });
-
-    const processInput = (input: string): Promise<string> => sendMessage(state, sendKeyboard(`${input}\n`))
-        .then(cleanRte(state, name))
-        .then(applyConversation(input))
-        .then(executeInput(input))
-        .then(checkFightRound)
-        .then(() => input.toLowerCase());
-
-    return beforeBottom()
-        .then(beforeHeader)
-        .then(showTitle)
-        .then(beforeTop)
-        .then(processInput)
-        .then(input => input === '.q');
+const loadAndProcess = (state: State, eventId: number): Promise<void> => {
+    setEventId(state, eventId);
+    return loadEvent(eventId)
+        .then(processEvent(state));
 };
 
-const start = (state: State, name: string) => Promise.all([
-    resetMessages(state),
-    Promise.resolve(resetEvents(state)),
-    putmeon(state, name),
-    Promise.resolve(setName(state, name)),
-]);
+const getEvents = (state: State, firstEventId: number | undefined, lastEventId: number): Promise<void>[] => {
+    firstEventId = (firstEventId !== undefined) ? firstEventId : lastEventId;
+    const events = [];
+    for (let eventId = firstEventId; eventId < lastEventId; eventId += 1) {
+        events.push(loadAndProcess(state, eventId));
+    }
+    setEventId(state, lastEventId);
+    return events;
+};
 
-const checkFull = (state: State) => (): Promise<void> => (state.mynum >= state.maxu)
-    ? Promise.reject(new Error('Sorry AberMUD is full at the moment'))
-    : Promise.resolve();
-
-const nextTurn = (name: string) => (state: State) => showMessages(state)
-    .then(() => getPlayer(state, state.mynum))
-    .then(me => getInput(state, name, me))
-    .then(() => state.rd_qd && rte(state, name))
+export const processEvents = (
+    state: State,
+    name?: string,
+    interrupt: boolean = false,
+): Promise<void> => loadMeta()
+    .then(({ lastEventId }) => Promise.all(getEvents(
+        state,
+        getEventId(state),
+        lastEventId,
+    ))
+    .then(update(state, name || getName(state)))
+    .then(eorte(state, interrupt))
     .then(() => {
-        state.rd_qd = false;
+        state.rdes = 0;
+        state.tdes = 0;
+        state.vdes = 0;
     })
-    .then(() => saveWorld(state))
-    .then(() => showMessages(state));
+    .catch(() => endGame(state, 'AberMUD: FILE_ACCESS : Access failed'));
 
-const talker = (state: State, name: string): Promise<(state: State) => void> => start(state, name)
-    .then(checkFull(state))
-    .then(cleanRte(state, name))
-    .then(() => {
-        resetEvents(state);
-        return special(state, '.g', name);
-    })
-    .then(() => {
-        enableCalibrate(state);
-        return nextTurn(name);
-    });
+export const processAndSave = (
+    state: State,
+    name?: string,
+    lazy: boolean = false,
+): Promise<State> => {
+    const process = (!lazy || isEventsUnprocessed(state))
+        ? processEvents(state, name)
+        : Promise.resolve();
+    return process
+        .then(() => lazy && setEventsProcessed(state))
+        .then(() => saveWorld(state))
+        .then(() => state);
+};

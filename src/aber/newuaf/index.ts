@@ -1,7 +1,7 @@
 import State from "../state";
 import Persons, {Person} from "../services/persons";
 import {endGame} from "../gamego/endGame";
-import {showMessages} from "../bprintf/output";
+import {sendAndShow, showMessages} from "../bprintf/output";
 import {getString} from "../gamego/input";
 import {getPerson, setPerson} from "./reducer";
 import {sendMessage} from "../bprintf/bprintf";
@@ -29,8 +29,7 @@ const createPerson = (person: Person): Promise<void> => Persons.findPerson(perso
     .then(found => found ? Persons.writePerson(found.personId, person) : Persons.addPerson(person))
     .catch(() => Persons.clearPersons().then(() => Promise.reject(new Error('Save Failed - Device Full ?'))));
 
-const inputSex = (state: State): Promise<number> => sendMessage(state, '\nSex (M/F) : ')
-    .then(() => showMessages(state))
+const inputSex = (state: State): Promise<number> => sendAndShow(state, '\nSex (M/F) : ')
     .then(() => getString(2))
     .then(sex => sex.toLowerCase())
     .then((sex) => {

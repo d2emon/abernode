@@ -1,5 +1,6 @@
 import State from "../state";
 import Action from "../action";
+import Events from '../tk/events';
 import {
     sendName,
     sendPlayerForVisible,
@@ -65,7 +66,6 @@ import {loadWorld} from "../opensys";
 import {sendLocalMessage, sendMyMessage} from "../parse/events";
 import {getLocationId, getName, isHere, setLocationId} from "../tk/reducer";
 
-const broad = (state: State, message: string): void => undefined;
 const sillycom = (state: State, message: string): Promise<any> => Promise.resolve({});
 const getreinput = (state: State): string => '';
 const loseme = (state: State): void => undefined;
@@ -73,13 +73,13 @@ const trapch = (state: State, locationId: number): void => undefined;
 
 /* This one isnt for magic */
 
-const getTargetPlayer = (state: State): Promise<Player> => loadWorld(state)
-    .then(() => Action.nextWord(state))
+const getTargetPlayer = (state: State): Promise<Player> => Action.nextWord(state)
     .catch(() => Promise.reject(new Error('Who ?')))
     .then((name) =>{
         if (name === 'at') {
             /* STARE AT etc */
-            return getTargetPlayer(state);
+            return loadWorld(state)
+                .then(getTargetPlayer);
         }
         return findVisiblePlayer(state, name)
             .then((player) => {
@@ -90,7 +90,8 @@ const getTargetPlayer = (state: State): Promise<Player> => loadWorld(state)
             })
     });
 
-export const getAvailablePlayer = (state: State): Promise<Player> => getTargetPlayer(state)
+export const getAvailablePlayer = (state: State): Promise<Player> => loadWorld(state)
+    .then(getTargetPlayer)
     .then((player) => {
         if (!isHere(state, player.locationId)) {
             throw new Error('They are not here');
@@ -113,7 +114,8 @@ const spellSuccess = (state: State) => (
         : Promise.resolve()
 );
 
-const getSpellTarget = (state: State, reflect: boolean = true): Promise<Player> => getTargetPlayer(state)
+const getSpellTarget = (state: State, reflect: boolean = true): Promise<Player> => loadWorld(state)
+    .then(getTargetPlayer)
     .then((player) => {
         if (getStrength(state) < 10) {
             throw new Error('You are too weak to cast magic');
@@ -664,12 +666,10 @@ export class Push extends Action {
     private static push126(state: State, item: Item): Promise<any> {
         return Promise.all([
             sendMessage(state, 'The tripwire moves and a huge stone crashes down from above!\n'),
-            Promise.resolve(broad(state, sendSound('You hear a thud and a squelch in the distance.\n'))),
+            Events.broadcast(state, sendSound('You hear a thud and a squelch in the distance.\n')),
+            loseme(state),
         ])
-            .then(() => {
-                loseme(state);
-                return endGame(state, '             S   P    L      A         T           !');
-            });
+            .then(() => endGame(state, '             S   P    L      A         T           !'));
     }
 
     private static push162(state: State, item: Item): Promise<any> {
@@ -786,7 +786,7 @@ export class Push extends Action {
     }
 
     private static push49(state: State, item: Item): Promise<any> {
-        return Promise.resolve(broad(state, sendSound('Church bells ring out around you\n')));
+        return Events.broadcast(state, sendSound('Church bells ring out around you\n'));
     }
 
     private static push104(state: State, item: Item): Promise<any> {

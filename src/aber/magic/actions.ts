@@ -27,7 +27,7 @@ import {sendWizards} from "../new1/events";
 import {isWornBy} from "../new1";
 import {getLevel, getStrength, isAdmin, isGod, isWizard, updateStrength} from "../newuaf/reducer";
 import {sendLocalMessage, sendSummon, sendVisibility} from "../parse/events";
-import {getLocationId, getName, setLocationId} from "../tk/reducer";
+import {getLocationId, getName, setEventsUnprocessed, setLocationId} from "../tk/reducer";
 
 const roomnum = (state: State, roomId: string, zoneId: string): number => 0;
 const sillycom = (state: State, message: string): void => undefined;
@@ -248,8 +248,7 @@ export class Wizards extends Action {
             throw new Error('Such advanced conversation is beyond you');
         }
         const message = getreinput(state);
-        state.rd_qd = true;
-        return sendWizards(state, `${sendName(getName(state))} : ${message}\n`);
+        return sendWizards(state, `${sendName(getName(state))} : ${message}\n`, true);
     }
 }
 

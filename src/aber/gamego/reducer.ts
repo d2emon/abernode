@@ -6,8 +6,9 @@ import {
 } from '../key';
 import {showMessages} from "../bprintf/output";
 import {onTime} from "../mobile";
-import {loadWorld, saveWorld} from "../opensys";
+import {saveWorld} from "../opensys";
 import {getName} from "../tk/reducer";
+import {processEvents} from "../tk";
 
 const loseme = (state: State): void => undefined;
 const rte = (state: State, name: string, interrupt: boolean = false): void => undefined;
@@ -22,11 +23,8 @@ const SIGQUIT = 'SIGQUIT';
 const SIGCONT = 'SIGCONT';
 const SIGALRM = 'SIGALRM';
 
-const timerEvent = (state: State) => withNoAlarm(state)(() => loadWorld(state)
-    .then(() => {
-        rte(state, getName(state), true);
-        return onTime(state);
-    })
+const timerEvent = (state: State) => withNoAlarm(state)(() => processEvents(state, getName(state), true)
+    .then(() => onTime(state))
     .then(() => saveWorld(state))
     .then(() => showMessages(state))
     .then(checkPrompt)
@@ -88,7 +86,7 @@ const withNoAlarm = (state: State) => (callback: () => Promise<any>): Promise<vo
         return result;
     });
 
-export const withAlarm = (state: State) => (callback: () => Promise<any>): Promise<void> => Promise.resolve(setAlarm(state))
+export const withAlarm = (state: State) => (callback: () => Promise<any>): Promise<any> => Promise.resolve(setAlarm(state))
     .then(callback)
     .then(result => asyncUnsetAlarm(state).then(() => result));
 

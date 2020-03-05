@@ -26,6 +26,7 @@ import {getBlind, getDeaf} from "../new1/reducer";
 import {saveWorld} from "../opensys";
 import {getDebugMode, setPlayerPronoun} from "../parse/reducer";
 import {getLocationId} from "../tk/reducer";
+import {sendMessage} from "./bprintf";
 
 const f_listfl = (fileName: string): string => '';
 const isdark = (state: State, locationId: number): boolean => false;
@@ -126,3 +127,6 @@ export const showMessages = (state: State): Promise<void> => withoutAlarm(state)
     .then(() => getSnooped(state))
     .then(snooped => snooped && viewSnoop(state, snooped))
 );
+
+export const sendAndShow = (state: State, message: string): Promise<void> => sendMessage(state, message)
+    .then(() => showMessages(state));

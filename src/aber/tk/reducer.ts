@@ -8,13 +8,14 @@ const update = (state: State, name: string): void => undefined;
 
 export const getCanCalibrate = (state: State): boolean => state.i_setup;
 export const getEventUnset = (state: State): boolean => state.cms === -1;
-export const getEventId = (state: State): number => state.cms;
+export const getEventId = (state: State): number => (state.cms === -1) ? undefined : state.cms;
 export const getLocationId = (state: State): number => state.curch;
 export const getName = (state: State): string => state.globme;
 export const getGameMode = (state: State): boolean => state.curmode;
 export const isConversationOff = (state: State): boolean => state.convflg === 0;
 export const isConversationOn = (state: State): boolean => state.convflg === 1;
 export const isConversationShell = (state: State): boolean => state.convflg === 2;
+export const isEventsUnprocessed = (state: State): boolean => state.rd_qd;
 
 export const disableCalibrate = (state: State): void => {
     state.i_setup = false;
@@ -56,6 +57,12 @@ export const setConversationOn = (state: State): void => {
 };
 export const setConversationShell = (state: State): void => {
     state.convflg = 2;
+};
+export const setEventsProcessed = (state: State): void => {
+    state.rd_qd = false;
+};
+export const setEventsUnprocessed = (state: State): void => {
+    state.rd_qd = true;
 };
 
 export const isHere = (state: State, locationId: number): boolean => (locationId === state.curch);

@@ -41,12 +41,12 @@ export const receiveDamage = (state: State, attack: Attack, isMe: boolean): Prom
                 return saveWorld(state);
             })
             .then(() => loadWorld(state))
-            .then(() => Promise.all([
-                sendMyMessage(state, `${sendName(getName(state))} has just died.\n`),
-                sendWizards(state, `[ ${sendName(getName(state))} has been slain by ${sendName(enemy.name)}[/p] ]\n`),
-                logger.write(`${getName(state)} slain by ${enemy.name}`),
-                removePerson(state, getName(state)),
-                endGame(state, 'Oh dear... you seem to be slightly dead'),
+            .then(newState => Promise.all([
+                sendMyMessage(newState, `${sendName(getName(newState))} has just died.\n`),
+                sendWizards(newState, `[ ${sendName(getName(newState))} has been slain by ${sendName(enemy.name)}[/p] ]\n`),
+                logger.write(`${getName(newState)} slain by ${enemy.name}`),
+                removePerson(newState, getName(newState)),
+                endGame(newState, 'Oh dear... you seem to be slightly dead'),
             ]))
            .then(() => {});
 

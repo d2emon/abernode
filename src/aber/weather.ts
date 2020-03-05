@@ -1,4 +1,5 @@
 import State from "./state";
+import Events from './tk/events';
 import {getItem, getItems, getPlayer, Item, setItem, setPlayer} from "./support";
 import {findAvailableItem, findVisiblePlayer, isCarriedBy, isLocatedIn} from "./objsys";
 import {sendSound, sendSoundPlayer, sendVisibleName, sendVisiblePlayer} from "./bprintf";
@@ -239,8 +240,7 @@ const posecom = (state: State): Promise<void> => {
                 return Promise.resolve()
             } else if (a === 1) {
                 sillycom(state, sendVisiblePlayer('%s', '%s throws out one arm and sends a huge bolt of fire high\ninto the sky\n'));
-                broad(state, sendVisibleName('A massive ball of fire explodes high up in the sky\n'));
-                return Promise.resolve()
+                return Events.broadcast(state, sendVisibleName('A massive ball of fire explodes high up in the sky\n'));
             } else if (a === 2) {
                 sillycom(state, sendVisiblePlayer('%s', '%s turns casually into a hamster before resuming normal shape\n'));
                 return Promise.resolve()

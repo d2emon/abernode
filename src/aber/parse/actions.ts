@@ -29,6 +29,7 @@ import {savePerson} from "../newuaf";
 import {endGame} from "../gamego/endGame";
 import {sendMessage} from "../bprintf/bprintf";
 import {getLocationId, getName, isHere, setChannelId, setGameOff, setLocationId} from "../tk/reducer";
+import {processEvents} from "../tk";
 
 const trapch = (state: State, channelId: number): void => undefined;
 const rte = (state: State, name: string): void => undefined;
@@ -183,9 +184,9 @@ export class Quit extends Action {
     }
 
     action(state: State, actor: Player): Promise<any> {
-        rte(state, getName(state));
-        return loadWorld(state)
+        return processEvents(state)
             .then(() => Action.checkFight(state, 'Not in the middle of a fight!'))
+            .then(() => loadWorld(state))
             .then(() => Promise.all([
                 sendMyMessage(state, `${getName(state)} has left the game\n`),
                 sendWizards(state, `[ Quitting Game : ${getName(state)} ]\n`),
