@@ -2,6 +2,7 @@ import State from '../state';
 import {logger} from '../files';
 import Messages from '../services/messages';
 import {endGame} from "../gamego/endGame";
+import {getName} from "../tk/reducer";
 
 const loseme = (state: State): void => undefined;
 
@@ -21,7 +22,7 @@ export const sendMessage = (state: State, message: string): Promise<void> => {
     /* Now we have a string of chars expanded */
     if ((message.length + state.sysbuf.length) > 4095) {
         loseme(state);
-        return logger.write(`Buffer overflow on user ${state.globme}`)
+        return logger.write(`Buffer overflow on user ${getName(state)}`)
             .then(() => endGame(state, 'PANIC - Buffer overflow'))
     }
 

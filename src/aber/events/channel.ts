@@ -6,9 +6,9 @@ import {
 import {isWornBy} from "../new1";
 import {sendMessage} from "../bprintf/bprintf";
 import {OnDropEvent, OnEnterEvent, OnGetEvent} from "./index";
-import {RUNE_SWORD_ID} from "../objsys";
-import {isWizard, updateScore} from "../newuaf/reducer";
-import {sendLocalMessage} from "../parse/events";
+import {updateScore} from "../newuaf/reducer";
+import {sendLocalMessage, sendMyMessage} from "../parse/events";
+import {getLocationId} from "../tk/reducer";
 
 const SHIELD_IDS = [89, 113, 114];
 
@@ -40,7 +40,7 @@ const channel139 = {
 
 const channel183 = {
     onDrop: (state: State, actor: Player, item: Item): Promise<void> => Promise.all([
-        sendLocalMessage(state, state.curch, state.globme, `The ${item.name} disappears into the bottomless pit.\n`),
+        sendMyMessage(state, `The ${item.name} disappears into the bottomless pit.\n`),
         Promise.resolve(updateScore(state, item.value, true)),
         putItem(state, item.itemId, -6),
         sendMessage(state, 'It disappears down into the bottomless pit.....\n')

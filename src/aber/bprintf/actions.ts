@@ -13,6 +13,7 @@ import {touchSnoop} from './snoop';
 import LogService from '../services/log';
 import {isGod, isWizard} from "../newuaf/reducer";
 import {sendSnoop, sendStopSnoop} from "../parse/events";
+import {getName} from "../tk/reducer";
 
 const geteuid = (state: State): void => undefined;
 const getuid = (state: State): void => undefined;
@@ -86,8 +87,8 @@ export class Snoop extends Action {
                 startSnoop(state, snooped);
                 return Promise.all([
                     Promise.resolve(snooped.name),
-                    sendSnoop(state, snooped, state.globme),
-                    touchSnoop(state.globme),
+                    sendSnoop(state, snooped, getName(state)),
+                    touchSnoop(getName(state)),
                 ])
             })
             .then(([name]) => ({

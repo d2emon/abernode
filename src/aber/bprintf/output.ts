@@ -24,7 +24,8 @@ import {
 } from '../key';
 import {getBlind, getDeaf} from "../new1/reducer";
 import {saveWorld} from "../opensys";
-import {getDebugMode, setName} from "../parse/reducer";
+import {getDebugMode, setPlayerPronoun} from "../parse/reducer";
+import {getLocationId} from "../tk/reducer";
 
 const f_listfl = (fileName: string): string => '';
 const isdark = (state: State, locationId: number): boolean => false;
@@ -32,7 +33,7 @@ const isdark = (state: State, locationId: number): boolean => false;
 const seePlayerName = (state: State, player: Player): boolean => {
     const canSee = canSeePlayer(state, player);
     if (canSee) {
-        setName(state, player);
+        setPlayerPronoun(state, player);
     }
     return canSee;
 };
@@ -55,7 +56,7 @@ const replaceName = (state: State) => (match, player: Player): string => (
     seePlayerName(state, player) ? player.name : 'Someone'
 );
 const replaceDark = (state: State) => (match, message: string): string => (
-    (isdark(state, state.curch) || getBlind(state)) ? '' : message
+    (isdark(state, getLocationId(state)) || getBlind(state)) ? '' : message
 );
 const replaceSoundPlayer = (state: State) => (match, player: Player): string => (
     getDeaf(state) ? '' : replaceName(state)(match, player)

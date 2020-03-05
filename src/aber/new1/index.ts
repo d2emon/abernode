@@ -18,6 +18,7 @@ import {getLevel, isWizard} from "../newuaf/reducer";
 import {loadWorld} from "../opensys";
 import {sendDamage, sendLocalMessage} from "../parse/events";
 import Action from "../action";
+import {getLocationId, getName, isHere, setLocationId} from "../tk/reducer";
 
 const trapch = (state: State, locationId: number): void => undefined;
 
@@ -51,7 +52,7 @@ export const isWornBy = (state: State, item: Item, player: Player): boolean => {
 
 
 export const setPlayerDamage = (state: State, enemy: Player, player: Player): Promise<void> => {
-    if (enemy.locationId !== state.curch) {
+    if (!isHere(state, enemy.locationId)) {
         return;
     }
     if ((enemy.playerId < 0) || (enemy.playerId > 47)) {
@@ -108,12 +109,11 @@ export const sendBotDamage = (state: State, player: Player, damage: number): Pro
 };
 
 export const teleport = (state: State, locationId: number): Promise<void> => {
-    const oldLocationId = state.curch;
-    state.curch = locationId;
-    trapch(state, state.curch);
+    const oldLocationId = getLocationId(state);
+    setLocationId(state, locationId);
     return Promise.all([
-        sendLocalMessage(state, oldLocationId, state.globme, sendVisiblePlayer(state.globme, `${state.globme} has left.\n`)),
-        sendLocalMessage(state, locationId, state.globme, sendVisiblePlayer(state.globme, `${state.globme} has arrived.\n`)),
+        sendLocalMessage(state, oldLocationId, getName(state), sendVisiblePlayer(getName(state), `${getName(state)} has left.\n`)),
+        sendLocalMessage(state, locationId, getName(state), sendVisiblePlayer(getName(state), `${getName(state)} has arrived.\n`)),
     ])
         .then(() => {});
 };

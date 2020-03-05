@@ -5,8 +5,9 @@ import {CONTAINED_IN, HELD_BY} from "../object";
 import {isWornBy} from "../new1";
 import {canSeePlayer} from "../bprintf/player";
 import {sendMessage} from "../bprintf/bprintf";
-import {getDebugMode, setHer, setHim, setIt, setName} from "../parse/reducer";
+import {getDebugMode, setHer, setHim, setIt, setPlayerPronoun} from "../parse/reducer";
 import Action from "../action";
+import {getLocationId, isHere} from "../tk/reducer";
 
 const showwthr = (state: State): boolean => false;
 
@@ -17,7 +18,7 @@ export const SHIELD_IDS = [113, 114];
 const seePlayerName = (state: State, player: Player): boolean => {
     const canSee = canSeePlayer(state, player);
     if (canSee) {
-        setName(state, player);
+        setPlayerPronoun(state, player);
     }
     return canSee;
 };
@@ -67,7 +68,7 @@ export const byMask = (state: State, mask: { [flagId: number]: boolean }): Promi
     getPlayer(state, state.mynum),
     getItems(state),
 ])
-    .then(([player, items]) => items.some((item) => isAvailable(item, player, state.curch, !isWizard(state))
+    .then(([player, items]) => items.some((item) => isAvailable(item, player, getLocationId(state), !isWizard(state))
         && Object.keys(mask).every((key) => item.flags[key] === mask[key])
     ));
 
@@ -164,7 +165,7 @@ export const findAvailableItem = (state: State, name: string): Promise<Item> => 
         item,
     ]) => {
         if (item.itemId !== SHIELD_BASE_ID) {
-            return isAvailable(item, player, state.curch, !isWizard(state)) && item;
+            return isAvailable(item, player, getLocationId(state), !isWizard(state)) && item;
         }
         return Promise.all(SHIELD_IDS.map(shieldId => getItem(state, shieldId)))
             .then(shields => shields.find(
@@ -176,7 +177,7 @@ export const findCarriedItem = (state: State, name: string, player: Player): Pro
     .then(item => isCarriedBy(item, player, !isWizard(state)) && item);
 
 export const findHereItem = (state: State, name: string): Promise<Item> => baseFindItem(state, name.toLowerCase())
-    .then(item => isLocatedIn(item, state.curch, !isWizard(state)) && item);
+    .then(item => isLocatedIn(item, getLocationId(state), !isWizard(state)) && item);
 
 export const findContainedItem = (state: State, name: string, container: Item): Promise<Item> => (container
     ? baseFindItem(state, name.toLowerCase())
@@ -201,7 +202,7 @@ const listItems = (state: State, items: Item[]): string[] => items.map((item) =>
 
 export const showItems = (state: State): Promise<void> => getItems(state)
     .then(items => items.filter((item) => {
-        if (!isLocatedIn(item, state.curch, !isWizard(state))) {
+        if (!isLocatedIn(item, getLocationId(state), !isWizard(state))) {
             return false;
         }
         if (item.state > 3) {
@@ -223,7 +224,7 @@ export const dropItems = (state: State, player: Player, locationId?: number): Pr
     .then(() => {});
 
 export const dropMyItems = (state: State) => getPlayer(state, state.mynum)
-    .then(player => dropItems(state, player, state.curch));
+    .then(player => dropItems(state, player, getLocationId(state)));
 
 // Player finders
 
@@ -259,14 +260,14 @@ export const listPeople = (state: State): Promise<string[]> => getPlayers(state)
         if (!player.exists) {
             return false;
         }
-        if (player.locationId !== state.curch) {
+        if (!isHere(state, player.locationId)) {
             return false;
         }
         return canSeePlayer(state, player);
     }))
     .then(players => players.map((player) => itemsAt(state, player.playerId, HELD_BY)
         .then((items) => {
-            setName(state, player);
+            setPlayerPronoun(state, player);
             if (player.sex) {
                 setHer(state, player.name);
             } else {

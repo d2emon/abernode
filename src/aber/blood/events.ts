@@ -13,7 +13,8 @@ import {sendWizards} from "../new1/events";
 import {removePerson} from "../newuaf";
 import {getStrength, isWizard, updateScore, updateStrength} from "../newuaf/reducer";
 import {loadWorld, saveWorld} from "../opensys";
-import {Attack, sendLocalMessage} from "../parse/events";
+import {Attack, sendLocalMessage, sendMyMessage} from "../parse/events";
+import {getLocationId, getName} from "../tk/reducer";
 
 const loseme = (state: State): void => undefined;
 
@@ -41,10 +42,10 @@ export const receiveDamage = (state: State, attack: Attack, isMe: boolean): Prom
             })
             .then(() => loadWorld(state))
             .then(() => Promise.all([
-                sendLocalMessage(state, state.curch, state.globme, `${sendName(state.globme)} has just died.\n`),
-                sendWizards(state, `[ ${sendName(state.globme)} has been slain by ${sendName(enemy.name)}[/p] ]\n`),
-                logger.write(`${state.globme} slain by ${enemy.name}`),
-                removePerson(state, state.globme),
+                sendMyMessage(state, `${sendName(getName(state))} has just died.\n`),
+                sendWizards(state, `[ ${sendName(getName(state))} has been slain by ${sendName(enemy.name)}[/p] ]\n`),
+                logger.write(`${getName(state)} slain by ${enemy.name}`),
+                removePerson(state, getName(state)),
                 endGame(state, 'Oh dear... you seem to be slightly dead'),
             ]))
            .then(() => {});

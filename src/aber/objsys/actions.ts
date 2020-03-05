@@ -23,6 +23,7 @@ import {sendMessage} from "../bprintf/bprintf";
 import {sendLocalMessage, sendMyMessage} from "../parse/events";
 import * as ChannelEvents from "../events/channel";
 import * as ItemEvents from "../events/item";
+import {getLocationId, getName} from "../tk/reducer";
 
 const cancarry = (state: State, playerId: number): boolean => false;
 
@@ -120,8 +121,8 @@ export class GetItem extends Action {
 
     private static take = (state: State, actor: Player) => (item: Item): Promise<any> => Promise.all([
         holdItem(state, item.itemId, state.mynum),
-        sendMyMessage(state, `${sendPlayerForVisible(state.globme)}${sendVisibleName(` takes the ${item.name}\n`)}`),
-        Promise.all(GetItem.onAfterGet(item, state.curch).map(event => event(state, actor, item))),
+        sendMyMessage(state, `${sendPlayerForVisible(getName(state))}${sendVisibleName(` takes the ${item.name}\n`)}`),
+        Promise.all(GetItem.onAfterGet(item, getLocationId(state)).map(event => event(state, actor, item))),
     ])
        .then(() => ({}));
 
@@ -162,9 +163,9 @@ export class DropItem extends Action {
     };
 
     private static drop = (state: State, actor: Player) => (item: Item): Promise<any> => Promise.all([
-        putItem(state, item.itemId, state.curch),
-        sendLocalMessage(state, state.curch, state.globme, `${sendPlayerForVisible(state.globme)}${sendVisibleName(` drops the ${item.name}\n`)}`),
-        ChannelEvents.onDrop(state.curch)(state, actor, item),
+        putItem(state, item.itemId, getLocationId(state)),
+        sendMyMessage(state, `${sendPlayerForVisible(getName(state))}${sendVisibleName(` drops the ${item.name}\n`)}`),
+        ChannelEvents.onDrop(getLocationId(state))(state, actor, item),
     ])
         .then(() => ({}));
 

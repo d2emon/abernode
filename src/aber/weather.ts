@@ -5,15 +5,15 @@ import {sendSound, sendSoundPlayer, sendVisibleName, sendVisiblePlayer} from "./
 import {roll} from "./magic";
 import {checkDumb} from "./new1/reducer";
 import {isGod, isWizard} from "./newuaf/reducer";
-import {sendLocalMessage, sendWeather} from "./parse/events";
+import {sendLocalMessage, sendMyMessage, sendWeather} from "./parse/events";
 import Action from "./action";
+import {getLocationId, getName, isHere} from "./tk/reducer";
 
 /*
 #include "files.h"
 extern FILE *openlock();
 extern FILE *openuaf();
 extern FILE *openroom();
-extern char globme[];
 */
 
  /*
@@ -122,7 +122,7 @@ const showwthr = (state: State): Promise<void> => {
         .then((weather) => {
             const weatherId = modifwthr(state, weather.state);
             if (weatherId === 1) {
-                if ((state.curch > -199) && (state.curch < -178)) {
+                if ((getLocationId(state) > -199) && (getLocationId(state) < -178)) {
                     bprintf(state, 'It is raining, a gentle mist of rain, which sticks to everything around\n');
                     bprintf(state, 'you making it glisten and shine. High in the skies above you is a rainbow\n');
                 } else {
@@ -138,29 +138,24 @@ const showwthr = (state: State): Promise<void> => {
         });
 };
 
-
-/*
- outdoors()
-    {
-    extern long curch;
-    switch(curch)
-       {
-       case -100:;
-       case -101:;
-       case -102:return(1);
-       case -183:return(0);
-       case -170:return(0);
-       default:
-          if((curch>-191)&&(curch<-168)) return(1);
-          if((curch>-172)&&(curch<-181)) return(1);
-          return(0);
-       }
+const outdoors = (state: State): boolean => {
+    const channelId = getLocationId(state);
+    if ([-100, -101, -102].indexOf(channelId) >= 0) {
+        return true;
+    } else if ([-183, -170].indexOf(channelId) >= 0) {
+        return false;
+    } else if ((channelId > -191) && (channelId < -168)) {
+        return true;
+    } else if ((channelId > -172) && (channelId < -181)) {
+        return true;
+    } else  {
+        return false;
     }
+};
 
-*/
  /* Silly Section */
 
-const sillycom = (state: State, text: string): Promise<void> => sendLocalMessage(state, state.curch, state.globme, text.replace('%s', state.globme));
+const sillycom = (state: State, text: string): Promise<void> => sendMyMessage(state, text.replace('%s', getName(state)));
 
 const laughcom = (state: State): Promise<void> => checkDumb(state)
     .then(() => {
@@ -413,7 +408,7 @@ const isdark = (state: State): Promise<boolean> => {
                 if ((item.itemId !== 32) && !item.isLit) {
                     return;
                 }
-                if (isLocatedIn(item, state.curch, !isWizard(state))) {
+                if (isLocatedIn(item, getLocationId(state), !isWizard(state))) {
                     found = false;
                     return;
                 }
@@ -422,7 +417,7 @@ const isdark = (state: State): Promise<boolean> => {
                 }
                 return getPlayer(state, item.locationId)
                     .then((player) => {
-                        if (player.locationId !== state.curch) {
+                        if (!isHere(state, player.locationId)) {
                             return;
                         }
                         found = false;
@@ -434,39 +429,33 @@ const isdark = (state: State): Promise<boolean> => {
     if (isWizard(state)) {
         return Promise.resolve(false);
     }
-    if ((state.curch === -1100) || (state.curch === -1101)) {
+    const channelId = getLocationId(state);
+    if ((channelId === -1100) || (channelId === -1101)) {
         return Promise.resolve(false);
     }
-    if ((state.curch <= -1113) || (state.curch >= -1123)) {
+    if ((channelId <= -1113) || (channelId >= -1123)) {
         return idk();
     }
-    if ((state.curch < -399) || (state.curch > -300)) {
+    if ((channelId < -399) || (channelId > -300)) {
         return Promise.resolve(false);
     }
     return idk();
 };
 
-/*
-modifwthr(n)
-{
-extern long curch;
-switch(curch)
-{
-default:
-if((curch>=-179)&&(curch<=-199))
-{
-	if(n>1)return(n%2);
-	else return(n);
-}
-if((curch>=-178)&&(curch<=-100))
-{
-	if((n==1)||(n==2)) n+=2;
-	return(n);
-}
-return(n);
-}
-}
-*/
+const modifwthr = (state: State, weatherId: number): number => {
+    const channelId = getLocationId(state);
+    if ((channelId >= -179) && (channelId <= -199)) {
+        return (weatherId > 1)
+            ? weatherId % 2
+            : weatherId;
+    } else if ((channelId >= -178) && (channelId <= -100)) {
+        return ((weatherId === 1) || (weatherId === 2))
+            ? weatherId + 2
+            : weatherId;
+    } else {
+        return weatherId;
+    }
+};
 
 const setpflags = (state: State): Promise<void> => getPlayer(state, state.mynum)
     .then((editor) => {

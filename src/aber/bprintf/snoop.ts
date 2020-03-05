@@ -3,11 +3,12 @@ import {getSnooped, startSnoop, stopSnoop} from "./reducer";
 import {Player} from "../support";
 import Snoop from '../services/snoop';
 import {sendStopSnoop} from "../parse/events";
+import {getName} from "../tk/reducer";
 
-export const viewSnoop = (state: State, snooped: Player): Promise<void> => Snoop.connectSnoop(state.globme)
-    .then(() => Snoop.readSnoop(state.globme))
+export const viewSnoop = (state: State, snooped: Player): Promise<void> => Snoop.connectSnoop(getName(state))
+    .then(() => Snoop.readSnoop(getName(state)))
     .then(text => text.forEach(s => console.log(`|${s}`)))
-    .then(() => Snoop.clearSnoop(state.globme))
+    .then(() => Snoop.clearSnoop(getName(state)))
     .then(() => {
         stopSnoop(state);
         // showMessages(state);

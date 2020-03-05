@@ -21,6 +21,7 @@ import {endGame} from "../gamego/endGame";
 import {setPlayerDamage} from "../new1";
 import {getLevel, isWizard, updateScore} from "../newuaf/reducer";
 import {sendLocalMessage} from "../parse/events";
+import {getCanCalibrate, getLocationId, isHere} from "../tk/reducer";
 
 const loseme = (state: State): Promise<void> => Promise.resolve();
 
@@ -56,7 +57,7 @@ const checkFight = (state: State, player: Player, enemy: Player): Promise<void> 
             if (!enemy.exists) {
                 return;
             }
-            if (enemy.locationId !== state.curch) {
+            if (!isHere(state, enemy.locationId)) {
                 return;
             }
             if (player.visibility) {
@@ -80,7 +81,7 @@ const doRune = (state: State, runeSword: Item): Promise<void> => {
             if (player.isWizard) {
                 return false;
             }
-            return (player.locationId === state.curch);
+            return (isHere(state, player.locationId));
         }))
         .then(player => findPlayer(state, player.name));
 
@@ -106,10 +107,10 @@ const checkHelp = (state: State, player: Player): Promise<void> => getPlayer(sta
         if (!helping) {
             return;
         }
-        if (!state.i_setup) {
+        if (!getCanCalibrate(state)) {
             return;
         }
-        if (helping.exists && (helping.locationId === state.curch)) {
+        if (helping.exists && isHere(state, helping.locationId)) {
             return;
         }
         return Promise.all([
@@ -164,7 +165,7 @@ export const getDragon = (state: State): Promise<Player> => {
         return Promise.resolve(undefined);
     }
     return findPlayer(state, 'dragon')
-        .then((dragon) => ((dragon && (dragon.locationId === state.curch)) ? dragon : undefined));
+        .then((dragon) => ((dragon && isHere(state, dragon.locationId)) ? dragon : undefined));
 };
 
 const dropPepper = (state: State): Promise<void> => {
@@ -184,14 +185,14 @@ const dropPepper = (state: State): Promise<void> => {
         getPlayer(state, state.mynum),
         getPlayer(state, 32),
         getItem(state, 89),
-        sendLocalMessage(state, state.curch, undefined, 'You start sneezing ATISCCHHOOOOOO!!!!\n'),
+        sendLocalMessage(state, getLocationId(state), undefined, 'You start sneezing ATISCCHHOOOOOO!!!!\n'),
     ])
         .then(([
             player,
             dragon,
             pepper
         ]) => {
-            if (!dragon.exists || (dragon.locationId !== state.curch)) {
+            if (!dragon.exists || !isHere(state, dragon.locationId)) {
                 return;
             }
             /* Ok dragon and pepper time */

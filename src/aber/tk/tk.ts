@@ -1,111 +1,78 @@
-import State from "./state";
-import {logger} from "./files";
-import {getPlayer, getPlayers, setPlayer} from "./support";
-import {bprintf} from "./__dummies";
-import {dropItems, dropMyItems, findPlayer, findVisiblePlayer, listPeople, showItems} from "./objsys";
-import {resetMessages, sendKeyboard, sendMessage, sendVisiblePlayer} from "./bprintf/bprintf";
-import {showMessages} from "./bprintf/output";
-import {checkSnoop} from "./bprintf/snoop";
-import {endGame} from "./gamego/endGame";
-import {setAlarm, asyncUnsetAlarm, setProgramName, withAlarm} from "./gamego/reducer";
-import {keyInput} from "./key";
-import {roll} from "./magic";
-import {onLook} from "./mobile";
-import {cureBlind, getBlind} from "./new1/reducer";
-import {sendWizards} from "./new1/events";
-import {getLevel, getSex, getStrength, isGod, isWizard} from "./newuaf/reducer";
-import {initPerson, savePerson} from "./newuaf";
-import {loadWorld, saveWorld} from "./opensys";
-import {getDebugMode} from "./parse/reducer";
-import {sendLocalMessage} from "./parse/events";
-import {executeCommand} from "./parse/parser";
+import State from "../state";
+import {logger} from "../files";
+import {getPlayer, getPlayers, setPlayer} from "../support";
+import {dropItems, dropMyItems, findPlayer, findVisiblePlayer, listPeople, showItems} from "../objsys";
+import {resetMessages, sendKeyboard, sendMessage, sendVisiblePlayer} from "../bprintf/bprintf";
+import {showMessages} from "../bprintf/output";
+import {checkSnoop} from "../bprintf/snoop";
+import {endGame} from "../gamego/endGame";
+import {asyncUnsetAlarm, setProgramName, withAlarm} from "../gamego/reducer";
+import {keyInput} from "../key";
+import {roll} from "../magic";
+import {onLook} from "../mobile";
+import {cureBlind, getBlind} from "../new1/reducer";
+import {sendWizards} from "../new1/events";
+import {getLevel, getSex, getStrength, isGod, isWizard} from "../newuaf/reducer";
+import {initPerson, savePerson} from "../newuaf";
+import {loadWorld, saveWorld} from "../opensys";
+import {getDebugMode} from "../parse/reducer";
+import {sendLocalMessage} from "../parse/events";
+import {executeCommand} from "../parse/parser";
+import {
+    disableCalibrate,
+    enableCalibrate,
+    getEventId,
+    getEventUnset, getGameMode, getLocationId, getName, isConversationOff, isConversationOn, isConversationShell,
+    isHere,
+    resetEvents,
+    setChannelId, setConversationOff,
+    setEventId, setGameOn, setLocationId
+} from "./reducer";
 
-/*
+/**
+ * AberMUD II   C
  *
- *		AberMUD II   C
+ * This game systems, its code scenario and design
+ * are (C) 1987/88  Alan Cox,Jim Finnis,Richard Acott
  *
- *
- *	This game systems, its code scenario and design
- *	are (C) 1987/88  Alan Cox,Jim Finnis,Richard Acott
- *
- *
- *	This file holds the basic communications routines
- *
+ * This file holds the basic communications routines
  */
 
-/*
-#include "files.h"
-#include "flock.h"
-
-long i_setup=0;
-long oddcat=0;
-long  talkfl=0;
-
-#include <stdio.h>
-#include <sys/errno.h>
-#include <sys/file.h>
-
-extern FILE * openlock();
-extern char globme[];
-extern long cms;
-extern long curch;
-extern FILE * openroom();
-extern char key_buff[];
-long cms= -1;
-long curch=0;
-
-char globme[40];
-long  curmode=0;
-long  meall=0;
-*/ /*
-
- Data format for mud packets
-
- Sector 0
- [64 words]
- 0   Current first message pointer
- 1   Control Word
- Sectors 1-n  in pairs ie [128 words]
-
- [channel][controlword][text data]
-
- [controlword]
- 0 = Text
- - 1 = general request
-
+/**
+ * Data format for mud packets
+ *
+ * Sector 0
+ * [64 words]
+ * 0   Current first message pointer
+ * 1   Control Word
+ * Sectors 1-n  in pairs ie [128 words]
+ *
+ * [channel][controlword][text data]
+ *
+ * [controlword]
+ * 0 = Text
+ * - 1 = general request
  */
- /*
-vcpy(dest,offd,source,offs,len)
-long *dest,*source;
-long offd,offs,len;
-    {
-    long c;
-    c=0;
-    while(c<len)
-       {
-       dest[c+offd]=source[c+offs];
-       c++;
-       }
-    }
-*/
 
-const mstoout = (state: State, block: { v0: number, code: number, payload: any }, name: string): void => {
+interface Event {
+    v0: number,
+    code: number,
+    payload: any,
+}
+
+const sysctrl = (state: State, event: Event, name: string): Promise<void> => Promise.resolve();
+
+const processEvent = (state: State, event: Event, name: string): Promise<void> => {
     /* Print appropriate stuff from data block */
-    const luser = name.toLowerCase();
-    if (getDebugMode(state)) {
-        bprintf(state, `\n<${block.code}>`);
-    }
-    if (block.code < -3) {
-        return sysctrl(state, block, user.toLowerCase())
+    const eventCode = getDebugMode(state) ? `\n<${event.code}>` : '';
+    if (event.code < -3) {
+        return sendMessage(state, eventCode)
+            .then(() => sysctrl(state, event, name));
     } else {
-        return bprintf(state, block.payload);
+        return sendMessage(state, `${eventCode}${event.payload}`);
     }
-};
 
- /*
-long gurum=0;
-long convflg=0;
-*/
+};
 
 const sendmsg = (state: State, name: string): Promise<boolean> => Promise.all([
     getPlayer(state, state.mynum),
@@ -126,11 +93,11 @@ const sendmsg = (state: State, name: string): Promise<boolean> => Promise.all([
         if (isWizard(state)) {
             prmpt += '----';
         }
-        if (state.convflg === 0) {
+        if (isConversationOff(state)) {
             prmpt += '>';
-        } else if (state.convflg === 1) {
+        } else if (isConversationOn(state)) {
             prmpt += '"';
-        } else if (state.convflg === 2) {
+        } else if (isConversationShell(state)) {
             prmpt += '*';
         } else {
             prmpt += '?';
@@ -160,22 +127,22 @@ const sendmsg = (state: State, name: string): Promise<boolean> => Promise.all([
                             .then(() => rte(state, name))
                             .then(() => saveWorld(state))
                             .then(() => {
-                                if (state.convflg && (work === '**')) {
-                                    state.convflg = 0;
+                                if (!isConversationOff(state) && (work === '**')) {
+                                    setConversationOff(state);
                                     return sendmsg(state, name);
                                 }
 
                                 if (work) {
                                     if ((work !== '*') && (work[0] === '*')) {
                                         work = work.substr(1);
-                                    } else if (state.convflg === 1) {
+                                    } else if (isConversationOn(state)) {
                                         work = `say ${work}`;
-                                    } else if (state.convflg) {
+                                    } else if (isConversationShell(state)) {
                                         work = `tss ${work}`;
                                     }
                                 }
 
-                                if (state.curmode === 1) {
+                                if (getGameMode(state)) {
                                     executeCommand(state, work)
                                 } else if ((work !== '.Q') && (work !== '.q') && work) {
                                     special(state, work, name);
@@ -189,7 +156,7 @@ const sendmsg = (state: State, name: string): Promise<boolean> => Promise.all([
                                                 state.in_fight = 0;
                                                 state.fighting = -1
                                             }
-                                            if (enemy.locationId !== state.curch) {
+                                            if (!isHere(state, enemy.locationId)) {
                                                 state.in_fight = 0;
                                                 state.fighting = -1
                                             }
@@ -246,16 +213,14 @@ extern long findend();
 
 const rte = (state: State, name: string): Promise<void> => loadWorld(state)
     .then(() => {
-        if (state.cms === -1) {
-            state.cms = findend(state, unit);
-        }
+        let eventId = getEventUnset(state) ? findend(state, unit) : getEventId(state);
         const too = findend(state, unit);
-        let ct = state.cms;
-        for (ct = state.cms; ct < too; ct += 1) {
-            const block = readmsg(state, unit, ct);
-            mstoout(state, block, name);
+        setEventId(state, eventId);
+        for (eventId = getEventId(state); eventId < too; eventId += 1) {
+            const block = readmsg(state, unit, eventId);
+            processEvent(state, block, name.toLowerCase());
         }
-        state.cms = ct;
+        setEventId(state, eventId);
         update(state, name);
         eorte(state);
         state.rdes = 0;
@@ -284,7 +249,7 @@ long findend(unit)
 
 const talker = (state: State, name: string) => {
     resetMessages(state);
-    state.cms = -1;
+    resetEvents(state);
     putmeon(state, name);
     return loadWorld(state)
         .then(() => {
@@ -292,13 +257,13 @@ const talker = (state: State, name: string) => {
                 console.log('Sorry AberMUD is full at the moment');
                 return () => false;
             }
-            state.globme = name;
+            setName(state, name);
             rte(state, name);
             return saveWorld(state)
                 .then(() => {
-                    state.cms = -1;
+                    resetEvents(state);
                     special(state, '.g', name);
-                    state.i_setup = 1;
+                    enableCalibrate(state);
                     return () => showMessages(state)
                         .then(() => {
                             sendmsg(state, name);
@@ -351,15 +316,14 @@ const special = (state: State, word: string, name: string): Promise<boolean> => 
                     .then(() => sendWizards(state, sendVisiblePlayer(name, `[ ${name}  has entered the game ]\n`)))
                     .then(roll)
                     .then((locationRoll) => {
-                        state.curmode = 1;
+                        setGameOn(state);
                         rte(state, name);
                         if (locationRoll > 50) {
-                            state.curch = -5;
+                            setLocationId(state, -5);
                         } else {
-                            state.curch = -183;
+                            setLocationId(state, -183);
                         }
-                        trapch(state, state.curch);
-                        return sendLocalMessage(state, state.curch, name, sendVisiblePlayer(name, `${name}  has entered the game\n`));
+                        return sendLocalMessage(state, getLocationId(state), name, sendVisiblePlayer(name, `${name}  has entered the game\n`));
                     })
             })
             .then(() => true);
@@ -373,20 +337,18 @@ long dsdb=0;
 
 
 long moni=0;
+*/
 
- broad(mesg)
- char *mesg;
-    {
-extern long rd_qd;
-char bk2[256];
-long block[128];
-rd_qd=1;
-block[1]= -1;
-strcpy(bk2,mesg);
-vcpy(block,2,(long *)bk2,0,126);
-send2(block);
-}
+const broad = (state: State, message: string): Promise<void> => {
+    state.rd_qd = true;
+    return send2(state, {
+        v0: null,
+        code: -1,
+        payload: message,
+    });
+};
 
+/*
 tbroad(message)
 char *message;
     {
@@ -403,26 +365,19 @@ long  bound=0;
 long  tmpimu=0;
 char  *echoback="*e";
 char  *tmpwiz=".";*//* Illegal name so natural immunes are ungettable! *//*
+*/
 
- split(block,nam1,nam2,work,luser)
- long *block;
- char *nam1;
- char *nam2;
- char *work;
- char *luser;
-    {
-    long wkblock[128],a;
-    vcpy(wkblock,0,block,2,126);
-    vcpy((long *)work,0,block,64,64);
-    a=scan(nam1,(char *)wkblock,0,"",".");
-    scan(nam2,(char *)wkblock,a+1,"",".");
-if((strncmp(nam1,"The ",4)==0)||(strncmp(nam1,"the ",4)==0))
-{
-if(!strcmp(lowercase(nam1+4),lowercase(luser))) return(1);
-}
-    return(!strcmp(lowercase(nam1),lowercase(luser)));
+const split = (state: State, block: { payload: string }, name1: string, name2: string, work: string, user: string): boolean => {
+    const { payload } = block;
+    const a = scan(name1, payload, 0, '', '.');
+    scan(name2, payload, a + 1, '', '.');
+    if (name1.toLowerCase().substr(0, 4) === 'the ') {
+        if (name1.toLowerCase().substr(4) === user.toLowerCase()) {
+            return true;
+        }
     }
-    */
+    return name1.toLowerCase() === user.toLowerCase();
+};
 
 const trapch = (state: State, locationId: number): Promise<void> => loadWorld(state)
     .then(() => setPlayer(state, state.mynum, { locationId }))
@@ -457,7 +412,7 @@ const putmeon = (state: State, name: string): Promise<void> => {
                     }
                     return setPlayer(state, f, {
                         name,
-                        locationId: state.curch,
+                        locationId: getLocationId(state),
                         level: 1,
                         strength: -1,
                         visibility: 0,
@@ -480,7 +435,7 @@ const loseme = (state: State, name: string): Promise<void> => getPlayer(state, s
             .then(() => {
                 /* No interruptions while you are busy dying */
                 /* ABOUT 2 MINUTES OR SO */
-                state.i_setup = false;
+                disableCalibrate(state);
                 return loadWorld(state);
             })
             .then(() => {
@@ -489,7 +444,7 @@ const loseme = (state: State, name: string): Promise<void> => getPlayer(state, s
                     setPlayer(state, player.playerId, { exists: false }),
                 ];
                 if (player.visibility < 10000) {
-                    promises.push(sendWizards(state, `${state.globme} has departed from AberMUDII\n`));
+                    promises.push(sendWizards(state, `${getName(state)} has departed from AberMUDII\n`));
                 }
                 return Promise.all(promises)
             })
@@ -503,13 +458,16 @@ long lasup=0;
 */
 
 const update = (state: State, name: string): Promise<void> => {
-    const xp = Math.abs(state.cms - state.lasup);
+    const eventId = getEventId(state);
+    const xp = Math.abs(eventId - state.lasup);
     if (xp < 10) {
         return Promise.resolve();
     }
     return loadWorld(state)
-        .then(() => setPlayer(state, state.mynum, { eventId: state.cms }))
-        .then(() => { state.lasup = state.cms; });
+        .then(() => {
+            state.lasup = eventId;
+            return setPlayer(state, state.mynum, { eventId });
+        });
 };
 
 const revise = (state: State, cutoff: number): Promise<void> => loadWorld(state)
@@ -559,7 +517,7 @@ const lookin = (state: State, roomId: number): Promise<void> => loadWorld(state)
                                     if (isWizard(state)) {
                                         return bprintf(state, '<DEATH ROOM>\n');
                                     } else {
-                                        loseme(state, state.globme);
+                                        loseme(state, getName(state));
                                         return endGame(state, 'bye bye.....');
                                     }
                                 } else if (s === '#NOBR') {
@@ -585,12 +543,10 @@ const lookin = (state: State, roomId: number): Promise<void> => loadWorld(state)
                     return;
                 }
                 return showItems(state)
-                    .then(() => {
-                        if (state.curmode === 1) {
-                            return listPeople(state)
-                                .then(messages => messages.forEach(message => bprintf(state, message)));
-                        }
-                    })
+                    .then(
+                        () => getGameMode(state) && listPeople(state)
+                            .then(messages => messages.forEach(message => bprintf(state, message)))
+                    )
             })
             .then(() => {
                 bprintf(state, '\n');
@@ -598,24 +554,19 @@ const lookin = (state: State, roomId: number): Promise<void> => loadWorld(state)
             });
     });
 
+const loodrv = (state: State) => lookin(state, getLocationId(state));
+
 /*
- loodrv()
-    {
-    extern long curch;
-    lookin(curch);
-    }
-
-
 long iamon=0;
 */
 
-const userwrap = (state: State): Promise<void> => findPlayer(state, state.globme)
+const userwrap = (state: State): Promise<void> => findPlayer(state, getName(state))
     .then((player) => {
         if (!player) {
             return;
         }
         loseme(state);
-        return logger.write(`System Wrapup exorcised ${state.globme}`);
+        return logger.write(`System Wrapup exorcised ${getName(state)}`);
     });
 
 /*

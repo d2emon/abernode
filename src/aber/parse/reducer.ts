@@ -1,16 +1,14 @@
 import State from "../state";
 import {Player} from "../support";
-import {isWizard} from "../newuaf/reducer";
+import {getName} from "../tk/reducer";
 
 export const getDebugMode = (state: State): boolean => state.debug_mode;
-export const getStop = (state: State): number => state.stp;
-export const getStringBuffer = (state: State): string => state.strbuf;
 export const getCurrentChar = (state: State): string => state.strbuf[state.stp];
 export const getWordBuffer = (state: State): string => state.wordbuf;
 export const getPronoun = (state: State, pronoun: string): string => {
     const pronouns = {
-        me: state.globme,
-        myself: state.globme,
+        me: getName(state),
+        myself: getName(state),
         it: state.wd_it,
         him: state.wd_him,
         her: state.wd_her,
@@ -55,10 +53,10 @@ export const applyPronouns = (state: State): void => {
         state.wordbuf = state.wd_her;
     }
     if (state.wordbuf === 'me') {
-        state.wordbuf = state.globme;
+        state.wordbuf = getName(state);
     }
     if (state.wordbuf === 'myself') {
-        state.wordbuf = state.globme;
+        state.wordbuf = getName(state);
     }
     if (state.wordbuf === 'there') {
         state.wordbuf = state.wd_there;
@@ -71,7 +69,7 @@ export const setIt = (state: State, value: string): void => setPronoun(state, 'w
 export const setHim = (state: State, value: string): void => setPronoun(state, 'wd_him', value);
 export const setHer = (state: State, value: string): void => setPronoun(state, 'wd_her', value);
 export const setThere = (state: State, zone: string, roomId: number): void => setPronoun(state, 'wd_there', `${zone} ${roomId}`);
-export const setName = (state: State, player: Player): void => {
+export const setPlayerPronoun = (state: State, player: Player): void => {
     const itBots = [
         'riatha',
         'shazareth',

@@ -54,7 +54,7 @@ import {
     sendEndFight,
     sendExorcise,
     sendKick,
-    sendLocalMessage,
+    sendLocalMessage, sendMyMessage,
     sendPrivate,
     sendSay,
     sendSimpleShout,
@@ -62,6 +62,17 @@ import {
 } from "./events";
 import {executeCommand} from "./parser";
 import Action from "../action";
+import {
+    getCanCalibrate,
+    getLocationId,
+    getName,
+    isHere,
+    resetEvents,
+    setConversationOn, setConversationShell,
+    setFaded,
+    setLocationId
+} from "../tk/reducer";
+import {sendMessage} from "../bprintf/bprintf";
 
 const debug2 = (state: State): Promise<void> => Promise.resolve(bprintf(state, 'No debugger available\n'));
 
@@ -460,8 +471,8 @@ const doaction = (state: State, actionId: number): Promise<void> => {
                             return resolve();
                         }
                         Promise.all([
-                            sendLocalMessage(state, state.curch, state.globme, `${sendVisibleName(state.globme)} drops everything in a frantic attempt to escape\n`),
-                            sendEndFight(state, state.globme),
+                            sendMyMessage(state, `${sendVisibleName(getName(state))} drops everything in a frantic attempt to escape\n`),
+                            sendEndFight(state, getName(state)),
                         ])
                             .then(() => {
                                 updateScore(state, getScore(state) / 33, true); /* loose 3% */
@@ -600,13 +611,16 @@ const gamrcv = (state: State, block: { locationId: number, code: number }): Prom
                     state.snoopd = player2 ? player2.playerId : -1;
                 });
         },
+        '-10000': () => {
+            if (isme) {
+                return Promise.resolve();
+            }
+            if (!isHere(state, block.locationId)) {
+                return Promise.resolve();
+            }
+            return sendMessage(state, text);
+        },
         /*
-       case -10000:
-          if((isme!=1)&&(blok[0]==curch))
-             {
-             bprintf("%s",text);
-             }
-          break;
        case -10030:
           wthrrcv(blok[0]);break;
        */
@@ -614,7 +628,7 @@ const gamrcv = (state: State, block: { locationId: number, code: number }): Prom
             if (!isme) {
                 return Promise.resolve();
             }
-            if (state.curch !== block.locationId) {
+            if (!isHere(state, block.locationId)) {
                 return Promise.resolve();
             }
             state.rdes = 1;
@@ -643,10 +657,10 @@ const gamrcv = (state: State, block: { locationId: number, code: number }): Prom
                 }
                 /* You are in the .... */
                 bprintf(state, 'A massive lightning bolt arcs down out of the sky to strike');
-                return sendWizards(state, `[ ${sendName(state.globme)} has just been zapped by ${sendName(name2)} and terminated ]\n`)
+                return sendWizards(state, `[ ${sendName(getName(state))} has just been zapped by ${sendName(name2)} and terminated ]\n`)
                     .then(() => Promise.all([
-                        removePerson(state, state.globme),
-                        sendLocalMessage(state, state.curch, state.globme, sendVisiblePlayer(state.globme, `${state.globme} has just died.\n\n`)),
+                        removePerson(state, getName(state)),
+                        sendMyMessage(state, sendVisiblePlayer(getName(state), `${getName(state)} has just died.\n\n`)),
                         new Promise((resolve) => {
                             state.zapped = true;
                             loseme(state);
@@ -655,7 +669,7 @@ const gamrcv = (state: State, block: { locationId: number, code: number }): Prom
                         }),
                         endGame(state, 'Bye Bye.... Slain By Lightning'),
                     ]));
-            } else if (block.locationId === state.curch) {
+            } else if (isHere(state, block.locationId)) {
                 bprintf(state, `${sendVisibleName('A massive lightning bolt strikes ')}${sendPlayerForVisible(name2)}${sendVisibleName('\n')}`);
                 return Promise.resolve();
             }
@@ -664,7 +678,7 @@ const gamrcv = (state: State, block: { locationId: number, code: number }): Prom
             if (isme) {
                 return Promise.resolve();
             }
-            if ((block.locationId === state.curch) || (isWizard(state))) {
+            if (isHere(state, block.locationId) || isWizard(state)) {
                 bprintf(state, `${sendSoundPlayer(name2)}${sendSound(` shouts '${text}'\n`)}`);
                 return Promise.resolve();
             } else {
@@ -676,7 +690,7 @@ const gamrcv = (state: State, block: { locationId: number, code: number }): Prom
             if (isme) {
                 return Promise.resolve();
             }
-            if (block.locationId === state.curch) {
+            if (isHere(state, block.locationId)) {
                 bprintf(state, `${sendSoundPlayer(name2)}${sendSound(` says '${text}'\n`)}`);
                 return Promise.resolve();
             }
@@ -705,7 +719,7 @@ const gamrcv = (state: State, block: { locationId: number, code: number }): Prom
           break;
          */
     };
-    const nameme = state.globme.toLowerCase();
+    const nameme = getName(state).toLowerCase();
     const [isme, name1, name2, text] = split(state, block, nameme);
     const i = text;
     return findPlayer(state, name1)
@@ -750,7 +764,7 @@ const eorte = (state: State): Promise<void> => {
     if (state.in_fight) {
         p = getPlayer(state, state.fighting)
             .then((enemy) => {
-                if (enemy.playerId !== state.curch) {
+                if (!isHere(state, enemy.playerId)) {
                     state.fighting = -1;
                     state.in_fight = 0;
                     return;
@@ -785,9 +799,7 @@ const eorte = (state: State): Promise<void> => {
         ]) => {
             if (xpRoll || isWornBy(state, item, player)) {
                 updateStrength(state, 1);
-                if (state.i_setup) {
-                    calibme(state);
-                }
+                calibme(state);
             }
             checkForce(state);
             if (state.me_drunk > 0) {
@@ -845,8 +857,8 @@ const lightning = (state: State): Promise<void> => {
             if (player.playerId === -1) {
                 return bprintf(state, 'There is no one on with that name\n');
             }
-            return sendExorcise(state, state.globme, player, player.locationId)
-                .then(() => logger.write(`${state.globme} zapped ${player.name}`))
+            return sendExorcise(state, getName(state), player, player.locationId)
+                .then(() => logger.write(`${getName(state)} zapped ${player.name}`))
                 .then(() => sendBotDamage(state, player, 10000))
                 .then(() => broad(state, sendSound('You hear an ominous clap of thunder in the distance\n')));
         });
@@ -855,7 +867,7 @@ const lightning = (state: State): Promise<void> => {
 const eatcom = (state: State): Promise<void> => {
     return Action.nextWord(state, 'What')
         .then((word) => {
-            if ((state.curch === -609) && (word === 'water')) {
+            if (isHere(state, -609) && (word === 'water')) {
                 return 'spring';
             }
             if (word === 'from') {
@@ -900,20 +912,20 @@ const eatcom = (state: State): Promise<void> => {
 
 const calibme = (state: State): Promise<void> => {
     /* Routine to correct me in user file */
-    if (!state.i_setup) {
+    if (!getCanCalibrate(state)) {
         return;
     }
     const level = levelof(state, getScore(state));
     if (level !== getLevel(state)) {
         setLevel(state, level);
-        bprintf(state, `You are now ${state.globme} `);
-        logger.write(`${state.globme} to level ${level}`)
+        bprintf(state, `You are now ${getName(state)} `);
+        logger.write(`${getName(state)} to level ${level}`)
             .then(() => {
                 bprintf(state, `${getTitle(level, getSex(state), state.hasfarted)}\n`);
                 return getPlayer(state, state.mynum);
             })
             .then((player) => {
-                return sendWizards(state, `${sendName(state.globme)} is now level ${level}\n`)
+                return sendWizards(state, `${sendName(getName(state))} is now level ${level}\n`)
                     .then(() => {
                         if (level === 10) {
                             bprintf(state, showFile(GWIZ));
@@ -972,7 +984,7 @@ const playcom = (state: State): Promise<void> => {
             player,
             item,
         ]) => {
-            if ((item.itemId === -1) || !isAvailable(item, player, state.curch, !isWizard(state))) {
+            if ((item.itemId === -1) || !isAvailable(item, player, getLocationId(state), !isWizard(state))) {
                 return bprintf(state, 'That isn\'t here\n');
             }
         })
@@ -1025,7 +1037,7 @@ const scorecom = (state: State): Promise<void> => {
         return Promise.resolve();
     }
     bprintf(state, `Your strength is ${getStrength(state)}(from ${50 + 8 * getLevel(state)}),Your score is ${getScore(state)}\n`);
-    bprintf(state, `This ranks you as ${state.globme} ${getTitle(getLevel(state), getSex(state), state.hasfarted)}\n`);
+    bprintf(state, `This ranks you as ${getName(state)} ${getTitle(getLevel(state), getSex(state), state.hasfarted)}\n`);
 };
 
 const exorcom = (state: State): Promise<void> => {
@@ -1042,7 +1054,7 @@ const exorcom = (state: State): Promise<void> => {
             if (!player.canBeExorcised) {
                 return bprintf(state, 'You can\'t exorcise them, they dont want to be exorcised\n');
             }
-            return logger.write(`${state.globme} exorcised ${player.name}`)
+            return logger.write(`${getName(state)} exorcised ${player.name}`)
                 .then(() => dropItems(state, player))
                 .then(() => Promise.all([
                     sendKick(state, player),
@@ -1129,7 +1141,7 @@ const dogive = (state: State, itemId: number, playerId: number): Promise<void> =
         item,
         player,
     ]) => {
-        if (!isWizard(state) && (player.locationId !== state.curch)) {
+        if (!isWizard(state) && !isHere(state, player.locationId)) {
             return bprintf(state, 'They are not here\n');
         }
         if (!isCarriedBy(item, me, !isWizard(state))) {
@@ -1142,7 +1154,7 @@ const dogive = (state: State, itemId: number, playerId: number): Promise<void> =
             return bprintf(state, 'It doesn\'t wish to be given away.....\n');
         }
         return holdItem(state, item.itemId, player.playerId)
-            .then(() => sendPrivate(state, player, `${sendName(state.globme)} gives you the ${item.name}\n`));
+            .then(() => sendPrivate(state, player, `${sendName(getName(state))} gives you the ${item.name}\n`));
     });
 
 const stealcom = (state: State): Promise<void> => {
@@ -1176,7 +1188,7 @@ const stealcom = (state: State): Promise<void> => {
                     if (item.itemId === -1) {
                         return bprintf(state, 'They are not carrying that\n');
                     }
-                    if (!isWizard(state) && (player.locationId !== state.curch)) {
+                    if (!isWizard(state) && !isHere(state, player.locationId)) {
                         return bprintf(state, 'But they aren\'t here\n');
                     }
                     if (item.wearingBy !== undefined) {
@@ -1198,7 +1210,7 @@ const stealcom = (state: State): Promise<void> => {
                             if (f < e) {
                                 if (f & 1) {
                                     return Promise.all([
-                                        sendPrivate(state, player, `${sendName(state.globme)} steals the ${item.name} from you !\n`),
+                                        sendPrivate(state, player, `${sendName(getName(state))} steals the ${item.name} from you !\n`),
                                         sendBotDamage(state, player, 0),
                                     ]);
                                 }
@@ -1213,12 +1225,11 @@ const stealcom = (state: State): Promise<void> => {
 };
 
 const dosumm = (state: State, locationId: number): Promise<void> => {
-    const oldLocationId = state.curch;
-    state.curch = locationId;
-    trapch(state, state.curch);
+    const oldLocationId = getLocationId(state);
+    setLocationId(state, locationId);
     return Promise.all([
-        sendLocalMessage(state, oldLocationId, state.globme, sendVisiblePlayer(state.globme, `${state.globme} vanishes in a puff of smoke\n`)),
-        sendLocalMessage(state, locationId, state.globme, sendVisiblePlayer(state.globme, `${state.globme} appears in a puff of smoke\n`)),
+        sendLocalMessage(state, oldLocationId, getName(state), sendVisiblePlayer(getName(state), `${getName(state)} vanishes in a puff of smoke\n`)),
+        sendLocalMessage(state, locationId, getName(state), sendVisiblePlayer(getName(state), `${getName(state)} appears in a puff of smoke\n`)),
         dropMyItems(state),
     ])
         .then(() => {});
@@ -1247,11 +1258,10 @@ const rmedit = (state: State): Promise<void> => getPlayer(state, state.mynum)
         if (!editor.isEditor) {
             return bprintf(state, 'Dum de dum.....\n');
         }
-        return sendWizards(state, sendVisiblePlayer(state.globme, `${state.globme} fades out of reality\n`))
+        return sendWizards(state, sendVisiblePlayer(getName(state), `${getName(state)} fades out of reality\n`))
             .then(() => {
                 /* Info */
-                state.cms = -2; /* CODE NUMBER */
-                update(state, state.globme);
+                setFaded(state); /* CODE NUMBER */
                 return showMessages(state);
             })
             .then(() => saveWorld(state))
@@ -1261,16 +1271,16 @@ const rmedit = (state: State): Promise<void> => getPlayer(state, state.mynum)
                 }
                 const ms2 = '/cs_d/aberstudent/yr2/hy8/.sunbin/emacs';
                 system(state, ms2);
-                state.cms = -1;
+                resetEvents(state);
             })
             .then(() => loadWorld(state))
-            .then(() => findPlayer(state, state.globme))
+            .then(() => findPlayer(state, getName(state)))
             .then((me) => {
                 if (!me) {
                    loseme(state);
                     return endGame(state, 'You have been kicked off');
                 }
-                return sendWizards(state, sendVisiblePlayer(state.globme, `${state.globme} re-enters the normal universe\n`));
+                return sendWizards(state, sendVisiblePlayer(getName(state), `${getName(state)} re-enters the normal universe\n`));
             })
             .then(() => rte(state));
     });
@@ -1281,15 +1291,14 @@ const u_system = (state: State): Promise<void> => getPlayer(state, state.mynum)
             return bprintf(state, 'You\'ll have to leave the game first!\n');
         }
 
-        state.cms = -2; /* CODE NUMBER */
-        update(state, state.globme);
-        return sendWizards(state, sendVisiblePlayer(state.globme, `${state.globme} has dropped into BB\n`))
+        setFaded(state); /* CODE NUMBER */
+        return sendWizards(state, sendVisiblePlayer(getName(state), `${getName(state)} has dropped into BB\n`))
             .then(() => saveWorld(state))
             .then(() => system(state, '/cs_d/aberstudent/yr2/iy7/bt'))
             .then(() => loadWorld(state))
             .then(() => {
-                state.cms = -1;
-                return findPlayer(state, state.globme);
+                resetEvents(state);
+                return findPlayer(state, getName(state));
             })
             .then((me) => {
                 if (!me) {
@@ -1299,7 +1308,7 @@ const u_system = (state: State): Promise<void> => getPlayer(state, state.mynum)
                 rte(state);
             })
             .then(() => loadWorld(state))
-            .then(() => sendWizards(state, sendVisiblePlayer(state.globme, `${state.globme} has returned to AberMud\n`)));
+            .then(() => sendWizards(state, sendVisiblePlayer(getName(state), `${getName(state)} has returned to AberMud\n`)));
     });
 
 const inumcom = (state: State): Promise<void> => {
@@ -1318,9 +1327,9 @@ const updcom = (state: State): Promise<void> => {
         return Promise.resolve();
     }
     loseme();
-    return sendWizards(state, `[ ${state.globme} has updated ]\n`)
+    return sendWizards(state, `[ ${getName(state)} has updated ]\n`)
         .then(() => saveWorld(state))
-        .then(() => execl(EXE, '   --{----- ABERMUD -----}--   ', `-n${state.globme}`)) /* GOTOSS eek! */
+        .then(() => execl(EXE, '   --{----- ABERMUD -----}--   ', `-n${getName(state)}`)) /* GOTOSS eek! */
         .catch(() => bprintf(state, 'Eeek! someones pinched the executable!\n'));
 };
 
@@ -1334,7 +1343,7 @@ const becom = (state: State): Promise<void> => {
         bprintf(state, 'To become what ?, inebriated ?\n');
         return Promise.resolve();
     }
-    return sendWizards(state, `${state.globme} has quit, via BECOME\n`)
+    return sendWizards(state, `${getName(state)} has quit, via BECOME\n`)
         .then(() => loseme(state))
         .then(() => saveWorld(state))
         .then(() => execl(state, '   --}----- ABERMUD ------   ', `-n${x2}`))
@@ -1348,23 +1357,18 @@ const systat = (state: State): Promise<void> => {
     return Promise.resolve();
 };
 
-/*
- convcom()
-    {
-    extern long convflg;
-    convflg=1;
-    bprintf("Type '**' on a line of its own to exit converse mode\n");
-    }
-*/
+const convcom = (state: State): Promise<void> => {
+    setConversationOn(state);
+    return sendMessage(state, 'Type \'**\' on a line of its own to exit converse mode\n');
+};
 
 const shellcom = (state: State): Promise<void> => {
     if (!isGod(state)) {
         bprintf(state, 'There is nothing here you can shell\n');
         return Promise.resolve();
     }
-    state.convflg = 2;
-    bprintf(state, 'Type ** on its own on a new line to exit shell\n');
-    return Promise.resolve();
+    setConversationShell(state);
+    return sendMessage(state, 'Type ** on its own on a new line to exit shell\n');
 };
 
 const rawcom = (state: State): Promise<void> => {
@@ -1404,11 +1408,11 @@ const debugcom = (state: State): Promise<void> => {
 
 const bugcom = (state: State): Promise<void> => {
     const x = getreinput(state);
-    return logger.write(`Bug by ${state.globme} : ${x}`);
+    return logger.write(`Bug by ${getName(state)} : ${x}`);
 };
 
 const typocom = (state: State): Promise<void> => {
-    const y = `${state.globme} in ${state.curch}`;
+    const y = `${getName(state)} in ${getLocationId(state)}`;
     const x = getreinput(state);
     return logger.write(`Typo by ${y} : ${x}`);
 };
@@ -1418,7 +1422,7 @@ const look_cmd = (state: State): Promise<void> => Action.nextWord(state)
         if (!word) {
             const brhold = state.brmode;
             state.brmode = false;
-            lookin(state, state.curch);
+            lookin(state, getLocationId(state));
             state.brmode = brhold;
             return Promise.resolve();
         }
@@ -1450,7 +1454,7 @@ const look_cmd = (state: State): Promise<void> => Action.nextWord(state)
     });
 
 const set_ms = (state: State): string => {
-    if (!isWizard(state) && (state.globme !== 'Lorry')) {
+    if (!isWizard(state) && (getName(state) !== 'Lorry')) {
         bprintf(state, 'No way !\n');
         return '';
     } else {
@@ -1490,11 +1494,11 @@ setherecom()
 
 const digcom = (state: State): Promise<void> => getItem(state, 186)
     .then((slab) => {
-        if ((slab.locationId === state.curch) && slab.isDestroyed) {
+        if (isHere(state, slab.locationId) && slab.isDestroyed) {
             bprintf(state, 'You uncover a stone slab!\n');
             return createItem(state, slab.itemId).then(() => undefined);
         }
-        if ((state.curch !== -172) && (state.curch !== -192)) {
+        if (!isHere(state, -172) && !isHere(state, -192)) {
             return bprintf(state, 'You find nothing.\n');
         }
         return getItem(state, 176)

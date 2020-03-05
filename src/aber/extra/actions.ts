@@ -39,6 +39,7 @@ import {getLevel, getStrength, isGod, isWizard, updateStrength} from "../newuaf/
 import {loadWorld, saveWorld} from "../opensys";
 import {sendLocalMessage, sendPrivate} from "../parse/events";
 import {executeCommand} from "../parse/parser";
+import {getLocationId, getName, isHere, setChannelId, setLocationId} from "../tk/reducer";
 
 const fopen = (name: string, permissions: string): Promise<any> => Promise.resolve({});
 const fclose = (file: any): Promise<void> => Promise.resolve();
@@ -76,7 +77,7 @@ export class Help extends Action {
                 if (player.playerId === -1) {
                     throw new Error('Help who ?');
                 }
-                if (player.locationId !== state.curch) {
+                if (!isHere(state, player.locationId)) {
                     throw new Error('They are not here');
                 }
                 if (player.playerId === me.playerId) {
@@ -85,13 +86,13 @@ export class Help extends Action {
                 if (me.helping !== -1) {
                     return Promise.all([
                         getPlayer(state, player.helping),
-                        sendPrivate(state, player, `${sendVisibleName(state.globme)} has stopped helping you\n`),
+                        sendPrivate(state, player, `${sendVisibleName(getName(state))} has stopped helping you\n`),
                     ])
                         .then(([helper]) => this.output(`Stopped helping ${helper.name}\n`));
                 } else {
                     return Promise.all([
                         setPlayer(state, me.playerId, {helping: player.playerId}),
-                        sendPrivate(state, player, `${sendVisibleName(state.globme)} has offered to help you\n`),
+                        sendPrivate(state, player, `${sendVisibleName(getName(state))} has offered to help you\n`),
                     ])
                         .then(() => this.output('OK...\n'));
                 }
@@ -287,10 +288,7 @@ export class Examine extends Action {
 
     private static examineScroll145(state: State, item: Item): Promise<any> {
         return setItem(state, item.itemId, { flags: { [IS_DESTROYED]: true } })
-            .then(() => {
-                state.curch = -114;
-                trapch(state, state.curch)
-            })
+            .then(() => setLocationId(state, -114))
             .then(() => ({ description: 'As you read the scroll you are teleported!\n' }));
     }
 
@@ -446,15 +444,15 @@ export class InLocation extends Action {
                 rn,
                 rv,
             ]) => {
-                const oldLocationId = state.curch;
+                const oldLocationId = getLocationId(state);
                 const locationId = roomnum(state, rn, rv);
                 if (locationId === 0) {
                     throw new Error('Where is that ?');
                 }
                 const toPerform = getreinput(state);
-                state.curch = locationId;
+                setChannelId(state, locationId);
                 return saveWorld(state)
-                    .then(() => openroom(state, state.curch, 'r'))
+                    .then(() => openroom(state, locationId, 'r'))
                     .then((unit) => {
                         lodex(state, unit);
                         return fclose(unit);
@@ -463,13 +461,13 @@ export class InLocation extends Action {
                     .then(() => executeCommand(state, toPerform))
                     .then(() => loadWorld(state))
                     .then(() => {
-                        if (state.curch === locationId) {
+                        if (isHere(state, locationId)) {
                             state.ex_dat = [...exBk];
                         }
-                        state.curch = oldLocationId;
+                        setChannelId(state, oldLocationId);
                     })
                     .catch(() => {
-                        state.curch = oldLocationId;
+                        setChannelId(state, oldLocationId);
                         throw new Error('No such room');
                     });
 
@@ -495,7 +493,7 @@ export class Jump extends Action {
     }
 
     private noUmbrella(state: State, locationId: number): Promise<any> {
-        state.curch = locationId;
+        setChannelId(state, locationId);
         this.output('Wheeeeeeeeeeeeeeeee  <<<<SPLAT>>>>\n');
         this.output('You seem to be splattered all over the place\n');
         loseme(state);
@@ -503,16 +501,15 @@ export class Jump extends Action {
     }
 
     private static withUmbrella(state: State, locationId: number): Promise<any> {
-        const oldLocationId = state.curch;
-        state.curch = locationId;
-        trapch(state, locationId);
-        return sendLocalMessage(state, oldLocationId, state.globme, sendVisiblePlayer(state.globme, `${state.globme} has just left\n`))
-            .then(() => sendLocalMessage(state, locationId, state.globme, sendVisiblePlayer(state.globme, `${state.globme} has just dropped in\n`)))
+        const oldLocationId = getLocationId(state);
+        setLocationId(state, locationId);
+        return sendLocalMessage(state, oldLocationId, getName(state), sendVisiblePlayer(getName(state), `${getName(state)} has just left\n`))
+            .then(() => sendLocalMessage(state, locationId, getName(state), sendVisiblePlayer(getName(state), `${getName(state)} has just dropped in\n`)))
             .then(() => ({}))
     }
 
     action(state: State): Promise<any> {
-        const locationId = Jump.jumps[state.curch] || 0;
+        const locationId = Jump.jumps[getLocationId(state)] || 0;
         if (locationId === 0) {
             return Promise.resolve({ message : 'Wheeeeee....' });
         }

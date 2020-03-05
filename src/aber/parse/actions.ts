@@ -28,6 +28,7 @@ import {dropMyItems} from "../objsys";
 import {savePerson} from "../newuaf";
 import {endGame} from "../gamego/endGame";
 import {sendMessage} from "../bprintf/bprintf";
+import {getLocationId, getName, isHere, setChannelId, setGameOff, setLocationId} from "../tk/reducer";
 
 const trapch = (state: State, channelId: number): void => undefined;
 const rte = (state: State, name: string): void => undefined;
@@ -77,7 +78,7 @@ export class GoDirection extends Action {
     };
 
     private static checkExit = (state: State, actor: Player, actionId: number): Promise<boolean> => getPlayers(state)
-        .then(players => players.filter(player => (player.locationId === state.curch)))
+        .then(players => players.filter(player => isHere(state, player.locationId)))
         .then(players => Promise.all(players.map(player => CharacterEvents.onExit(player))))
         .then(events => Promise.all(events.map(event => event(state, actor, actionId))))
         .then(() => true);
@@ -108,7 +109,7 @@ export class GoDirection extends Action {
             throw new Error('You can\'t go that way');
         }
         return {
-            oldLocation: state.curch,
+            oldLocation: getLocationId(state),
             newLocation: locationId,
         };
     };
@@ -117,22 +118,18 @@ export class GoDirection extends Action {
         return ({
              oldLocation,
              newLocation,
-         }): Promise<any> => Promise.all([
+        }): Promise<any> => Promise.all([
             sendLocalMessage(
                 state,
                 oldLocation,
-                state.globme,
+                getName(state),
                 sendVisiblePlayer(actor.name, `${actor.name} has gone ${this.exitText[directionId]} ${state.out_ms}.\n`)
             ),
-            new Promise((resolve) => {
-                state.curch = newLocation;
-                trapch(state, state.curch);
-                return resolve();
-            }),
+            Promise.resolve(setLocationId(state, newLocation)),
             sendLocalMessage(
                 state,
                 newLocation,
-                state.globme,
+                getName(state),
                 sendVisiblePlayer(actor.name, `${actor.name} ${state.in_ms}.\n`)
             ),
         ])
@@ -186,12 +183,12 @@ export class Quit extends Action {
     }
 
     action(state: State, actor: Player): Promise<any> {
-        rte(state, state.globme);
+        rte(state, getName(state));
         return loadWorld(state)
             .then(() => Action.checkFight(state, 'Not in the middle of a fight!'))
             .then(() => Promise.all([
-                sendMyMessage(state, `${state.globme} has left the game\n`),
-                sendWizards(state, `[ Quitting Game : ${state.globme} ]\n`),
+                sendMyMessage(state, `${getName(state)} has left the game\n`),
+                sendWizards(state, `[ Quitting Game : ${getName(state)} ]\n`),
                 dropMyItems(state),
                 setPlayer(state, state.mynum, {
                     exists: false,
@@ -201,8 +198,8 @@ export class Quit extends Action {
             .then(() => saveWorld(state))
             .then(() => Promise.all([
                 new Promise((resolve) => {
-                    state.curmode = 0;
-                    state.curch = 0;
+                    setGameOff(state);
+                    setChannelId(state, 0);
                     return resolve();
                 }),
                 savePerson(state),

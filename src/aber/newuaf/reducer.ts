@@ -1,5 +1,6 @@
 import State from "../state";
 import {Person} from "../services/persons";
+import {getName} from "../tk/reducer";
 
 const calibme = (state: State): void => undefined;
 
@@ -9,7 +10,7 @@ export const getSex = (state: State): number => state.my_sex;
 export const getSexName = (state: State): string => !state.my_sex ? 'Male' : 'Female';
 export const getStrength = (state: State): number => state.my_str;
 export const getPerson = (state: State, newPerson: {}): Person => ({
-    name: state.globme,
+    name: getName(state),
     strength: state.my_str,
     score: state.my_sco,
     level: state.my_lev,

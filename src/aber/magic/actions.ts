@@ -27,6 +27,7 @@ import {sendWizards} from "../new1/events";
 import {isWornBy} from "../new1";
 import {getLevel, getStrength, isAdmin, isGod, isWizard, updateStrength} from "../newuaf/reducer";
 import {sendLocalMessage, sendSummon, sendVisibility} from "../parse/events";
+import {getLocationId, getName, setLocationId} from "../tk/reducer";
 
 const roomnum = (state: State, roomId: string, zoneId: string): number => 0;
 const sillycom = (state: State, message: string): void => undefined;
@@ -49,7 +50,7 @@ export class Summon extends Action {
             throw new Error('You can only summon people');
         }
         return Summon.ownerLocationId(state, item)
-            .then(locationId => sendLocalMessage(state, locationId, state.globme, `${sendName(state.globme)} has summoned the ${item.name}\n`))
+            .then(locationId => sendLocalMessage(state, locationId, getName(state), `${sendName(getName(state))} has summoned the ${item.name}\n`))
             .then(() => holdItem(state, item.itemId, state.mynum))
             .then(() => ({
                 item: {
@@ -119,22 +120,22 @@ export class Summon extends Action {
                 if (player.playerId === state.mynum) {
                     throw new Error('Seems a waste of effort to me....');
                 }
-                if ((state.curch >= -1082) && (state.curch <= -1076)) {
+                if ((getLocationId(state) >= -1082) && (getLocationId(state) <= -1076)) {
                     throw new Error('Something about this place makes you fumble the magic');
                 }
                 return true;
             })
             .then(() => {
                 if (!player.isBot) {
-                    return sendSummon(state, player, state.globme, state.curch);
+                    return sendSummon(state, player, getName(state), getLocationId(state));
                 }
                 if ((player.playerId === 17) || (player.playerId === 23)) {
                     return;
                 }
                 return Promise.all([
                     dropItems(state, player),
-                    sendLocalMessage(state, state.curch, undefined, sendVisiblePlayer(player.name, `${player.name} has arrived\n`)),
-                    setPlayer(state, player.playerId, {locationId: state.curch}),
+                    sendLocalMessage(state, getLocationId(state), undefined, sendVisiblePlayer(player.name, `${player.name} has arrived\n`)),
+                    setPlayer(state, player.playerId, { locationId: getLocationId(state) }),
                 ])
                     .then(() => {});
             })
@@ -235,8 +236,7 @@ export class GoToLocation extends Action {
             })
             .then((locationId) => {
                 sillycom(state, sendVisiblePlayer('%s', `%s ${state.mout_ms}\n`));
-                state.curch = locationId;
-                trapch(state, state.curch);
+                setLocationId(state, locationId);
                 sillycom(state, sendVisiblePlayer('%s', `%s ${state.min_ms}\n`));
             });
     }
@@ -249,7 +249,7 @@ export class Wizards extends Action {
         }
         const message = getreinput(state);
         state.rd_qd = true;
-        return sendWizards(state, `${sendName(state.globme)} : ${message}\n`);
+        return sendWizards(state, `${sendName(getName(state))} : ${message}\n`);
     }
 }
 
@@ -332,8 +332,8 @@ export class Ressurect extends Action {
                 return createItem(state, item.itemId);
             })
             .then((item) => Promise.all([
-                sendLocalMessage(state, state.curch, undefined, `The ${item.name} suddenly appears`),
-                putItem(state, item.itemId, state.curch),
+                sendLocalMessage(state, getLocationId(state), undefined, `The ${item.name} suddenly appears`),
+                putItem(state, item.itemId, getLocationId(state)),
             ]));
     }
 }

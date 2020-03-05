@@ -21,6 +21,7 @@ import {
 } from './index';
 import {RESET_N} from "../files";
 import {getLevel, setLevel} from "../newuaf/reducer";
+import {isHere} from "../tk/reducer";
 
 const calibme = (state: State): void => undefined;
 const rescom = (state: State): Promise<any> => Promise.resolve({});
@@ -92,7 +93,7 @@ export class Kill extends Action {
         if (player.playerId === state.mynum) {
             throw new Error('Come on, it will look better tomorrow...');
         }
-        if (player.locationId !== state.curch) {
+        if (!isHere(state, player.locationId)) {
             throw new Error('They aren\'t here');
         }
         return Promise.resolve(player);

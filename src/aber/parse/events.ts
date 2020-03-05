@@ -1,5 +1,6 @@
 import State from "../state";
 import {Player} from "../support";
+import {getLocationId, getName} from "../tk/reducer";
 
 export interface Attack {
     characterId: number,
@@ -85,22 +86,22 @@ export const sendExorcise = (state: State, sender: string, receiver: Player, cha
     payload: undefined,
 });
 export const sendSimpleShout = (state: State, message: string): Promise<void> => send2(state, {
-    receiver: state.globme,
-    sender: state.globme,
+    receiver: getName(state),
+    sender: getName(state),
     code: -10002,
-    channelId: state.curch,
+    channelId: getLocationId(state),
     payload: message,
 });
 export const sendSay = (state: State, message: string): Promise<void> => send2(state, {
-    receiver: state.globme,
-    sender: state.globme,
+    receiver: getName(state),
+    sender: getName(state),
     code: -10003,
-    channelId: state.curch,
+    channelId: getLocationId(state),
     payload: message,
 });
 export const sendTell = (state: State, receiver: Player, message: string): Promise<void> => send2(state, {
     receiver: receiver.name,
-    sender: state.globme,
+    sender: getName(state),
     code: -10004,
     channelId: undefined,
     payload: message,
@@ -130,7 +131,7 @@ export const sendDamage = (state: State, victim: Player, attack: Attack): Promis
     receiver: victim.name,
     sender: undefined,
     code: -10021,
-    channelId: state.curch,
+    channelId: getLocationId(state),
     payload: attack,
 });
 export const sendWeather = (state: State, weatherId: number): Promise<void> => send2(state, {
@@ -150,7 +151,7 @@ export const sendEndFight = (state: State, receiver: string): Promise<void> => s
 
 export const sendMyMessage = (state: State, message: string): Promise<void> => sendLocalMessage(
     state,
-    state.curch,
-    state.globme,
+    getLocationId(state),
+    getName(state),
     message,
 );

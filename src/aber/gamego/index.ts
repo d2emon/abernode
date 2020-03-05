@@ -1,5 +1,6 @@
 import State from '../state';
 import {logger} from "../files";
+import {getName, setName} from "../tk/reducer";
 
 const talker = (state: State, name: string): void => undefined;
 const cuserid = (state: State): string => '';
@@ -14,7 +15,7 @@ export const main = (state: State, programName: string, name: string): Promise<v
     console.log(`Hello ${name}\n`);
     return logger.write(`GAME ENTRY: ${name}[${cuserid(state)}]`)
         .then(() => {
-            state.globme = name;
-            talker(state, state.globme);
+            setName(state, name);
+            talker(state, getName(state));
         });
 };

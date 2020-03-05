@@ -7,6 +7,7 @@ import {
 import {showMessages} from "../bprintf/output";
 import {onTime} from "../mobile";
 import {loadWorld, saveWorld} from "../opensys";
+import {getName} from "../tk/reducer";
 
 const loseme = (state: State): void => undefined;
 const rte = (state: State, name: string, interrupt: boolean = false): void => undefined;
@@ -23,7 +24,7 @@ const SIGALRM = 'SIGALRM';
 
 const timerEvent = (state: State) => withNoAlarm(state)(() => loadWorld(state)
     .then(() => {
-        rte(state, state.globme, true);
+        rte(state, getName(state), true);
         return onTime(state);
     })
     .then(() => saveWorld(state))

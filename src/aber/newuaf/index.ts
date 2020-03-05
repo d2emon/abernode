@@ -7,6 +7,7 @@ import {getPerson, setPerson} from "./reducer";
 import {sendMessage} from "../bprintf/bprintf";
 import {getPlayer} from "../support";
 import {findItem} from "../objsys";
+import {getName} from "../tk/reducer";
 
 export const removePerson = (state: State, name: string): Promise<void> => Persons.findPersons(name)
     .then(persons => persons.forEach((person) => {
@@ -57,7 +58,7 @@ const addPerson = (state: State): Promise<void> => sendMessage(state, 'Creating 
     })
     .catch(error => sendMessage(state, `${error}\n`));
 
-export const initPerson = (state: State): Promise<void> => Persons.findPerson(state.globme)
+export const initPerson = (state: State): Promise<void> => Persons.findPerson(getName(state))
     .then(person => (
         person
             ? setPerson(state, person)
@@ -69,7 +70,7 @@ export const savePerson = (state: State): Promise<void> => {
     if (state.zapped) {
         return Promise.resolve();
     }
-    return sendMessage(state, `\nSaving ${state.globme}\n`)
+    return sendMessage(state, `\nSaving ${getName(state)}\n`)
         .then(() => getPlayer(state, state.mynum))
         .then(player => getPerson(state, {
             sex: player. sex, // player.flags

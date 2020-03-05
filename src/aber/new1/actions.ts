@@ -62,7 +62,8 @@ import {
 } from "./reducer";
 import {getLevel, getStrength, isWizard, updateScore, updateStrength} from "../newuaf/reducer";
 import {loadWorld} from "../opensys";
-import {sendLocalMessage} from "../parse/events";
+import {sendLocalMessage, sendMyMessage} from "../parse/events";
+import {getLocationId, getName, isHere, setLocationId} from "../tk/reducer";
 
 const broad = (state: State, message: string): void => undefined;
 const sillycom = (state: State, message: string): Promise<any> => Promise.resolve({});
@@ -91,7 +92,7 @@ const getTargetPlayer = (state: State): Promise<Player> => loadWorld(state)
 
 export const getAvailablePlayer = (state: State): Promise<Player> => getTargetPlayer(state)
     .then((player) => {
-        if (player.locationId !== state.curch) {
+        if (!isHere(state, player.locationId)) {
             throw new Error('They are not here');
         }
         return player;
@@ -153,7 +154,7 @@ const getSpellTarget = (state: State, reflect: boolean = true): Promise<Player> 
 
 const getTouchSpellTarget = (state: State): Promise<Player> => getSpellTarget(state, false)
     .then((player) => {
-        if (player.locationId !== state.curch) {
+        if (!isHere(state, player.locationId)) {
             throw new Error('They are not here');
         }
         return player;
@@ -163,8 +164,8 @@ const socialInteraction = (state: State, player: Player, message: string, visibl
     state,
     player,
     visible
-        ? sendVisiblePlayer(state.globme, `${state.globme} ${message}\n`)
-        : `${sendName(state.globme)} ${message}\n`,
+        ? sendVisiblePlayer(getName(state), `${getName(state)} ${message}\n`)
+        : `${sendName(getName(state))} ${message}\n`,
 )
     .then(() => output);
 
@@ -387,7 +388,7 @@ export class Wave extends Action {
                 if (item151.state !== 1) {
                     return null;
                 }
-                if (item151.locationId !== state.curch) {
+                if (!isHere(state, item151.locationId)) {
                     return null;
                 }
                 return setItem(state, 150, {state: 0})
@@ -508,7 +509,7 @@ export class Put extends Action {
                     throw new Error('You can\'t let go of it!');
                 }
                 return Promise.all([
-                    sendLocalMessage(state, state.curch, state.globme, `${sendPlayerForVisible(state.globme)}${sendVisibleName(` puts the ${item.name} in the ${container.name}.\\n`)}`),
+                    sendMyMessage(state, `${sendPlayerForVisible(getName(state))}${sendVisibleName(` puts the ${item.name} in the ${container.name}.\\n`)}`),
                     putItemIn(state, item.itemId, container.itemId),
                     item.changeStateOnTake
                         ? setItem(state, item.itemId, { state: 0 })
@@ -517,9 +518,9 @@ export class Put extends Action {
             })
             .then(() => {
                 const message = 'Ok.\n';
-                if (state.curch === -1081) {
-                            return setItem(state, 20, { state: 1 })
-                                .then(() => `${message}The door clicks shut....\n`);
+                if (getLocationId(state) === -1081) {
+                    return setItem(state, 20, { state: 1 })
+                        .then(() => `${message}The door clicks shut....\n`);
                 }
                 return message;
             });
@@ -672,8 +673,7 @@ export class Push extends Action {
     }
 
     private static push162(state: State, item: Item): Promise<any> {
-        state.curch = -140;
-        trapch(state, state.curch);
+        setLocationId(state, -140);
         return Promise.resolve('A trapdoor opens at your feet and you plumment downwards!\n');
     }
 
