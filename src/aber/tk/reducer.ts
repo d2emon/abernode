@@ -1,4 +1,7 @@
 import State from "../state";
+import {getDebugMode} from "../parse/reducer";
+import {isWizard} from "../newuaf/reducer";
+import {Player} from "../support";
 
 const trapch = (state: State, locationId: number): void => undefined;
 const update = (state: State, name: string): void => undefined;
@@ -56,3 +59,23 @@ export const setConversationShell = (state: State): void => {
 };
 
 export const isHere = (state: State, locationId: number): boolean => (locationId === state.curch);
+const basePrompt = (state: State): string => {
+    if (isConversationOff(state)) {
+        return '>';
+    } else if (isConversationOn(state)) {
+        return '"';
+    } else if (isConversationShell(state)) {
+        return '*';
+    } else {
+        return '?';
+    }
+};
+export const getPrompt = (state: State, player: Player): string => {
+    const prompt = (getDebugMode(state) ? '#' : '')
+        + (isWizard(state) ? '----' : '')
+        + basePrompt(state);
+    return player.visibility
+        ? `(${prompt})`
+        : prompt;
+};
+
