@@ -17,6 +17,7 @@ export const isConversationOn = (state: State): boolean => state.convflg === 1;
 export const isConversationShell = (state: State): boolean => state.convflg === 2;
 export const isEventsUnprocessed = (state: State): boolean => state.rd_qd;
 export const getPlayerId = (state: State): number => state.mynum;
+export const getNeedUpdate = (state: State, eventId: number): boolean => (Math.abs(eventId - state.lasup) < 10);
 
 export const disableCalibrate = (state: State): void => {
     state.i_setup = false;
@@ -63,6 +64,9 @@ export const setEventsUnprocessed = (state: State): void => {
 };
 export const setPlayerId = (state: State, value: number): void => {
     state.mynum = value;
+};
+export const setUpdated = (state: State, value: number): void => {
+    state.lasup = value;
 };
 
 export const isHere = (state: State, locationId: number): boolean => (locationId === state.curch);

@@ -85,6 +85,7 @@ import {
 } from "../tk/reducer";
 import {sendMessage} from "../bprintf/bprintf";
 import {
+    describeChannel,
     fadePlayer,
     looseGame,
     processEvents,
@@ -1421,11 +1422,7 @@ const typocom = (state: State, actor: Player): Promise<void> => {
 const look_cmd = (state: State, actor: Player): Promise<void> => Action.nextWord(state)
     .then((word) => {
         if (!word) {
-            const brhold = state.brmode;
-            state.brmode = false;
-            lookin(state, getLocationId(state));
-            state.brmode = brhold;
-            return Promise.resolve();
+            return describeChannel(state, getLocationId(state), actor, true);
         }
 
         if (word === 'at') {

@@ -5,24 +5,27 @@ import {sendMessage} from "../bprintf/bprintf";
 import {loadEvent, loadMeta, loadWorld, saveWorld} from "../opensys";
 import {
     disableCalibrate,
-    getEventId,
-    getName,
+    getEventId, getGameMode, getLocationId,
+    getName, getNeedUpdate,
     isEventsUnprocessed, setChannelId,
     setEventId,
-    setEventsProcessed,
+    setEventsProcessed, setUpdated,
 } from "./reducer";
 import {endGame} from "../gamego/endGame";
 import Events from "./events";
 import {Player, setPlayer} from "../support";
 import {asyncUnsetAlarm} from "../gamego/reducer";
-import {dropMyItems} from "../objsys";
+import {dropMyItems, findPlayer, listPeople, showItems} from "../objsys";
 import {sendWizards} from "../new1/events";
 import {savePerson} from "../newuaf";
 import {checkSnoop} from "../bprintf/snoop";
+import {logger} from "../files";
+import {cureBlind, getBlind} from "../new1/reducer";
+import {isWizard} from "../newuaf/reducer";
+import {onLook} from "../mobile";
 
 const eorte = (state: State, interrupt: boolean = false) => (): Promise<void> => Promise.resolve();
 const gamrcv = (state: State, event: Event) => (): Promise<void> => Promise.resolve();
-const lookin = (state: State, locationId: number) => (): Promise<void> => Promise.resolve();
 
 /**
  * AberMUD II   C
@@ -52,10 +55,10 @@ const lookin = (state: State, locationId: number) => (): Promise<void> => Promis
 
 const saveEventId = (state: State, player: Player, eventId: number): Promise<void> => {
     setEventId(state, eventId);
-    if (Math.abs(eventId - state.lasup) < 10) {
+    if (getNeedUpdate(state, eventId)) {
         return Promise.resolve();
     }
-    state.lasup = eventId;
+    setUpdated(state, eventId);
     return loadWorld(state)
         .then(() => setPlayer(state, player.playerId, { eventId }));
 };
@@ -126,11 +129,72 @@ export const processAndSave = (
 
 const tbroad = Events.broadcast;
 
+export const describeChannel = (state: State, roomId: number, actor: Player, noBrief: boolean = false): Promise<void> => loadWorld(state)
+    .then(() => saveWorld(state))
+    .then(() => getBlind(state) && sendMessage(state, 'You are blind... you can\'t see a thing!\n'))
+    .then(() => isWizard(state) && showname(state, roomId))
+    .then(() => openroom(roomId, 'r'))
+    .then((un1) => {
+        const xx1 = () => {
+            let xxx = false;
+            lodex(state, un1);
+            if (isdark(state)) {
+                return fclose(un1)
+                    .then(() => sendMessage(state, 'It is dark\n'))
+                    .then(() => loadWorld(state))
+                    .then(() => onLook(state, actor));
+            }
+            return getstr(un1)
+                .then((content) => {
+                    content.forEach((s) => {
+                        if (s === '#DIE') {
+                            if (getBlind(state)) {
+                                return rewind(state, un1)
+                                    .then(() => {
+                                        cureBlind(state);
+                                        return xx1();
+                                    });
+                            }
+                            if (isWizard(state)) {
+                                return sendMessage(state, '<DEATH ROOM>\n');
+                            } else {
+                                return looseGame(state, actor, 'bye bye.....');
+                            }
+                        } else if (s === '#NOBR') {
+                            if (!noBrief) {
+                                state.brmode = false;
+                            }
+                        } else {
+                            const show = !getBlind(state) && !xxx;
+                            xxx = noBrief ? false : state.brmode;
+                            return show && sendMessage(state, `${s}\n`);
+                        }
+                    });
+                    return fclose(state, un1);
+                });
+        };
+        return xx1();
+    })
+    .catch(() => sendMessage(state, `\nYou are on channel ${roomId}\n`))
+    .then(() => loadWorld(state))
+    .then(() => {
+        if (getBlind(state)) {
+            return;
+        }
+        return showItems(state)
+            .then(
+                () => getGameMode(state) && listPeople(state)
+                    .then(messages => messages.forEach(message => sendMessage(state, message)))
+            )
+    })
+    .then(() => sendMessage(state, '\n'))
+    .then(() => onLook(state, actor));
+
 export const setLocationId = (state: State, locationId: number, player: Player): Promise<void> => {
     setChannelId(state, locationId);
     return loadWorld(state)
         .then(world => setPlayer(state, player.playerId, { locationId }))
-        .then(lookin(state, locationId));
+        .then(() => describeChannel(state, locationId, player));
 };
 
 const doLoose = (state: State, player: Player): Promise<void> => Promise.all([
@@ -157,3 +221,12 @@ const loosePlayer = (state: State, player?: Player): Promise<void> => loadWorld(
 export const looseGame = (state: State, player: Player, message?: string): Promise<void> => asyncUnsetAlarm(state)
     .then(() => player && loosePlayer(state, player))
     .then(() => message && endGame(state, message));
+
+const loodrv = (state: State, player: Player): Promise<void> => describeChannel(state, getLocationId(state), player);
+
+const userwrap = (state: State, actor: Player): Promise<void> => findPlayer(state, getName(state))
+    .then(player => player && logger
+        .write(`System Wrapup exorcised ${getName(state)}`)
+        .catch(error => looseGame(state, actor, error))
+        .then(() => looseGame(state, actor, undefined))
+    );
