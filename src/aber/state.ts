@@ -157,6 +157,7 @@ export default interface State {
     curmode: boolean,
     globme: string,
     i_setup: boolean,
+    lasup: number,
     rd_qd: boolean,
     //
     brmode: boolean,

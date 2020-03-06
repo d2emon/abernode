@@ -80,11 +80,12 @@ import {
     getName,
     isHere,
     resetEvents,
-    setConversationOn, setConversationShell,
-    setFaded,
+    setConversationOn,
+    setConversationShell,
 } from "../tk/reducer";
 import {sendMessage} from "../bprintf/bprintf";
 import {
+    fadePlayer,
     looseGame,
     processEvents,
     setLocationId,
@@ -1265,11 +1266,8 @@ const rmedit = (state: State, actor: Player): Promise<void> => {
         return bprintf(state, 'Dum de dum.....\n');
     }
     return sendWizards(state, sendVisiblePlayer(getName(state), `${getName(state)} fades out of reality\n`))
-        .then(() => {
-            /* Info */
-            setFaded(state); /* CODE NUMBER */
-            return showMessages(state);
-        })
+        .then(() => fadePlayer(state, actor)) /* CODE NUMBER */
+        .then(() => showMessages(state))
         .then(() => saveWorld(state))
         .then(() => {
             if (chdir(state, ROOMS) === -1) {
@@ -1287,16 +1285,15 @@ const rmedit = (state: State, actor: Player): Promise<void> => {
             }
             return sendWizards(state, sendVisiblePlayer(getName(state), `${getName(state)} re-enters the normal universe\n`));
         })
-        .then(() => processEvents(state));
+        .then(() => processEvents(state, actor));
 };
 
 const u_system = (state: State, actor: Player): Promise<void> => {
     if (!isWizard(state)) {
         return bprintf(state, 'You\'ll have to leave the game first!\n');
     }
-
-    setFaded(state); /* CODE NUMBER */
-    return sendWizards(state, sendVisiblePlayer(getName(state), `${getName(state)} has dropped into BB\n`))
+    return fadePlayer(state, actor) /* CODE NUMBER */
+        .then(() => sendWizards(state, sendVisiblePlayer(getName(state), `${getName(state)} has dropped into BB\n`)))
         .then(() => saveWorld(state))
         .then(() => system(state, '/cs_d/aberstudent/yr2/iy7/bt'))
         .then(() => loadWorld(state))
@@ -1306,9 +1303,9 @@ const u_system = (state: State, actor: Player): Promise<void> => {
         })
         .then((me) => {
             if (!me) {
-                return looseGame(state, actor, 'You have been kicked off'));
+                return looseGame(state, actor, 'You have been kicked off');
             }
-            return processEvents(state);
+            return processEvents(state, actor);
         })
         .then(() => loadWorld(state))
         .then(world => sendWizards(state, sendVisiblePlayer(getName(state), `${getName(state)} has returned to AberMud\n`)));

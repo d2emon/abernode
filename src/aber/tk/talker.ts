@@ -1,9 +1,11 @@
 import State from "../state";
 import {
-    enableCalibrate, getLocationId,
-    getName, getPlayerId,
+    enableCalibrate,
+    getLocationId,
+    getPlayerId,
     resetEvents,
-    setName, setPlayerId,
+    setName,
+    setPlayerId,
 } from "./reducer";
 import {showMessages} from "../bprintf/output";
 import {getPlayer, getPlayers, Player, setPlayer} from "../support";
@@ -27,7 +29,7 @@ const talker = (state: State, name: string): Promise<GameData> => {
         .then(player => player && endGame(state, 'You are already on the system - you may only be on once at a time'))
         .then(() => state);
 
-    const addPlayer = (playerId: number): Promise<State> => setPlayer(
+    const addPlayer = (playerId: number): Promise<Player> => setPlayer(
         state,
         playerId,
         {
@@ -47,14 +49,16 @@ const talker = (state: State, name: string): Promise<GameData> => {
             setName(state, name);
         })
         .then(() => resetMessages(state))
-        .then(() => state);
+        .then(() => getPlayer(state, playerId));
 
     const newPlayer = (state: State): Promise<State> => getPlayers(state, state.maxu)
         .then(players => players.find(player => !player.exists))
         .then(player => player
             ? addPlayer(player.playerId)
             : Promise.reject(new Error('Sorry AberMUD is full at the moment'))
-        );
+        )
+        .then(player => processAndSave(state, player))
+        .then(() => state);
 
     const afterAdd = (state: State): Promise<State> => new Promise((resolve) => {
         resetEvents(state);
@@ -66,23 +70,19 @@ const talker = (state: State, name: string): Promise<GameData> => {
         .then(() => enableCalibrate(state))
         .then(() => getPlayer(state, getPlayerId(state)));
 
-    const turnDecorator = (state: State, callback): Promise<void> => showMessages(state)
-        .then(callback)
-        .then(() => processAndSave(state, getName(state),  true))
+    const turnDecorator = (state: State, actor: Player) => (callback): Promise<void> => showMessages(state)
+        .then(() => callback(state, actor))
+        .then(() => processAndSave(state, actor,  true))
         .then(() => showMessages(state));
 
     const getGameData = (actor: Player): GameData => ({
         actor,
-        turn: (state: State, actor: Player) => turnDecorator(
-            state,
-            () => getInput(state, actor),
-        )
+        turn: (state: State, actor: Player) => turnDecorator(state, actor)(getInput)
     });
 
     return loadWorld(state)
         .then(checkExists)
         .then(newPlayer)
-        .then(processAndSave)
         .then(afterAdd)
         .then(startPlayer)
         .then(getGameData);

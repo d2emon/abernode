@@ -6,12 +6,10 @@ import {loadEvent, loadMeta, loadWorld, saveWorld} from "../opensys";
 import {
     disableCalibrate,
     getEventId,
-    getEventUnset,
     getName,
     isEventsUnprocessed, setChannelId,
     setEventId,
     setEventsProcessed,
-    setEventsUnprocessed
 } from "./reducer";
 import {endGame} from "../gamego/endGame";
 import Events from "./events";
@@ -25,7 +23,6 @@ import {checkSnoop} from "../bprintf/snoop";
 const eorte = (state: State, interrupt: boolean = false) => (): Promise<void> => Promise.resolve();
 const gamrcv = (state: State, event: Event) => (): Promise<void> => Promise.resolve();
 const lookin = (state: State, locationId: number) => (): Promise<void> => Promise.resolve();
-const update = (state: State, name: string) => (): Promise<void> => Promise.resolve();
 
 /**
  * AberMUD II   C
@@ -52,6 +49,18 @@ const update = (state: State, name: string) => (): Promise<void> => Promise.reso
  * 0 = Text
  * - 1 = general request
  */
+
+const saveEventId = (state: State, player: Player, eventId: number): Promise<void> => {
+    setEventId(state, eventId);
+    if (Math.abs(eventId - state.lasup) < 10) {
+        return Promise.resolve();
+    }
+    state.lasup = eventId;
+    return loadWorld(state)
+        .then(() => setPlayer(state, player.playerId, { eventId }));
+};
+
+export const fadePlayer = (state: State, player: Player): Promise<void> => saveEventId(state, player, -2);
 
 const processEvent = (state: State) => (event: Event): Promise<void> => {
     const systemEvent = (state: State, event: Event, message: string): Promise<void> => sendMessage(state, message)
@@ -84,7 +93,7 @@ const getEvents = (state: State, firstEventId: number | undefined, lastEventId: 
 
 export const processEvents = (
     state: State,
-    name?: string,
+    player: Player,
     interrupt: boolean = false,
 ): Promise<void> => loadMeta()
     .then(({ lastEventId }) => Promise.all(getEvents(
@@ -92,7 +101,7 @@ export const processEvents = (
         getEventId(state),
         lastEventId,
     )))
-    .then(update(state, name || getName(state)))
+    .then(() => saveEventId(state, player, getEventId(state)))
     .then(eorte(state, interrupt))
     .then(() => {
         state.rdes = 0;
@@ -103,11 +112,11 @@ export const processEvents = (
 
 export const processAndSave = (
     state: State,
-    name?: string,
+    player: Player,
     lazy: boolean = false,
 ): Promise<State> => {
     const process = (!lazy || isEventsUnprocessed(state))
-        ? processEvents(state, name)
+        ? processEvents(state, player)
         : Promise.resolve();
     return process
         .then(() => lazy && setEventsProcessed(state))
@@ -148,4 +157,3 @@ const loosePlayer = (state: State, player?: Player): Promise<void> => loadWorld(
 export const looseGame = (state: State, player: Player, message?: string): Promise<void> => asyncUnsetAlarm(state)
     .then(() => player && loosePlayer(state, player))
     .then(() => message && endGame(state, message));
-

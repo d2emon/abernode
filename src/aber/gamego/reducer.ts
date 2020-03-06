@@ -22,7 +22,7 @@ const SIGCONT = 'SIGCONT';
 const SIGALRM = 'SIGALRM';
 
 const timerEvent = (state: State, actor: Player): Promise<void> => withNoAlarm(state)(
-    () => processEvents(state, getName(state), true)
+    () => processEvents(state, actor, true)
         .then(() => onTime(state, actor))
         .then(() => saveWorld(state))
         .then(() => showMessages(state))

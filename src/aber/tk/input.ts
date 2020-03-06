@@ -61,7 +61,7 @@ const onInput = (player: Player) => (state: State): Promise<string> => {
         .then(alarmKeyInput);
 };
 const afterInput = (state: State, player: Player) => (input: string): Promise<boolean> => {
-    const process = () => processAndSave(state);
+    const process = () => processAndSave(state, player);
     const applyConversation = (input: string) => (): string => {
         if (!input) {
             return '';

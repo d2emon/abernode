@@ -1,18 +1,25 @@
 import State from "../state";
 import {logger} from "../files";
-import {Player, setPlayer} from "../support";
-import {dropMyItems, findPlayer, listPeople, showItems} from "../objsys";
-import {checkSnoop} from "../bprintf/snoop";
-import {endGame} from "../gamego/endGame";
-import {asyncUnsetAlarm} from "../gamego/reducer";
-import {onLook} from "../mobile";
-import {cureBlind, getBlind} from "../new1/reducer";
-import {sendWizards} from "../new1/events";
-import {isWizard} from "../newuaf/reducer";
-import {savePerson} from "../newuaf";
-import {loadWorld, saveWorld} from "../opensys";
 import {
-    disableCalibrate,
+    Player,
+    setPlayer,
+} from "../support";
+import {
+    findPlayer,
+    listPeople,
+    showItems,
+} from "../objsys";
+import {onLook} from "../mobile";
+import {
+    cureBlind,
+    getBlind,
+} from "../new1/reducer";
+import {isWizard} from "../newuaf/reducer";
+import {
+    loadWorld,
+    saveWorld,
+} from "../opensys";
+import {
     getEventId,
     getGameMode,
     getLocationId,
@@ -23,19 +30,6 @@ import {looseGame} from "./index";
 /*
 long lasup=0;
 */
-
-const update = (state: State, player: Player): Promise<void> => {
-    const eventId = getEventId(state);
-    const xp = Math.abs(eventId - state.lasup);
-    if (xp < 10) {
-        return Promise.resolve();
-    }
-    return loadWorld(state)
-        .then(world => {
-            state.lasup = eventId;
-            return setPlayer(state, player.playerId, { eventId });
-        });
-};
 
 const lookin = (state: State, roomId: number): Promise<void> => loadWorld(state)
     .then(newState => saveWorld(newState))

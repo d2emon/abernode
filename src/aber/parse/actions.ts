@@ -180,7 +180,7 @@ export class Quit extends Action {
     }
 
     action(state: State, actor: Player): Promise<any> {
-        return processEvents(state)
+        return processEvents(state, actor)
             .then(() => Action.checkFight(state, 'Not in the middle of a fight!'))
             .then(() => loadWorld(state))
             .then(() => Promise.all([

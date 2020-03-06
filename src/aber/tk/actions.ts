@@ -36,7 +36,7 @@ const startGame = (state: State, player: Player): Promise<boolean> => initPerson
     ]))
     .then(() => Promise.all([
         setStartingLocationId(state, player),
-        processEvents(state),
+        processEvents(state, player),
     ]))
     .then(([
         locationId,
