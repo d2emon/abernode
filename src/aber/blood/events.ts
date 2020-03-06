@@ -16,8 +16,7 @@ import {loadWorld, saveWorld} from "../opensys";
 import {Attack} from "../tk/events";
 import {sendMyMessage} from "../parse/events";
 import {getName} from "../tk/reducer";
-
-const loseme = (state: State): void => undefined;
+import {looseGame} from "../tk";
 
 const WRAITH_ID = 16;
 
@@ -36,20 +35,14 @@ export const receiveDamage = (state: State, attack: Attack, isMe: boolean, actor
             return sendMessage(state, 'You feel weaker, as the wraiths icy touch seems to drain your very life force\n');
         };
 
-        const killed = () => dropMyItems(state, actor)
-            .then(() => {
-                loseme(state);
-                return saveWorld(state);
-            })
-            .then(() => loadWorld(state))
-            .then(newState => Promise.all([
+        const killed = () => loadWorld(state)
+            .then(() => Promise.all([
                 sendMyMessage(state, `${sendName(getName(state))} has just died.\n`),
                 sendWizards(state, `[ ${sendName(getName(state))} has been slain by ${sendName(enemy.name)}[/p] ]\n`),
                 logger.write(`${getName(state)} slain by ${enemy.name}`),
                 removePerson(state, getName(state)),
-                endGame(state, 'Oh dear... you seem to be slightly dead'),
             ]))
-           .then(() => {});
+            .then(() => looseGame(state, actor, 'Oh dear... you seem to be slightly dead'));
 
         const missed = () => {
             const weaponMessage = weapon ? ` with the ${weapon.name}` : '';

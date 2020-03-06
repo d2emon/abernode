@@ -4,6 +4,7 @@ import {getDebugMode} from "../parse/reducer";
 import {sendMessage} from "../bprintf/bprintf";
 import {loadEvent, loadMeta, loadWorld, saveWorld} from "../opensys";
 import {
+    disableCalibrate,
     getEventId,
     getEventUnset,
     getName,
@@ -15,6 +16,11 @@ import {
 import {endGame} from "../gamego/endGame";
 import Events from "./events";
 import {Player, setPlayer} from "../support";
+import {asyncUnsetAlarm} from "../gamego/reducer";
+import {dropMyItems} from "../objsys";
+import {sendWizards} from "../new1/events";
+import {savePerson} from "../newuaf";
+import {checkSnoop} from "../bprintf/snoop";
 
 const eorte = (state: State, interrupt: boolean = false) => (): Promise<void> => Promise.resolve();
 const gamrcv = (state: State, event: Event) => (): Promise<void> => Promise.resolve();
@@ -116,4 +122,30 @@ export const setLocationId = (state: State, locationId: number, player: Player):
     return loadWorld(state)
         .then(world => setPlayer(state, player.playerId, { locationId }))
         .then(lookin(state, locationId));
-}
+};
+
+const doLoose = (state: State, player: Player): Promise<void> => Promise.all([
+    dropMyItems(state, player),
+    setPlayer(state, player.playerId, { exists: false }),
+    (player.visibility < 10000)
+        ? sendWizards(state, `${getName(state)} has departed from AberMUDII\n`)
+        : Promise.resolve(),
+])
+    .then(() => null);
+
+const onLoose = (state: State, player: Player): Promise<void> => Promise.all([
+    savePerson(state, player),
+    checkSnoop(state),
+])
+    .then(() => null);
+
+const loosePlayer = (state: State, player?: Player): Promise<void> => loadWorld(state)
+    .then(() => disableCalibrate(state))
+    .then(() => doLoose(state, player))
+    .then(() => saveWorld(state))
+    .then(() => onLoose(state, player));
+
+export const looseGame = (state: State, player: Player, message?: string): Promise<void> => asyncUnsetAlarm(state)
+    .then(() => player && loosePlayer(state, player))
+    .then(() => message && endGame(state, message));
+

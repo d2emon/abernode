@@ -85,6 +85,7 @@ import {
 } from "../tk/reducer";
 import {sendMessage} from "../bprintf/bprintf";
 import {
+    looseGame,
     processEvents,
     setLocationId,
 } from "../tk";
@@ -581,10 +582,9 @@ long zapped;
 const gamrcv = (state: State, block: Event): Promise<void> => {
     const actions = {
         '-9900': () => setPlayer(state, i[0], { visibility: i[1] }),
-        '-666': () => {
+        '-666': (actor) => {
             bprintf(state, 'Something Very Evil Has Just Happened...\n');
-            loseme(state);
-            return endGame(state, 'Bye Bye Cruel World....');
+            return looseGame(state, actor, 'Bye Bye Cruel World....');
         },
         '-599': (text: number[]) => {
             if (isme) {
@@ -594,14 +594,14 @@ const gamrcv = (state: State, block: Event): Promise<void> => {
                 calibme(state);
             }
         },
-        '-750': () => {
+        '-750': (actor) => {
             if (!isme) {
                 return Promise.resolve();
             }
             return findPlayer(state, name2)
                 .then((player2) => {
                     if (!player2) {
-                        return loseme(state);
+                        return looseGame(state, actor, undefined);
                     }
                     return saveWorld(state)
                         .then(() => {
@@ -663,7 +663,7 @@ const gamrcv = (state: State, block: Event): Promise<void> => {
             state.tdes = 1;
             return Promise.resolve();
         },
-        '-10001': () => {
+        '-10001': (actor) => {
             if (isme) {
                 if (isWizard(state)) {
                     bprintf(state, `${sendName(name2)} cast a lightning bolt at you\n`);
@@ -677,12 +677,11 @@ const gamrcv = (state: State, block: Event): Promise<void> => {
                         sendMyMessage(state, sendVisiblePlayer(getName(state), `${getName(state)} has just died.\n\n`)),
                         new Promise((resolve) => {
                             state.zapped = true;
-                            loseme(state);
                             bprintf(state, `You have been utterly destroyed by ${name2}\n`);
                             return resolve();
                         }),
-                        endGame(state, 'Bye Bye.... Slain By Lightning'),
-                    ]));
+                    ]))
+                    .then(() => looseGame(state, actor, 'Bye Bye.... Slain By Lightning'));
             } else if (isHere(state, block.locationId)) {
                 bprintf(state, `${sendVisibleName('A massive lightning bolt strikes ')}${sendPlayerForVisible(name2)}${sendVisibleName('\n')}`);
                 return Promise.resolve();
@@ -715,10 +714,9 @@ const gamrcv = (state: State, block: Event): Promise<void> => {
             }
             return Promise.resolve();
         },
-        '-10010': () => {
+        '-10010': (actor) => {
             if (isme) {
-                loseme(state);
-                return endGame(state, 'You have been kicked off');
+                return looseGame(state, actor, 'You have been kicked off');
             } else {
                 bprintf(state, `${name1} has been kicked off\\n`);
                 return Promise.resolve();
@@ -873,7 +871,10 @@ const lightning = (state: State, actor: Player): Promise<void> => {
                 return bprintf(state, 'There is no one on with that name\n');
             }
             return sendExorcise(state, getName(state), player, player.locationId)
-                .then(() => logger.write(`${getName(state)} zapped ${player.name}`))
+                .then(() => logger
+                    .write(`${getName(state)} zapped ${player.name}`)
+                    .catch(error => looseGame(state, actor, error))
+                )
                 .then(() => sendBotDamage(state, actor, player, 10000))
                 .then(() => Events.broadcast(state, sendSound('You hear an ominous clap of thunder in the distance\n')));
         });
@@ -934,7 +935,9 @@ const calibme = (state: State, actor: Player): Promise<void> => {
     if (level !== getLevel(state)) {
         setLevel(state, level);
         bprintf(state, `You are now ${getName(state)} `);
-        logger.write(`${getName(state)} to level ${level}`)
+        logger
+            .write(`${getName(state)} to level ${level}`)
+            .catch(error => looseGame(state, actor, error))
             .then(() => bprintf(state, `${getTitle(level, getSex(state), state.hasfarted)}\n`))
             .then(() => sendWizards(state, `${sendName(getName(state))} is now level ${level}\n`))
             .then(() => {
@@ -1058,7 +1061,9 @@ const exorcom = (state: State): Promise<void> => {
             if (!player.canBeExorcised) {
                 return bprintf(state, 'You can\'t exorcise them, they dont want to be exorcised\n');
             }
-            return logger.write(`${getName(state)} exorcised ${player.name}`)
+            return logger
+                .write(`${getName(state)} exorcised ${player.name}`)
+                .catch(error => looseGame(state, actor, error))
                 .then(() => dropItems(state, player))
                 .then(() => Promise.all([
                     sendKick(state, player),
@@ -1278,8 +1283,7 @@ const rmedit = (state: State, actor: Player): Promise<void> => {
         .then(world => findPlayer(state, getName(state)))
         .then((me) => {
             if (!me) {
-                loseme(state);
-                return endGame(state, 'You have been kicked off');
+                return looseGame(state, actor, 'You have been kicked off');
             }
             return sendWizards(state, sendVisiblePlayer(getName(state), `${getName(state)} re-enters the normal universe\n`));
         })
@@ -1302,8 +1306,7 @@ const u_system = (state: State, actor: Player): Promise<void> => {
         })
         .then((me) => {
             if (!me) {
-                loseme(state);
-                return endGame(state, 'You have been kicked off');
+                return looseGame(state, actor, 'You have been kicked off'));
             }
             return processEvents(state);
         })
@@ -1321,19 +1324,18 @@ const inumcom = (state: State, actor: Player): Promise<void> => {
         .then(item => bprintf(state, `Item Number is ${item.itemId}\n`));
 };
 
-const updcom = (state: State): Promise<void> => {
+const updcom = (state: State, actor: Player): Promise<void> => {
     if (!isWizard(state)) {
         bprintf(state, 'Hmmm... you can\'t do that one\n');
         return Promise.resolve();
     }
-    loseme();
     return sendWizards(state, `[ ${getName(state)} has updated ]\n`)
-        .then(() => saveWorld(state))
+        .then(() => looseGame(state, actor, undefined))
         .then(() => execl(EXE, '   --{----- ABERMUD -----}--   ', `-n${getName(state)}`)) /* GOTOSS eek! */
         .catch(() => bprintf(state, 'Eeek! someones pinched the executable!\n'));
 };
 
-const becom = (state: State): Promise<void> => {
+const becom = (state: State, actor: Player): Promise<void> => {
     if (!isWizard(state)) {
         bprintf(state, 'Become what ?\n');
         return Promise.resolve();
@@ -1344,8 +1346,7 @@ const becom = (state: State): Promise<void> => {
         return Promise.resolve();
     }
     return sendWizards(state, `${getName(state)} has quit, via BECOME\n`)
-        .then(() => loseme(state))
-        .then(() => saveWorld(state))
+        .then(() => looseGame(state, actor, undefined))
         .then(() => execl(state, '   --}----- ABERMUD ------   ', `-n${x2}`))
         .catch(() => bprintf(state, 'Eek! someone\'s just run off with mud!!!!\n'));
 };
@@ -1405,15 +1406,19 @@ const debugcom = (state: State): Promise<void> => {
     return debug2(state);
 };
 
-const bugcom = (state: State): Promise<void> => {
+const bugcom = (state: State, actor: Player): Promise<void> => {
     const x = getreinput(state);
-    return logger.write(`Bug by ${getName(state)} : ${x}`);
+    return logger
+        .write(`Bug by ${getName(state)} : ${x}`)
+        .catch(error => looseGame(state, actor, error));
 };
 
-const typocom = (state: State): Promise<void> => {
+const typocom = (state: State, actor: Player): Promise<void> => {
     const y = `${getName(state)} in ${getLocationId(state)}`;
     const x = getreinput(state);
-    return logger.write(`Typo by ${y} : ${x}`);
+    return logger
+        .write(`Typo by ${y} : ${x}`)
+        .catch(error => looseGame(state, actor, error));
 };
 
 const look_cmd = (state: State, actor: Player): Promise<void> => Action.nextWord(state)

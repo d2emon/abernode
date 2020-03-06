@@ -21,9 +21,9 @@ import {loadWorld, saveWorld} from "../opensys";
 import {sendMyMessage} from "../parse/events";
 import {getLocationId, getName, isHere} from "../tk/reducer";
 import {emitEvent} from "../tk/events";
+import {looseGame} from "../tk";
 
 const calibme = (state: State): void => undefined;
-const loseme = (state: State): void => undefined;
 
 interface Event {
     sender: Player,
@@ -48,15 +48,12 @@ const receiveMagicDamage = (state: State, damage: number, message: string, actor
         })
         .then(() => Promise.all([
             sendMessage(state, message),
-            dropMyItems(state, actor),
-            Promise.resolve(loseme(state)),
             sendMyMessage(state, `${getName(state)} has just died\n`),
             sendWizards(state, `[ ${getName(state)} has just died ]\n`),
             logger.write(`${getName(state)} slain magically`),
             removePerson(state, getName(state)),
-            endGame(state, 'Oh dear you just died'),
         ]))
-        .then(() => {});
+        .then(() => looseGame(state, actor, 'Oh dear you just died'));
 };
 
 const addForce = (state: State, action: string): Promise<void> => {

@@ -7,12 +7,9 @@ import {
 import {showMessages} from "../bprintf/output";
 import {onTime} from "../mobile";
 import {saveWorld} from "../opensys";
-import {getName, getPlayerId} from "../tk/reducer";
-import {processEvents} from "../tk";
-import {getPlayer} from "../support";
-
-const loseme = (state: State): void => undefined;
-const rte = (state: State, name: string, interrupt: boolean = false): void => undefined;
+import {getName} from "../tk/reducer";
+import {looseGame, processEvents} from "../tk";
+import {Player} from "../support";
 
 const NO_ACTION = (): Promise<void> => Promise.resolve();
 
@@ -24,26 +21,27 @@ const SIGQUIT = 'SIGQUIT';
 const SIGCONT = 'SIGCONT';
 const SIGALRM = 'SIGALRM';
 
-const timerEvent = (state: State) => withNoAlarm(state)(() => processEvents(state, getName(state), true)
-    .then(() => getPlayer(state, getPlayerId(state)))
-    .then(actor => onTime(state, actor))
-    .then(() => saveWorld(state))
-    .then(() => showMessages(state))
-    .then(checkPrompt)
-    .then((inputData: InputData) => inputData.toPrompt && console.log(`\n${inputData.prompt}${inputData.input}`))
+const timerEvent = (state: State, actor: Player): Promise<void> => withNoAlarm(state)(
+    () => processEvents(state, getName(state), true)
+        .then(() => onTime(state, actor))
+        .then(() => saveWorld(state))
+        .then(() => showMessages(state))
+        .then(checkPrompt)
+        .then((inputData: InputData) => inputData.toPrompt && console.log(`\n${inputData.prompt}${inputData.input}`))
 );
-const exitEvent = (state: State): Promise<void> => asyncUnsetAlarm(state).then(() => loseme(state));
 
-const onTimer = (state: State): Promise<void> => state.sig_active ? timerEvent(state) : NO_ACTION();
-const onError = (state: State, { error }): Promise<void> => exitEvent(state).then(() => Promise.reject(error));
-const onExit = (state: State): Promise<void> => {
+const onTimer = (state: State, actor: Player): Promise<void> => state.sig_active
+    ? timerEvent(state, actor)
+    : NO_ACTION();
+const onError = (state: State, actor: Player, { error }): Promise<void> => looseGame(state, actor, error);
+const onExit = (state: State, actor: Player): Promise<void> => {
     console.log('^C\n');
     return state.in_fight
         ? NO_ACTION()
-        : exitEvent(state).then(() => endGame(state, 'Byeeeeeeeeee  ...........'));
+        : looseGame(state, actor, 'Byeeeeeeeeee  ...........');
 };
 
-const signals: { [key: string]: (state: State, payload?: any) => Promise<void> } = {
+const signals: { [key: string]: (state: State, actor: Player, payload?: any) => Promise<void> } = {
     [SIGHUP]: onError,
     [SIGINT]: onExit,
     [SIGTERM]: onExit,

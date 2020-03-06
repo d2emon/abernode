@@ -2,12 +2,13 @@ import State from "../state";
 import {Event} from '../services/world';
 import {loadWorld, saveEvent} from "../opensys";
 import {endGame} from "../gamego/endGame";
-import {getPlayers, Player, setPlayer} from "../support";
+import {getPlayer, getPlayers, Player, setPlayer} from "../support";
 import {
     getLocationId,
-    getName, setEventsUnprocessed,
+    getName, getPlayerId, setEventsUnprocessed,
 } from "./reducer";
 import {dropItems} from "../objsys";
+import {looseGame} from "./index";
 
 export interface Attack {
     characterId: number,
@@ -16,7 +17,6 @@ export interface Attack {
 }
 
 const longwthr = (state: State): void => undefined;
-const loseme = (state: State): Promise<void> => undefined;
 
 const onTimeout = (state: State) => (player: Player): Promise<void> => Promise.all([
     Events.broadcast(state, `${player.name} has been timed out\n`),
@@ -53,7 +53,10 @@ const clean = (state: State, recordId: number): Promise<void> => loadWorld(state
     });
 
 
-const onSave = (state: State) => (recordId: number): Promise<void> => {
+const onSave = (state: State, force: boolean) => (recordId: number): Promise<void> => {
+    if (force) {
+        setEventsUnprocessed(state);
+    }
     if (recordId < 199) {
         return Promise.resolve();
     }
@@ -61,19 +64,14 @@ const onSave = (state: State) => (recordId: number): Promise<void> => {
         clean(state, recordId),
         Promise.resolve(longwthr(state)),
     ])
-        .then(() => {});
+        .then(() => null);
 };
 
-const onError = (state: State) => (): Promise<void> => loseme(state)
-    .then(() => endGame(state, 'AberMUD: FILE_ACCESS : Access failed'));
+const onError = (state: State) => (): Promise<void> => getPlayer(state, getPlayerId(state))
+    .then(player => looseGame(state, player, 'AberMUD: FILE_ACCESS : Access failed'));
 
 export const emitEvent = (state: State, event: Event, force: boolean = false): Promise<void> => saveEvent(event)
-    .then(onSave(state))
-    .then(() => {
-        if (force) {
-            setEventsUnprocessed(state);
-        }
-    })
+    .then(onSave(state, force))
     .catch(onError(state));
 
 const Events = {

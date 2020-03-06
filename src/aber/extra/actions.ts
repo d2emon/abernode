@@ -39,14 +39,13 @@ import {getLevel, getStrength, isGod, isWizard, updateStrength} from "../newuaf/
 import {loadWorld, saveWorld} from "../opensys";
 import {executeCommand} from "../parse/parser";
 import {getLocationId, getName, isHere, playerIsMe, setChannelId} from "../tk/reducer";
-import {setLocationId} from "../tk";
+import {looseGame, setLocationId} from "../tk";
 import Events from '../tk/events'
 
 const fopen = (name: string, permissions: string): Promise<any> => Promise.resolve({});
 const fclose = (file: any): Promise<void> => Promise.resolve();
 const getstr = (file: any): Promise<string[]> => Promise.resolve([]);
 
-const loseme = (state: State): void => undefined;
 const getchar = (state: State): Promise<string> => Promise.resolve('\n');
 const showname = (state: State, locationId: number): void => undefined;
 const roomnum = (state: State, locationId: string, zoneId: string): number => 0;
@@ -486,12 +485,11 @@ export class Jump extends Action {
         return umbrella.state === 0;
     }
 
-    private noUmbrella(state: State, locationId: number): Promise<any> {
+    private noUmbrella(state: State, locationId: number, actor: Player): Promise<any> {
         setChannelId(state, locationId);
-        this.output('Wheeeeeeeeeeeeeeeee  <<<<SPLAT>>>>\n');
-        this.output('You seem to be splattered all over the place\n');
-        loseme(state);
-        return endGame(state, 'I suppose you could be scraped up - with a spatula');
+        this.output('Wheeeeeeeeeeeeeeeee  <<<<SPLAT>>>>\n'
+            + 'You seem to be splattered all over the place\n');
+        return looseGame(state, actor, 'I suppose you could be scraped up - with a spatula');
     }
 
     private static withUmbrella(state: State, locationId: number, actor: Player): Promise<any> {
@@ -511,7 +509,7 @@ export class Jump extends Action {
             .then(umbrella => (
                 Jump.canJump(state, actor, umbrella)
                     ? Jump.withUmbrella(state, locationId, actor)
-                    : this.noUmbrella(state, locationId)
+                    : this.noUmbrella(state, locationId, actor)
             ));
     }
 }

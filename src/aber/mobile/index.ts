@@ -22,8 +22,7 @@ import {setPlayerDamage} from "../new1";
 import {getLevel, isWizard, updateScore} from "../newuaf/reducer";
 import {sendLocalMessage} from "../parse/events";
 import {getCanCalibrate, getLocationId, isHere, playerIsMe} from "../tk/reducer";
-
-const loseme = (state: State): Promise<void> => Promise.resolve();
+import {looseGame} from "../tk";
 
 const moveBot = (state: State, player: Player): Promise<void> => Promise.resolve();
 
@@ -168,12 +167,12 @@ const dropPepper = (state: State, actor: Player): Promise<void> => {
         .then(() => updateScore(state, 100, true)); /* No dragon */
 
     /* Whoops !*/
-    const dragonSneeze = () => {
-        loseme(state);
-        return sendMessage(state, 'The dragon sneezes forth a massive ball of flame.....\n'
-            + 'Unfortunately you seem to have been fried\n')
-            .then(() => endGame(state, 'Whoops.....   Frying tonight'));
-    };
+    const dragonSneeze = () => sendMessage(
+        state,
+        'The dragon sneezes forth a massive ball of flame.....\n'
+            + 'Unfortunately you seem to have been fried\n'
+    )
+        .then(() => looseGame(state, actor, 'Whoops.....   Frying tonight'));
 
     return Promise.all([
         getPlayer(state, 32),

@@ -1,7 +1,7 @@
 import State from "../state";
 import {logger} from "../files";
-import {getPlayers, Player, setPlayer} from "../support";
-import {dropMyItems, findPlayer, findVisiblePlayer, listPeople, showItems} from "../objsys";
+import {Player, setPlayer} from "../support";
+import {dropMyItems, findPlayer, listPeople, showItems} from "../objsys";
 import {checkSnoop} from "../bprintf/snoop";
 import {endGame} from "../gamego/endGame";
 import {asyncUnsetAlarm} from "../gamego/reducer";
@@ -16,71 +16,9 @@ import {
     getEventId,
     getGameMode,
     getLocationId,
-    getName, setPlayerId,
+    getName,
 } from "./reducer";
-
-const putmeon = (state: State, name: string): Promise<void> => {
-    state.iamon = false;
-    return loadWorld(state)
-        .then(newState => findVisiblePlayer(newState, name))
-        .then((player) => {
-            if (player) {
-                return endGame(state, 'You are already on the system - you may only be on once at a time');
-            }
-            return getPlayers(state, state.maxu)
-                .then((players) => {
-                    let f = null;
-                    players.forEach((player) => {
-                        if (f !== null) {
-                            return;
-                        }
-                        if (!player.exists) {
-                            f = player.playerId;
-                        }
-                    });
-                    if (f === null) {
-                        setPlayerId(state, state.maxu);
-                        return;
-                    }
-                    return setPlayer(state, f, {
-                        name,
-                        locationId: getLocationId(state),
-                        level: 1,
-                        strength: -1,
-                        visibility: 0,
-                        sex: 0,
-                        eventId: -1,
-                        weaponId: -1,
-                    })
-                        .then(() => {
-                            setPlayerId(state, f);
-                            state.iamon = true;
-                        });
-                });
-
-        })
-};
-
-const loseme = (state: State, player: Player): Promise<void> => asyncUnsetAlarm(state)
-    .then(() => {
-        /* No interruptions while you are busy dying */
-        /* ABOUT 2 MINUTES OR SO */
-        disableCalibrate(state);
-        return loadWorld(state);
-    })
-    .then(world => {
-        const promises = [
-            dropMyItems(state, player),
-            setPlayer(state, player.playerId, { exists: false }),
-        ];
-        if (player.visibility < 10000) {
-            promises.push(sendWizards(state, `${getName(state)} has departed from AberMUDII\n`));
-        }
-        return Promise.all(promises)
-    })
-    .then(() => saveWorld(state))
-    .then(() => savePerson(state, player))
-    .then(() => checkSnoop(state));
+import {looseGame} from "./index";
 
 /*
 long lasup=0;
@@ -136,8 +74,7 @@ const lookin = (state: State, roomId: number): Promise<void> => loadWorld(state)
                                     if (isWizard(state)) {
                                         return bprintf(state, '<DEATH ROOM>\n');
                                     } else {
-                                        loseme(state, getName(state));
-                                        return endGame(state, 'bye bye.....');
+                                        return looseGame(state, actor, 'bye bye.....');
                                     }
                                 } else if (s === '#NOBR') {
                                     state.brmode = false;
@@ -179,14 +116,12 @@ const loodrv = (state: State) => lookin(state, getLocationId(state));
 long iamon=0;
 */
 
-const userwrap = (state: State): Promise<void> => findPlayer(state, getName(state))
-    .then((player) => {
-        if (!player) {
-            return;
-        }
-        loseme(state);
-        return logger.write(`System Wrapup exorcised ${getName(state)}`);
-    });
+const userwrap = (state: State, actor: Player): Promise<void> => findPlayer(state, getName(state))
+    .then(player => player && logger
+        .write(`System Wrapup exorcised ${getName(state)}`)
+        .catch(error => looseGame(state, actor, error))
+        .then(() => looseGame(state, actor, undefined))
+    );
 
 /*
 fcloselock(file)

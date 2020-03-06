@@ -64,11 +64,10 @@ import {getLevel, getStrength, isWizard, updateScore, updateStrength} from "../n
 import {loadWorld} from "../opensys";
 import {sendMyMessage} from "../parse/events";
 import {getLocationId, getName, isHere, playerIsMe} from "../tk/reducer";
-import {setLocationId} from "../tk";
+import {looseGame, setLocationId} from "../tk";
 
 const sillycom = (state: State, message: string): Promise<any> => Promise.resolve({});
 const getreinput = (state: State): string => '';
-const loseme = (state: State): void => undefined;
 
 /* This one isnt for magic */
 
@@ -182,12 +181,11 @@ export class Grope extends Action {
             .then(() => super.check(state, actor));
     }
 
-    private static gropeMyself = (state: State): Promise<void> => Promise.all([
-        sendMessage(state, 'With a sudden attack of morality the machine edits your persona\n'),
-        loseme(state),
-        endGame(state, 'Bye....... LINE TERMINATED - MORALITY REASONS'),
-    ])
-        .then(() => null);
+    private static gropeMyself = (state: State, actor: Player): Promise<void> => sendMessage(
+        state,
+        'With a sudden attack of morality the machine edits your persona\n'
+    )
+        .then(() => looseGame(state, actor, 'Bye....... LINE TERMINATED - MORALITY REASONS'));
 
     private static gropePlayer = (state: State, player: Player): Promise<void> => socialInteraction(
         state,
@@ -198,7 +196,7 @@ export class Grope extends Action {
 
     private static grope = (state: State) => (player: Player): Promise<void> => (
         playerIsMe(state, player.playerId)
-            ? Grope.gropeMyself(state)
+            ? Grope.gropeMyself(state, player)
             : Grope.gropePlayer(state, player)
     );
 
@@ -665,13 +663,12 @@ export class Push extends Action {
         return Promise.resolve('Nothing happens\n');
     };
 
-    private static push126(state: State, item: Item): Promise<any> {
+    private static push126(state: State, item: Item, actor: Player): Promise<any> {
         return Promise.all([
             sendMessage(state, 'The tripwire moves and a huge stone crashes down from above!\n'),
             Events.broadcast(state, sendSound('You hear a thud and a squelch in the distance.\n')),
-            loseme(state),
         ])
-            .then(() => endGame(state, '             S   P    L      A         T           !'));
+            .then(() => looseGame(state, actor, '             S   P    L      A         T           !'));
     }
 
     private static push162(state: State, item: Item, actor: Player): Promise<any> {
@@ -811,7 +808,7 @@ export class Push extends Action {
                     throw new Error('That is not here');
                 }
                 if (item.itemId === 126) {
-                    return Push.push126(state, item);
+                    return Push.push126(state, item, actor);
                 } else if (item.itemId === 162) {
                     return Push.push162(state, item, actor);
                 } else if (item.itemId === 130) {

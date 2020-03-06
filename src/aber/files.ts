@@ -32,7 +32,7 @@ export const logger = {
         console.log(LOG_FILE, `${date.toString()}: ${message}`);
         resolve();
         // On Error
-        // loseme(state)
+        // looseGame(state, actor, 'Log fault : Access Failure')
         throw new Error('Log fault : Access Failure');
     }),
 };
