@@ -12,11 +12,10 @@ import {
     getPlayers,
     setPlayer, getItem,
 } from "../support";
-import {sendLocalMessage, sendMyMessage} from "./events";
+import {sendMyMessage} from "./events";
 import {getPronoun} from "./reducer";
 import {
     OnEnterEvent,
-    OnExitEvent,
 } from "../events";
 import * as ChannelEvents from "../events/channel";
 import * as CharacterEvents from "../events/character";
@@ -27,12 +26,9 @@ import {sendWizards} from "../new1/events";
 import {dropMyItems} from "../objsys";
 import {savePerson} from "../newuaf";
 import {endGame} from "../gamego/endGame";
-import {sendMessage} from "../bprintf/bprintf";
-import {getLocationId, getName, isHere, setChannelId, setGameOff, setLocationId} from "../tk/reducer";
-import {processEvents} from "../tk";
-
-const trapch = (state: State, channelId: number): void => undefined;
-const rte = (state: State, name: string): void => undefined;
+import {getLocationId, getName, isHere, setChannelId, setGameOff} from "../tk/reducer";
+import {processEvents, setLocationId} from "../tk";
+import Events from "../tk/events";
 
 export class DefaultAction extends Action {
     key: string | number = undefined;
@@ -120,14 +116,14 @@ export class GoDirection extends Action {
              oldLocation,
              newLocation,
         }): Promise<any> => Promise.all([
-            sendLocalMessage(
+            Events.sendLocalMessage(
                 state,
                 oldLocation,
                 getName(state),
                 sendVisiblePlayer(actor.name, `${actor.name} has gone ${this.exitText[directionId]} ${state.out_ms}.\n`)
             ),
-            Promise.resolve(setLocationId(state, newLocation)),
-            sendLocalMessage(
+            setLocationId(state, newLocation),
+            Events.sendLocalMessage(
                 state,
                 newLocation,
                 getName(state),

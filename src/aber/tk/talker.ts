@@ -10,9 +10,9 @@ import {Player} from "../support";
 import getInput from './input';
 import {resetMessages} from "../bprintf/bprintf";
 import {processAndSave} from "./index";
+import {executeSpecial} from "./actions";
 
 const putmeon = (state: State, name: string): Promise<void> => Promise.resolve();
-const special = (state: State, action: string, name: string): Promise<void> => Promise.resolve();
 
 const start = (state: State, name: string): Promise<State> => Promise.all([
     resetMessages(state),
@@ -26,12 +26,10 @@ const checkFull = (state: State): Promise<State> => (state.mynum >= state.maxu)
     ? Promise.reject(new Error('Sorry AberMUD is full at the moment'))
     : Promise.resolve(state);
 
-const startPlayer = (state: State): Promise<State> => {
-    resetEvents(state);
-    return special(state, '.g', getName(state))
-        .then(() => enableCalibrate(state))
-        .then(() => state);
-};
+const startPlayer = (state: State): Promise<State> => Promise.resolve(resetEvents(state))
+    .then(() => executeSpecial(state, '.g'))
+    .then(() => enableCalibrate(state))
+    .then(() => state);
 
 const nextTurn = (state: State, player: Player) => showMessages(state)
     .then(() => getInput(state, player))

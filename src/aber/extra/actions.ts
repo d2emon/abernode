@@ -27,7 +27,7 @@ import {
     HELP3,
     LEVELS, WIZLIST,
 } from "../files";
-import {sendAndShow, showMessages} from "../bprintf/output";
+import {sendAndShow} from "../bprintf/output";
 import Action from "../action";
 import {IS_DESTROYED} from "../object";
 import {sendVisiblePlayer} from "../bprintf";
@@ -37,9 +37,10 @@ import {checkRoll, roll} from "../magic";
 import {teleport} from "../new1";
 import {getLevel, getStrength, isGod, isWizard, updateStrength} from "../newuaf/reducer";
 import {loadWorld, saveWorld} from "../opensys";
-import {sendLocalMessage, sendPrivate} from "../parse/events";
 import {executeCommand} from "../parse/parser";
-import {getLocationId, getName, isHere, setChannelId, setLocationId} from "../tk/reducer";
+import {getLocationId, getName, isHere, setChannelId} from "../tk/reducer";
+import {setLocationId} from "../tk";
+import Events from '../tk/events'
 
 const fopen = (name: string, permissions: string): Promise<any> => Promise.resolve({});
 const fclose = (file: any): Promise<void> => Promise.resolve();
@@ -48,7 +49,6 @@ const getstr = (file: any): Promise<string[]> => Promise.resolve([]);
 const loseme = (state: State): void => undefined;
 const getchar = (state: State): Promise<string> => Promise.resolve('\n');
 const showname = (state: State, locationId: number): void => undefined;
-const trapch = (state: State, locationId: number): void => undefined;
 const roomnum = (state: State, locationId: string, zoneId: string): number => 0;
 const getreinput = (state: State): string => '';
 const openroom = (state: State, locationId: number, permissions: string): Promise<any> => Promise.resolve({});
@@ -86,13 +86,13 @@ export class Help extends Action {
                 if (me.helping !== -1) {
                     return Promise.all([
                         getPlayer(state, player.helping),
-                        sendPrivate(state, player, `${sendVisibleName(getName(state))} has stopped helping you\n`),
+                        Events.sendPrivate(state, player, `${sendVisibleName(getName(state))} has stopped helping you\n`),
                     ])
                         .then(([helper]) => this.output(`Stopped helping ${helper.name}\n`));
                 } else {
                     return Promise.all([
                         setPlayer(state, me.playerId, {helping: player.playerId}),
-                        sendPrivate(state, player, `${sendVisibleName(getName(state))} has offered to help you\n`),
+                        Events.sendPrivate(state, player, `${sendVisibleName(getName(state))} has offered to help you\n`),
                     ])
                         .then(() => this.output('OK...\n'));
                 }
@@ -457,13 +457,13 @@ export class InLocation extends Action {
                         return fclose(unit);
                     })
                     .then(() => loadWorld(state))
-                    .then(newState => executeCommand(newState, toPerform))
+                    .then(world => executeCommand(state, toPerform))
                     .then(() => loadWorld(state))
-                    .then(newState => {
-                        if (isHere(newState, locationId)) {
-                            newState.ex_dat = [...exBk];
+                    .then(world => {
+                        if (isHere(state, locationId)) {
+                            state.ex_dat = [...exBk];
                         }
-                        setChannelId(newState, oldLocationId);
+                        setChannelId(state, oldLocationId);
                     })
                     .catch(() => {
                         setChannelId(state, oldLocationId);
@@ -501,9 +501,9 @@ export class Jump extends Action {
 
     private static withUmbrella(state: State, locationId: number): Promise<any> {
         const oldLocationId = getLocationId(state);
-        setLocationId(state, locationId);
-        return sendLocalMessage(state, oldLocationId, getName(state), sendVisiblePlayer(getName(state), `${getName(state)} has just left\n`))
-            .then(() => sendLocalMessage(state, locationId, getName(state), sendVisiblePlayer(getName(state), `${getName(state)} has just dropped in\n`)))
+        return setLocationId(state, locationId)
+            .then(() => Events.sendLocalMessage(state, oldLocationId, getName(state), sendVisiblePlayer(getName(state), `${getName(state)} has just left\n`)))
+            .then(() => Events.sendLocalMessage(state, locationId, getName(state), sendVisiblePlayer(getName(state), `${getName(state)} has just dropped in\n`)))
             .then(() => ({}))
     }
 

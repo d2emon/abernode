@@ -26,6 +26,7 @@ import {resetFight} from "../blood/reducer";
 import {sendMessage} from "../bprintf/bprintf";
 import {sendKeyboard} from "../bprintf";
 import {processAndSave} from "./index";
+import {executeSpecial} from "./actions";
 
 const special = (state: State, action: string, name: string): Promise<void> => Promise.resolve();
 
@@ -79,7 +80,8 @@ const afterInput = (state: State) => (input: string): Promise<boolean> => {
         if (getGameMode(state)) {
             return executeCommand(state, input);
         } else if (input && (input.toLowerCase() !== '.q')) {
-            return special(state, input, getName(state));
+            return executeSpecial(state, input)
+                .then(() => null);
         }
         return Promise.resolve();
     };

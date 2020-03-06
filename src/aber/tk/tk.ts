@@ -11,8 +11,8 @@ import {roll} from "../magic";
 import {onLook} from "../mobile";
 import {cureBlind, getBlind} from "../new1/reducer";
 import {sendWizards} from "../new1/events";
-import {getLevel, getSex, getStrength, isGod, isWizard} from "../newuaf/reducer";
-import {initPerson, savePerson} from "../newuaf";
+import {isWizard} from "../newuaf/reducer";
+import {savePerson} from "../newuaf";
 import {loadWorld, saveWorld} from "../opensys";
 import {
     disableCalibrate,
@@ -20,111 +20,7 @@ import {
     getGameMode,
     getLocationId,
     getName,
-    setGameOn,
-    setLocationId,
 } from "./reducer";
-import {processEvents} from "./index";
-
-/**
- * AberMUD II   C
- *
- * This game systems, its code scenario and design
- * are (C) 1987/88  Alan Cox,Jim Finnis,Richard Acott
- *
- * This file holds the basic communications routines
- */
-
-
-/**
- * Data format for mud packets
- *
- * Sector 0
- * [64 words]
- * 0   Current first message pointer
- * 1   Control Word
- * Sectors 1-n  in pairs ie [128 words]
- *
- * [channel][controlword][text data]
- *
- * [controlword]
- * 0 = Text
- * - 1 = general request
- */
-
-const special = (state: State, word: string, name: string): Promise<boolean> => {
-    const bk = word.toLowerCase();
-    if (bk[0] !== '.') {
-        return Promise.resolve(false);
-    }
-    if (bk[1] === 'g') {
-        return getPlayer(state, state.mynum)
-            .then((player) => {
-                initPerson(state)
-                    .then(() => loadWorld(state))
-                    .then(newState => setPlayer(newState, player.playerId, {
-                        strength: getStrength(state),
-                        level: getLevel(state),
-                        visibility: isGod(state) ? 0 : 10000,
-                        flags: { sex: getSex(state) },
-                        weaponId: -1,
-                        helping: -1,
-                    }))
-                    .then(() => sendWizards(state, sendVisiblePlayer(name, `[ ${name}  has entered the game ]\n`)))
-                    .then(() => {
-                        setGameOn(state);
-                        return Promise.all([
-                            roll(),
-                            processEvents(state),
-                        ])
-                    })
-                    .then(([
-                        locationRoll,
-                    ]) => {
-                        if (locationRoll > 50) {
-                            setLocationId(state, -5);
-                        } else {
-                            setLocationId(state, -183);
-                        }
-                        return Events.sendLocalMessage(state, getLocationId(state), name, sendVisiblePlayer(name, `${name}  has entered the game\n`));
-                    })
-            })
-            .then(() => true);
-    }
-    console.log('Unknown . option');
-    return Promise.resolve(true);
-};
-
-/*
-long dsdb=0;
-
-
-long moni=0;
-*/
-
-const tbroad = Events.broadcast;
-
-/*
-long  bound=0;
-long  tmpimu=0;
-char  *echoback="*e";
-char  *tmpwiz=".";*//* Illegal name so natural immunes are ungettable! *//*
-*/
-
-const split = (state: State, block: { payload: string }, name1: string, name2: string, work: string, user: string): boolean => {
-    const { payload } = block;
-    const a = scan(name1, payload, 0, '', '.');
-    scan(name2, payload, a + 1, '', '.');
-    if (name1.toLowerCase().substr(0, 4) === 'the ') {
-        if (name1.toLowerCase().substr(4) === user.toLowerCase()) {
-            return true;
-        }
-    }
-    return name1.toLowerCase() === user.toLowerCase();
-};
-
-const trapch = (state: State, locationId: number): Promise<void> => loadWorld(state)
-    .then(newState => setPlayer(newState, newState.mynum, { locationId }))
-    .then(() => lookin(state, locationId));
 
 /*
 long mynum=0;

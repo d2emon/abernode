@@ -71,10 +71,13 @@ import {
     resetEvents,
     setConversationOn, setConversationShell,
     setFaded,
-    setLocationId
 } from "../tk/reducer";
 import {sendMessage} from "../bprintf/bprintf";
-import {processEvents} from "../tk";
+import {
+    processEvents,
+    setLocationId,
+} from "../tk";
+import {Event} from "../services/world";
 
 const debug2 = (state: State): Promise<void> => Promise.resolve(bprintf(state, 'No debugger available\n'));
 
@@ -98,6 +101,17 @@ const onFlee = (state: State): Promise<void> => Promise.all([
     ]) => items.forEach((item) => isCarriedBy(item, player, !isWizard(state)) && !isWornBy(state, item, player) && putItem(state, item.itemId, item.locationId)))
     .then(() => undefined);
 
+const split = (state: State, event: Event, user: string): boolean => {
+    const {
+        receiver,
+    } = event;
+    if (receiver.toLowerCase().substr(0, 4) === 'the ') {
+        if (receiver.toLowerCase().substr(4) === user) {
+            return true;
+        }
+    }
+    return (receiver.toLowerCase() === user);
+};
 // -------------------------------------------------
 
 /**
@@ -566,7 +580,7 @@ long ades=0;
 long zapped;
 */
 
-const gamrcv = (state: State, block: { locationId: number, code: number }): Promise<void> => {
+const gamrcv = (state: State, block: Event): Promise<void> => {
     const actions = {
         '-9900': () => setPlayer(state, i[0], { visibility: i[1] }),
         '-666': () => {
@@ -722,19 +736,23 @@ const gamrcv = (state: State, block: { locationId: number, code: number }): Prom
          */
     };
     const nameme = getName(state).toLowerCase();
-    const [isme, name1, name2, text] = split(state, block, nameme);
-    const i = text;
-    return findPlayer(state, name1)
-        .then((player1) => {
-            if ((block.code === -20000) && (player1.playerId === state.fighting) {
+    const isMe = split(state, block, nameme);
+    const {
+        receiver,
+        sender,
+        payload,
+    } = block;
+    return findPlayer(state, receiver)
+        .then((receiver) => {
+            if ((block.code === -20000) && (receiver.playerId === state.fighting)) {
                 state.in_fight = 0;
                 state.fighting = -1;
                 return;
             } else if (block.code < -10099) {
-                return newReceive(state, isme, block.locationId, name1, name2, block.code, text);
+                return newReceive(state, isMe, block.locationId, receiver, sender, block.code, payload);
             } else {
                 const action = actions[block.code] || (() => undefined);
-                return action(text);
+                return action(payload);
             }
         });
 };
@@ -1227,8 +1245,8 @@ const stealcom = (state: State): Promise<void> => {
 
 const dosumm = (state: State, locationId: number): Promise<void> => {
     const oldLocationId = getLocationId(state);
-    setLocationId(state, locationId);
     return Promise.all([
+        setLocationId(state, locationId),
         sendLocalMessage(state, oldLocationId, getName(state), sendVisiblePlayer(getName(state), `${getName(state)} vanishes in a puff of smoke\n`)),
         sendLocalMessage(state, locationId, getName(state), sendVisiblePlayer(getName(state), `${getName(state)} appears in a puff of smoke\n`)),
         dropMyItems(state),

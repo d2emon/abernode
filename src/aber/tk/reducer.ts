@@ -36,10 +36,6 @@ export const setEventId = (state: State, value: number): void => {
 export const setChannelId = (state: State, value: number): void => {
     state.curch = value;
 };
-export const setLocationId = (state: State, value: number): void => {
-    state.curch = value;
-    trapch(state, value);
-};
 export const setName = (state: State, value: string): void => {
     state.globme = value;
 };

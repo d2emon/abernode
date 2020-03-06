@@ -16,11 +16,11 @@ import {roll} from "../magic";
 import {sendVisiblePlayer} from "../bprintf";
 import {getLevel, isWizard} from "../newuaf/reducer";
 import {loadWorld} from "../opensys";
-import {sendDamage, sendLocalMessage} from "../parse/events";
 import Action from "../action";
-import {getLocationId, getName, isHere, setLocationId} from "../tk/reducer";
+import {getLocationId, getName, isHere} from "../tk/reducer";
+import {setLocationId} from "../tk";
+import Events from "../tk/events";
 
-const trapch = (state: State, locationId: number): void => undefined;
 
 /**
  * Extensions section 1
@@ -30,14 +30,8 @@ const trapch = (state: State, locationId: number): void => undefined;
 
 export const getAvailableItem = (state: State): Promise<Item> => {
     return Action.nextWord(state, 'Tell me more ?')
-        .then(name => loadWorld(state).then(newState => Promise.all([
-            newState,
-            name,
-        ]))
-        .then(([
-            newState,
-            name,
-        ]) => findAvailableItem(newState, name))
+        .then(name => loadWorld(state).then(() => name))
+        .then((name) => findAvailableItem(state, name))
         .then((item) => {
             if (!item) {
                 throw new Error('There isn\'t one of those here');
@@ -83,7 +77,7 @@ export const setPlayerDamage = (state: State, enemy: Player, player: Player): Pr
                     .then(damageRoll => damageRoll % enemy.damage)
                 : -1;
         })
-        .then(damage => sendDamage(state, player, {
+        .then(damage => Events.sendDamage(state, player, {
             characterId: enemy.playerId,
             damage,
         }));
@@ -116,10 +110,10 @@ export const sendBotDamage = (state: State, player: Player, damage: number): Pro
 
 export const teleport = (state: State, locationId: number): Promise<void> => {
     const oldLocationId = getLocationId(state);
-    setLocationId(state, locationId);
     return Promise.all([
-        sendLocalMessage(state, oldLocationId, getName(state), sendVisiblePlayer(getName(state), `${getName(state)} has left.\n`)),
-        sendLocalMessage(state, locationId, getName(state), sendVisiblePlayer(getName(state), `${getName(state)} has arrived.\n`)),
+        setLocationId(state, locationId),
+        Events.sendLocalMessage(state, oldLocationId, getName(state), sendVisiblePlayer(getName(state), `${getName(state)} has left.\n`)),
+        Events.sendLocalMessage(state, locationId, getName(state), sendVisiblePlayer(getName(state), `${getName(state)} has arrived.\n`)),
     ])
         .then(() => {});
 };

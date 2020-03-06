@@ -26,8 +26,9 @@ import {roll} from "./index";
 import {sendWizards} from "../new1/events";
 import {isWornBy} from "../new1";
 import {getLevel, getStrength, isAdmin, isGod, isWizard, updateStrength} from "../newuaf/reducer";
-import {sendLocalMessage, sendSummon, sendVisibility} from "../parse/events";
-import {getLocationId, getName, setEventsUnprocessed, setLocationId} from "../tk/reducer";
+import {getLocationId, getName} from "../tk/reducer";
+import {setLocationId} from '../tk';
+import Events from "../tk/events";
 
 const roomnum = (state: State, roomId: string, zoneId: string): number => 0;
 const sillycom = (state: State, message: string): void => undefined;
@@ -50,7 +51,7 @@ export class Summon extends Action {
             throw new Error('You can only summon people');
         }
         return Summon.ownerLocationId(state, item)
-            .then(locationId => sendLocalMessage(state, locationId, getName(state), `${sendName(getName(state))} has summoned the ${item.name}\n`))
+            .then(locationId => Events.sendLocalMessage(state, locationId, getName(state), `${sendName(getName(state))} has summoned the ${item.name}\n`))
             .then(() => holdItem(state, item.itemId, state.mynum))
             .then(() => ({
                 item: {
@@ -127,14 +128,14 @@ export class Summon extends Action {
             })
             .then(() => {
                 if (!player.isBot) {
-                    return sendSummon(state, player, getName(state), getLocationId(state));
+                    return Events.sendSummon(state, player, getName(state), getLocationId(state));
                 }
                 if ((player.playerId === 17) || (player.playerId === 23)) {
                     return;
                 }
                 return Promise.all([
                     dropItems(state, player),
-                    sendLocalMessage(state, getLocationId(state), undefined, sendVisiblePlayer(player.name, `${player.name} has arrived\n`)),
+                    Events.sendLocalMessage(state, getLocationId(state), undefined, sendVisiblePlayer(player.name, `${player.name} has arrived\n`)),
                     setPlayer(state, player.playerId, { locationId: getLocationId(state) }),
                 ])
                     .then(() => {});
@@ -234,11 +235,11 @@ export class GoToLocation extends Action {
                 }
                 return fclose(room).then(() => locationId);
             })
-            .then((locationId) => {
-                sillycom(state, sendVisiblePlayer('%s', `%s ${state.mout_ms}\n`));
-                setLocationId(state, locationId);
-                sillycom(state, sendVisiblePlayer('%s', `%s ${state.min_ms}\n`));
-            });
+            .then((locationId) => Promise.all([
+                Promise.resolve(sillycom(state, sendVisiblePlayer('%s', `%s ${state.mout_ms}\n`))),
+                setLocationId(state, locationId),
+                Promise.resolve(sillycom(state, sendVisiblePlayer('%s', `%s ${state.min_ms}\n`))),
+            ]));
     }
 }
 
@@ -263,7 +264,7 @@ export class Visible extends Action {
                     throw new Error('You already are visible');
                 }
                 return Promise.all([
-                    sendVisibility(state, {
+                    Events.sendVisibility(state, {
                         playerId: me.playerId,
                         visibility: 0,
                     }),
@@ -299,7 +300,7 @@ export class Invisible extends Action {
                 }
             })
             .then(visibility => Promise.all([
-                sendVisibility(state, {
+                Events.sendVisibility(state, {
                     playerId: actor.playerId,
                     visibility,
                 }),
@@ -331,7 +332,7 @@ export class Ressurect extends Action {
                 return createItem(state, item.itemId);
             })
             .then((item) => Promise.all([
-                sendLocalMessage(state, getLocationId(state), undefined, `The ${item.name} suddenly appears`),
+                Events.sendLocalMessage(state, getLocationId(state), undefined, `The ${item.name} suddenly appears`),
                 putItem(state, item.itemId, getLocationId(state)),
             ]));
     }

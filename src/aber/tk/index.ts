@@ -7,16 +7,45 @@ import {
     getEventId,
     getEventUnset,
     getName,
-    isEventsUnprocessed,
+    isEventsUnprocessed, setChannelId,
     setEventId,
     setEventsProcessed,
     setEventsUnprocessed
 } from "./reducer";
 import {endGame} from "../gamego/endGame";
+import Events from "./events";
+import {setPlayer} from "../support";
 
 const eorte = (state: State, interrupt: boolean = false) => (): Promise<void> => Promise.resolve();
 const gamrcv = (state: State, event: Event) => (): Promise<void> => Promise.resolve();
+const lookin = (state: State, locationId: number) => (): Promise<void> => Promise.resolve();
 const update = (state: State, name: string) => (): Promise<void> => Promise.resolve();
+
+/**
+ * AberMUD II   C
+ *
+ * This game systems, its code scenario and design
+ * are (C) 1987/88  Alan Cox,Jim Finnis,Richard Acott
+ *
+ * This file holds the basic communications routines
+ */
+
+
+/**
+ * Data format for mud packets
+ *
+ * Sector 0
+ * [64 words]
+ * 0   Current first message pointer
+ * 1   Control Word
+ * Sectors 1-n  in pairs ie [128 words]
+ *
+ * [channel][controlword][text data]
+ *
+ * [controlword]
+ * 0 = Text
+ * - 1 = general request
+ */
 
 const processEvent = (state: State) => (event: Event): Promise<void> => {
     const systemEvent = (state: State, event: Event, message: string): Promise<void> => sendMessage(state, message)
@@ -79,3 +108,12 @@ export const processAndSave = (
         .then(() => saveWorld(state))
         .then(() => state);
 };
+
+const tbroad = Events.broadcast;
+
+export const setLocationId = (state: State, locationId: number): Promise<void> => {
+    setChannelId(state, locationId);
+    return loadWorld(state)
+        .then(world => setPlayer(state, state.mynum, { locationId }))
+        .then(lookin(state, locationId));
+}
