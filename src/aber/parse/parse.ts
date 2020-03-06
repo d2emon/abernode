@@ -1,6 +1,17 @@
 import State from "../state";
 import Events from '../tk/events';
-import {createItem, getItem, getItems, getPlayer, getTitle, holdItem, putItem, setItem, setPlayer} from "../support";
+import {
+    createItem,
+    getItem,
+    getItems,
+    getPlayer,
+    getTitle,
+    holdItem,
+    Player,
+    putItem,
+    setItem,
+    setPlayer
+} from "../support";
 import {CREDITS, GWIZ, logger, RESET_DATA, ROOMS} from "../files";
 import {CONTAINED_IN, IS_DESTROYED} from "../object";
 import {
@@ -81,24 +92,18 @@ import {Event} from "../services/world";
 
 const debug2 = (state: State): Promise<void> => Promise.resolve(bprintf(state, 'No debugger available\n'));
 
-const checkForce = (state: State): Promise<void> => Promise.resolve(getForce(state))
+const checkForce = (state: State, actor: Player): Promise<void> => Promise.resolve(getForce(state))
     .then((force) => {
         state.isforce = true;
-        return force ? executeCommand(state, force) : Promise.resolve();
+        return force ? executeCommand(state, force, actor) : Promise.resolve();
     })
     .then(() => {
         state.isforce = false;
         clearForce(state);
     });
 
-const onFlee = (state: State): Promise<void> => Promise.all([
-    getPlayer(state, state.mynum),
-    getItems(state),
-])
-    .then(([
-        player,
-        items,
-    ]) => items.forEach((item) => isCarriedBy(item, player, !isWizard(state)) && !isWornBy(state, item, player) && putItem(state, item.itemId, item.locationId)))
+const onFlee = (state: State, actor: Player): Promise<void> => getItems(state)
+    .then(items => items.forEach((item) => isCarriedBy(item, actor, !isWizard(state)) && !isWornBy(state, item, actor) && putItem(state, item.itemId, item.locationId)))
     .then(() => undefined);
 
 const split = (state: State, event: Event, user: string): boolean => {
@@ -163,7 +168,7 @@ const doaction = (state: State, actionId: number): Promise<void> => {
           tellcom();
           break;
           */
-        21: () => savePerson(state),
+        21: () => savePerson(state, actor),
         /*
        case 22:
           scorecom();
@@ -470,19 +475,13 @@ const doaction = (state: State, actionId: number): Promise<void> => {
           bprintf("Your adventurers automatic monster detecting radar, and long range\n");
           bprintf("mapping kit, is, sadly, out of order.\n");break;
        */
-            174: () => new Promise((resolve) => {
+            174: (actor: Player) => new Promise((resolve) => {
                 if (!state.in_fight) {
                     return dogocom(state);
                 }
-                return Promise.all([
-                    getPlayer(state, state.mynum),
-                    getItem(state, 32),
-                ])
-                    .then(([
-                        player,
-                        runeSword,
-                    ]) => {
-                        if (isCarriedBy(runeSword, player, !isWizard(state))) {
+                return getItem(state, 32)
+                    .then((runeSword) => {
+                        if (isCarriedBy(runeSword, actor, !isWizard(state))) {
                             bprintf(state, 'The sword won\'t let you!!!!\n');
                             return resolve();
                         }
@@ -515,8 +514,7 @@ const doaction = (state: State, actionId: number): Promise<void> => {
           edit_world();
           break;
           */
-         180: () => getPlayer(state, state.mynum)
-             .then((player) => player.canUseDebugMode && changeDebugMode(state)),
+         180: (actor: Player) => Promise.resolve(actor.canUseDebugMode && changeDebugMode(state)),
         /*
        case 181:
           setpflags();
@@ -649,7 +647,7 @@ const gamrcv = (state: State, block: Event): Promise<void> => {
             }
             state.rdes = 1;
             state.vdes = payload.characterId;
-            return receiveDamage(state, payload, isme);
+            return receiveDamage(state, payload, isMe, actor);
         },
         '-10020': (payload) => {
             if (!isme) {
@@ -749,7 +747,7 @@ const gamrcv = (state: State, block: Event): Promise<void> => {
                 state.fighting = -1;
                 return;
             } else if (block.code < -10099) {
-                return newReceive(state, isMe, block.locationId, receiver, sender, block.code, payload);
+                return newReceive(state, actor, isMe, block.channelId, receiver, sender, block.code, payload);
             } else {
                 const action = actions[block.code] || (() => undefined);
                 return action(payload);
@@ -801,7 +799,7 @@ const eorte = (state: State): Promise<void> => {
                             getPlayer(state, state.fighting),
                             getItem(state, state.wpnheld),
                         ])
-                            .then(([enemy, weapon]) => hitPlayer(state, enemy, weapon));
+                            .then(([enemy, weapon]) => hitPlayer(state, actor, enemy, weapon));
                     }
                 }
             });
@@ -809,23 +807,21 @@ const eorte = (state: State): Promise<void> => {
     return p
         .then(() => Promise.all([
             checkRoll(r => r < 10),
-            getPlayer(state, state.mynum),
             getItem(state, 18),
         ])
         .then(([
             xpRoll,
-            player,
             item,
         ]) => {
-            if (xpRoll || isWornBy(state, item, player)) {
+            if (xpRoll || isWornBy(state, item, actor)) {
                 updateStrength(state, 1);
                 calibme(state);
             }
-            checkForce(state);
+            checkForce(state, actor);
             if (state.me_drunk > 0) {
                 state.me_drunk -= 1;
                 if (!getDumb(state)) {
-                    executeCommand(state, 'hiccup');
+                    executeCommand(state, 'hiccup', actor);
                 }
             }
             state.interrupt = false;
@@ -865,7 +861,7 @@ const rescom = (state: State): Promise<void> => {
         .then(() => resetPlayers(state));
 }
 
-const lightning = (state: State): Promise<void> => {
+const lightning = (state: State, actor: Player): Promise<void> => {
     if (!isWizard(state)) {
         bprintf(state, 'Your spell fails.....\n');
         return Promise.resolve();
@@ -878,12 +874,12 @@ const lightning = (state: State): Promise<void> => {
             }
             return sendExorcise(state, getName(state), player, player.locationId)
                 .then(() => logger.write(`${getName(state)} zapped ${player.name}`))
-                .then(() => sendBotDamage(state, player, 10000))
+                .then(() => sendBotDamage(state, actor, player, 10000))
                 .then(() => Events.broadcast(state, sendSound('You hear an ominous clap of thunder in the distance\n')));
         });
 };
 
-const eatcom = (state: State): Promise<void> => {
+const eatcom = (state: State, actor: Player): Promise<void> => {
     return Action.nextWord(state, 'What')
         .then((word) => {
             if (isHere(state, -609) && (word === 'water')) {
@@ -894,14 +890,14 @@ const eatcom = (state: State): Promise<void> => {
             }
             return word;
         })
-        .then(word => findAvailableItem(state, word))
+        .then(word => findAvailableItem(state, word, actor))
         .then((item) => {
             if (item.itemId === -1) {
                 return bprintf(state, 'There isn\'t one of those here\n');
             } else if (item.itemId === 11) {
                 bprintf(state, 'You feel funny, and then pass out\n');
                 bprintf(state, 'You wake up elsewhere....\n');
-                return teleport(state, -1076);
+                return teleport(state, -1076, actor);
             } else if (item.itemId === 75) {
                 return bprintf(state, 'very refreshing\n');
             } else if (item.itemId === 175) {
@@ -929,7 +925,7 @@ const eatcom = (state: State): Promise<void> => {
         });
 };
 
-const calibme = (state: State): Promise<void> => {
+const calibme = (state: State, actor: Player): Promise<void> => {
     /* Routine to correct me in user file */
     if (!getCanCalibrate(state)) {
         return;
@@ -939,20 +935,15 @@ const calibme = (state: State): Promise<void> => {
         setLevel(state, level);
         bprintf(state, `You are now ${getName(state)} `);
         logger.write(`${getName(state)} to level ${level}`)
+            .then(() => bprintf(state, `${getTitle(level, getSex(state), state.hasfarted)}\n`))
+            .then(() => sendWizards(state, `${sendName(getName(state))} is now level ${level}\n`))
             .then(() => {
-                bprintf(state, `${getTitle(level, getSex(state), state.hasfarted)}\n`);
-                return getPlayer(state, state.mynum);
-            })
-            .then((player) => {
-                return sendWizards(state, `${sendName(getName(state))} is now level ${level}\n`)
-                    .then(() => {
-                        if (level === 10) {
-                            bprintf(state, showFile(GWIZ));
-                        }
-                    });
+                if (level === 10) {
+                   bprintf(state, showFile(GWIZ));
+                }
             });
     }
-    return setPlayer(state, state.mynum, {
+    return setPlayer(state, actor.playerId, {
         level: getLevel(state),
         strength: getStrength(state),
         sex: getSex(state),
@@ -993,17 +984,11 @@ const levelof = (state: State, score: number): number => {
     }
 };
 
-const playcom = (state: State): Promise<void> => {
+const playcom = (state: State, actor: Player): Promise<void> => {
     return Action.nextWord(state, 'Play what ?')
-        .then(word => Promise.all([
-            getPlayer(state, state.mynum),
-            findAvailableItem(state, word),
-        ]))
-        .then(([
-            player,
-            item,
-        ]) => {
-            if ((item.itemId === -1) || !isAvailable(item, player, getLocationId(state), !isWizard(state))) {
+        .then(word => findAvailableItem(state, word, actor))
+        .then((item) => {
+            if ((item.itemId === -1) || !isAvailable(item, actor, getLocationId(state), !isWizard(state))) {
                 return bprintf(state, 'That isn\'t here\n');
             }
         })
@@ -1082,18 +1067,18 @@ const exorcom = (state: State): Promise<void> => {
         })
 };
 
-const givecom = (state: State): Promise<void> => {
+const givecom = (state: State, actor: Player): Promise<void> => {
     const obfrst = (player: Player, name: string) => {
         if (!player) {
             return bprintf(state, `Who is ${name}\n`);
         }
         return Action.nextWord(state, 'Give them what ?\n')
-            .then(word => findAvailableItem(state, word))
+            .then(word => findAvailableItem(state, word, actor))
             .then((item) => {
                 if (item.itemId === -1) {
                     return bprintf(state, 'You are not carrying that\n');
                 }
-                return dogive(state, item.itemId, player.playerId);
+                return dogive(state, item.itemId, player.playerId, actor);
             })
     };
 
@@ -1103,7 +1088,7 @@ const givecom = (state: State): Promise<void> => {
             if (player) {
                 return obfrst(player, word);
             }
-            return findAvailableItem(state, word)
+            return findAvailableItem(state, word, actor)
                 .then((item) => {
                     if (item.itemId === -1) {
                         return bprintf(state, 'You aren\'t carrying that\n');
@@ -1150,20 +1135,18 @@ const givecom = (state: State): Promise<void> => {
         });
 };
 
-const dogive = (state: State, itemId: number, playerId: number): Promise<void> => Promise.all([
-    getPlayer(state, state.mynum),
+const dogive = (state: State, itemId: number, playerId: number, actor: Player): Promise<void> => Promise.all([
     getItem(state, itemId),
     getPlayer(state, playerId),
 ])
     .then(([
-        me,
         item,
         player,
     ]) => {
         if (!isWizard(state) && !isHere(state, player.locationId)) {
             return bprintf(state, 'They are not here\n');
         }
-        if (!isCarriedBy(item, me, !isWizard(state))) {
+        if (!isCarriedBy(item, actor, !isWizard(state))) {
             return bprintf(state, 'You are not carrying that\n');
         }
         if (!cancarry(state, player.playerId)) {
@@ -1176,7 +1159,7 @@ const dogive = (state: State, itemId: number, playerId: number): Promise<void> =
             .then(() => sendPrivate(state, player, `${sendName(getName(state))} gives you the ${item.name}\n`));
     });
 
-const stealcom = (state: State): Promise<void> => {
+const stealcom = (state: State, actor: Player): Promise<void> => {
     return Action.nextWord(state, 'Steal what from who ?')
         .then(x => Promise.all([
             Promise.resolve(x),
@@ -1216,7 +1199,7 @@ const stealcom = (state: State): Promise<void> => {
                     if (player.weaponId === item.itemId) {
                         return bprintf(state, 'They have that firmly to hand .. for KILLING people with\n');
                     }
-                    if (!cancarry(state, state.mynum)) {
+                    if (!cancarry(state, actor.playerId)) {
                         return bprintf(state, 'You can\'t carry any more\n');
                     }
 
@@ -1230,10 +1213,10 @@ const stealcom = (state: State): Promise<void> => {
                                 if (f & 1) {
                                     return Promise.all([
                                         sendPrivate(state, player, `${sendName(getName(state))} steals the ${item.name} from you !\n`),
-                                        sendBotDamage(state, player, 0),
+                                        sendBotDamage(state, actor, player, 0),
                                     ]);
                                 }
-                                return holdItem(state, item.itemId, state.mynum);
+                                return holdItem(state, item.itemId, actor.playerId);
                             } else {
                                 return bprintf(state, 'Your attempt fails\n');
                             }
@@ -1246,10 +1229,10 @@ const stealcom = (state: State): Promise<void> => {
 const dosumm = (state: State, locationId: number): Promise<void> => {
     const oldLocationId = getLocationId(state);
     return Promise.all([
-        setLocationId(state, locationId),
+        setLocationId(state, locationId, actor),
         sendLocalMessage(state, oldLocationId, getName(state), sendVisiblePlayer(getName(state), `${getName(state)} vanishes in a puff of smoke\n`)),
         sendLocalMessage(state, locationId, getName(state), sendVisiblePlayer(getName(state), `${getName(state)} appears in a puff of smoke\n`)),
-        dropMyItems(state),
+        dropMyItems(state, actor),
     ])
         .then(() => {});
 };
@@ -1272,71 +1255,69 @@ const tsscom = (state: State): Promise<void> => {
         });
 };
 
-const rmedit = (state: State): Promise<void> => getPlayer(state, state.mynum)
-    .then((editor) => {
-        if (!editor.isEditor) {
-            return bprintf(state, 'Dum de dum.....\n');
-        }
-        return sendWizards(state, sendVisiblePlayer(getName(state), `${getName(state)} fades out of reality\n`))
-            .then(() => {
-                /* Info */
-                setFaded(state); /* CODE NUMBER */
-                return showMessages(state);
-            })
-            .then(() => saveWorld(state))
-            .then(() => {
-                if (chdir(state, ROOMS) === -1) {
-                    bprintf(state, 'Warning: Can\'t CHDIR\n');
-                }
-                const ms2 = '/cs_d/aberstudent/yr2/hy8/.sunbin/emacs';
-                system(state, ms2);
-                resetEvents(state);
-            })
-            .then(() => loadWorld(state))
-            .then(newState => findPlayer(newState, getName(newState)))
-            .then((me) => {
-                if (!me) {
-                   loseme(state);
-                    return endGame(state, 'You have been kicked off');
-                }
-                return sendWizards(state, sendVisiblePlayer(getName(state), `${getName(state)} re-enters the normal universe\n`));
-            })
-            .then(() => processEvents(state));
-    });
+const rmedit = (state: State, actor: Player): Promise<void> => {
+    if (!actor.isEditor) {
+        return bprintf(state, 'Dum de dum.....\n');
+    }
+    return sendWizards(state, sendVisiblePlayer(getName(state), `${getName(state)} fades out of reality\n`))
+        .then(() => {
+            /* Info */
+            setFaded(state); /* CODE NUMBER */
+            return showMessages(state);
+        })
+        .then(() => saveWorld(state))
+        .then(() => {
+            if (chdir(state, ROOMS) === -1) {
+                bprintf(state, 'Warning: Can\'t CHDIR\n');
+            }
+            const ms2 = '/cs_d/aberstudent/yr2/hy8/.sunbin/emacs';
+            system(state, ms2);
+            resetEvents(state);
+        })
+        .then(() => loadWorld(state))
+        .then(world => findPlayer(state, getName(state)))
+        .then((me) => {
+            if (!me) {
+                loseme(state);
+                return endGame(state, 'You have been kicked off');
+            }
+            return sendWizards(state, sendVisiblePlayer(getName(state), `${getName(state)} re-enters the normal universe\n`));
+        })
+        .then(() => processEvents(state));
+};
 
-const u_system = (state: State): Promise<void> => getPlayer(state, state.mynum)
-    .then((editor) => {
-        if (!isWizard(state)) {
-            return bprintf(state, 'You\'ll have to leave the game first!\n');
-        }
+const u_system = (state: State, actor: Player): Promise<void> => {
+    if (!isWizard(state)) {
+        return bprintf(state, 'You\'ll have to leave the game first!\n');
+    }
 
-        setFaded(state); /* CODE NUMBER */
-        return sendWizards(state, sendVisiblePlayer(getName(state), `${getName(state)} has dropped into BB\n`))
-            .then(() => saveWorld(state))
-            .then(() => system(state, '/cs_d/aberstudent/yr2/iy7/bt'))
-            .then(() => loadWorld(state))
-            .then((newState) => {
-                resetEvents(newState);
-                return findPlayer(newState, getName(newState));
-            })
-            .then((me) => {
-                if (!me) {
-                    loseme(state);
-                    return endGame(state, 'You have been kicked off');
-                }
-                return processEvents(state);
-            })
-            .then(() => loadWorld(state))
-            .then(newState => sendWizards(newState, sendVisiblePlayer(getName(newState), `${getName(newState)} has returned to AberMud\n`)));
-    });
+    setFaded(state); /* CODE NUMBER */
+    return sendWizards(state, sendVisiblePlayer(getName(state), `${getName(state)} has dropped into BB\n`))
+        .then(() => saveWorld(state))
+        .then(() => system(state, '/cs_d/aberstudent/yr2/iy7/bt'))
+        .then(() => loadWorld(state))
+        .then((world) => {
+            resetEvents(state);
+            return findPlayer(state, getName(state));
+        })
+        .then((me) => {
+            if (!me) {
+                loseme(state);
+                return endGame(state, 'You have been kicked off');
+            }
+            return processEvents(state);
+        })
+        .then(() => loadWorld(state))
+        .then(world => sendWizards(state, sendVisiblePlayer(getName(state), `${getName(state)} has returned to AberMud\n`)));
+};
 
-const inumcom = (state: State): Promise<void> => {
+const inumcom = (state: State, actor: Player): Promise<void> => {
     if (!isGod(state)) {
         bprintf(state, 'Huh ?\n');
         return;
     }
     return Action.nextWord(state, 'What...')
-        .then(word => findItem(state, word))
+        .then(word => findItem(state, word, actor))
         .then(item => bprintf(state, `Item Number is ${item.itemId}\n`));
 };
 
@@ -1403,10 +1384,10 @@ const rawcom = (state: State): Promise<void> => {
     }
 };
 
-const rollcom = (state: State): Promise<void> => getAvailableItem(state)
+const rollcom = (state: State, actor: Player): Promise<void> => getAvailableItem(state, actor)
     .then((item) => {
         if ((item.itemId === 122) || (item.itemId === 123)) {
-            return executeCommand(state, 'push pillar');
+            return executeCommand(state, 'push pillar', actor);
         } else {
             return bprintf(state, 'You can\'t roll that\n');
         }
@@ -1435,7 +1416,7 @@ const typocom = (state: State): Promise<void> => {
     return logger.write(`Typo by ${y} : ${x}`);
 };
 
-const look_cmd = (state: State): Promise<void> => Action.nextWord(state)
+const look_cmd = (state: State, actor: Player): Promise<void> => Action.nextWord(state)
     .then((word) => {
         if (!word) {
             const brhold = state.brmode;
@@ -1454,7 +1435,7 @@ const look_cmd = (state: State): Promise<void> => Action.nextWord(state)
             return Promise.resolve();
         }
         return Action.nextWord(state, 'In what ?')
-            .then(word => findAvailableItem(state, word))
+            .then(word => findAvailableItem(state, word, actor))
             .then((item) => {
                 if (item.itemId === -1) {
                     return bprintf(state, 'What ?\n');
@@ -1529,16 +1510,16 @@ const digcom = (state: State): Promise<void> => getItem(state, 186)
             });
     });
 
-const emptycom = (state: State): Promise<void> => {
-    return  getAvailableItem(state)
+const emptycom = (state: State, actor: Player): Promise<void> => {
+    return  getAvailableItem(state, actor)
         .then((container) => {
             return getItems(state)
                 .then(items => items.filter((item) => isContainedIn(item, container, !isWizard(state))))
                 .then(items => items.forEach((item) => {
-                    return holdItem(state, item.itemId, state.mynum)
+                    return holdItem(state, item.itemId, actor.playerId)
                         .then(() => {
                             bprintf(state, `You empty the ${item.name} from the ${container.name}\n`);
-                            return executeCommand(state, `drop ${item.name}`);
+                            return executeCommand(state, `drop ${item.name}`, actor);
                         })
                         .then(() => showMessages(state))
                         .then(() => loadWorld(state));

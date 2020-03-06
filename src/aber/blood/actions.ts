@@ -21,7 +21,7 @@ import {
 } from './index';
 import {RESET_N} from "../files";
 import {getLevel, setLevel} from "../newuaf/reducer";
-import {isHere} from "../tk/reducer";
+import {isHere, playerIsMe} from "../tk/reducer";
 
 const calibme = (state: State): void => undefined;
 const rescom = (state: State): Promise<any> => Promise.resolve({});
@@ -90,7 +90,7 @@ export class Kill extends Action {
         if (!player) {
             throw new Error('You can\'t do that');
         }
-        if (player.playerId === state.mynum) {
+        if (playerIsMe(state, player.playerId)) {
             throw new Error('Come on, it will look better tomorrow...');
         }
         if (!isHere(state, player.locationId)) {
@@ -125,7 +125,7 @@ export class Kill extends Action {
             this.getVictim(state, player),
             this.getWeapon(state, actor),
         ])
-            .then(([player, weapon]) => hitPlayer(state, player, weapon));
+            .then(([player, weapon]) => hitPlayer(state, actor, player, weapon));
     };
 
     action(state: State, actor: Player): Promise<any> {
@@ -136,7 +136,7 @@ export class Kill extends Action {
                     throw new Error('Who do you think you are , Moog?');
                 }
                 return Promise.all([
-                    findAvailableItem(state, name),
+                    findAvailableItem(state, name, actor),
                     findVisiblePlayer(state, name),
                 ]);
             })

@@ -7,8 +7,9 @@ import {
 import {showMessages} from "../bprintf/output";
 import {onTime} from "../mobile";
 import {saveWorld} from "../opensys";
-import {getName} from "../tk/reducer";
+import {getName, getPlayerId} from "../tk/reducer";
 import {processEvents} from "../tk";
+import {getPlayer} from "../support";
 
 const loseme = (state: State): void => undefined;
 const rte = (state: State, name: string, interrupt: boolean = false): void => undefined;
@@ -24,7 +25,8 @@ const SIGCONT = 'SIGCONT';
 const SIGALRM = 'SIGALRM';
 
 const timerEvent = (state: State) => withNoAlarm(state)(() => processEvents(state, getName(state), true)
-    .then(() => onTime(state))
+    .then(() => getPlayer(state, getPlayerId(state)))
+    .then(actor => onTime(state, actor))
     .then(() => saveWorld(state))
     .then(() => showMessages(state))
     .then(checkPrompt)

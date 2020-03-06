@@ -10,12 +10,12 @@ import {roll} from "../magic";
 import {processEvents, setLocationId} from "./index";
 import Events from "./events";
 
-const setStartingLocationId = (state: State): Promise<number> => roll()
+const setStartingLocationId = (state: State, player: Player): Promise<number> => roll()
     .then((locationRoll) => {
         if (locationRoll > 50) {
-            return setLocationId(state, -5);
+            return setLocationId(state, -5, player);
         } else {
-            return setLocationId(state, -183);
+            return setLocationId(state, -183, player);
         }
     })
     .then(() => getLocationId(state));
@@ -35,7 +35,7 @@ const startGame = (state: State, player: Player): Promise<boolean> => initPerson
         Promise.resolve(setGameOn(state)),
     ]))
     .then(() => Promise.all([
-        setStartingLocationId(state),
+        setStartingLocationId(state, player),
         processEvents(state),
     ]))
     .then(([
@@ -48,15 +48,14 @@ const defaultCommand = (): Promise<boolean> => {
     return Promise.resolve(true);
 };
 
-export const executeSpecial = (state: State, command: string): Promise<boolean> => getPlayer(state, state.mynum)
-    .then((player) => {
-        if (!command) {
-            return Promise.resolve(false);
-        } else if (command[0] !== '.') {
-            return Promise.resolve(false);
-        } else if (command.substr(1).toLowerCase() === 'g') {
-            return startGame(state, player);
-        } else {
-            return defaultCommand();
-        }
-    });
+export const executeSpecial = (state: State, command: string, actor: Player): Promise<boolean> => {
+    if (!command) {
+        return Promise.resolve(false);
+    } else if (command[0] !== '.') {
+        return Promise.resolve(false);
+    } else if (command.substr(1).toLowerCase() === 'g') {
+        return startGame(state, actor);
+    } else {
+        return defaultCommand();
+    }
+};

@@ -14,7 +14,7 @@ import {
 } from "./reducer";
 import {endGame} from "../gamego/endGame";
 import Events from "./events";
-import {setPlayer} from "../support";
+import {Player, setPlayer} from "../support";
 
 const eorte = (state: State, interrupt: boolean = false) => (): Promise<void> => Promise.resolve();
 const gamrcv = (state: State, event: Event) => (): Promise<void> => Promise.resolve();
@@ -85,7 +85,7 @@ export const processEvents = (
         state,
         getEventId(state),
         lastEventId,
-    ))
+    )))
     .then(update(state, name || getName(state)))
     .then(eorte(state, interrupt))
     .then(() => {
@@ -111,9 +111,9 @@ export const processAndSave = (
 
 const tbroad = Events.broadcast;
 
-export const setLocationId = (state: State, locationId: number): Promise<void> => {
+export const setLocationId = (state: State, locationId: number, player: Player): Promise<void> => {
     setChannelId(state, locationId);
     return loadWorld(state)
-        .then(world => setPlayer(state, state.mynum, { locationId }))
+        .then(world => setPlayer(state, player.playerId, { locationId }))
         .then(lookin(state, locationId));
 }

@@ -1,5 +1,6 @@
 import Action from '../action';
 import State from '../state';
+import Events from "../tk/events";
 import {
     sendSound,
     sendSoundPlayer,
@@ -10,7 +11,6 @@ import {sendAndShow, showMessages} from "../bprintf/output";
 import {getAvailablePlayer} from "../new1/actions";
 import {checkDumb} from "../new1/reducer";
 import {isWizard} from "../newuaf/reducer";
-import {sendEvil} from "../parse/events";
 
 const rescom = (state: State): Promise<any> => Promise.resolve({});
 const sillycom = (state: State, message: string): Promise<any> => Promise.resolve({});
@@ -26,7 +26,7 @@ export class Crash extends Action {
 
     action(state: State): Promise<any> {
         return Promise.all([
-            sendEvil(state),
+            Events.sendEvil(state),
             rescom(state),
         ]);
     }
@@ -50,13 +50,13 @@ export class Sing extends Action {
 }
 
 export class Spray extends Action {
-    action(state: State): Promise<any> {
+    action(state: State, actor: Player): Promise<any> {
         const getWithItem = (): Promise<Item> => Action.nextWord(state, 'With what ?')
             .then((name) => ((name === 'with')
                 ? Action.nextWord(state, 'With what ?')
                 : name
             ))
-            .then(name => findAvailableItem(state, name))
+            .then(name => findAvailableItem(state, name, actor))
             .then(item => item || Promise.reject(new Error('With what ?')));
         return getAvailablePlayer(state)
             .then(player => Promise.all([

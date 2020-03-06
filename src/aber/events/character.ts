@@ -11,6 +11,7 @@ import {
     sendVisibleName,
 } from "../bprintf";
 import {isWornBy} from "../new1";
+import {playerIsMe} from "../tk/reducer";
 
 const FIGURE = 'figure';
 const GOLEM_ID = 25;
@@ -44,7 +45,7 @@ const figure = {
 
                 if (
                     player
-                    && (player.playerId !== state.mynum)
+                    && !playerIsMe(state, player.playerId)
                     && !signs.some(item => isWornBy(state, item, actor))
                 ) {
                     throw new Error(`${sendName('The Figure')} holds you back\n`

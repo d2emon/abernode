@@ -60,7 +60,7 @@ const onInput = (player: Player) => (state: State): Promise<string> => {
     return sendAndShow(state, prompt)
         .then(alarmKeyInput);
 };
-const afterInput = (state: State) => (input: string): Promise<boolean> => {
+const afterInput = (state: State, player: Player) => (input: string): Promise<boolean> => {
     const process = () => processAndSave(state);
     const applyConversation = (input: string) => (): string => {
         if (!input) {
@@ -78,9 +78,9 @@ const afterInput = (state: State) => (input: string): Promise<boolean> => {
     };
     const executeInput = (input: string) => (): Promise<void> => {
         if (getGameMode(state)) {
-            return executeCommand(state, input);
+            return executeCommand(state, input, player);
         } else if (input && (input.toLowerCase() !== '.q')) {
-            return executeSpecial(state, input)
+            return executeSpecial(state, input, player)
                 .then(() => null);
         }
         return Promise.resolve();
@@ -109,6 +109,6 @@ const afterInput = (state: State) => (input: string): Promise<boolean> => {
 
 const getInput = (state: State, player: Player): Promise<boolean> => beforeInput(state, player)
     .then(onInput(player))
-    .then(afterInput(state));
+    .then(afterInput(state, player));
 
 export default getInput;

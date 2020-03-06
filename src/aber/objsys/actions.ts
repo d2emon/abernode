@@ -20,10 +20,11 @@ import {
     itemsAt,
 } from "./index";
 import {sendMessage} from "../bprintf/bprintf";
-import {sendLocalMessage, sendMyMessage} from "../parse/events";
+import {sendMyMessage} from "../parse/events";
 import * as ChannelEvents from "../events/channel";
 import * as ItemEvents from "../events/item";
 import {getLocationId, getName} from "../tk/reducer";
+import Events from "../tk/events";
 
 const cancarry = (state: State, playerId: number): boolean => false;
 
@@ -32,12 +33,13 @@ const itemsCarriedBy = (state: State, player: Player): Promise<void> => itemsAt(
 
 interface ItemRequest {
     state: State,
+    actor: Player,
     item?: string,
     container?: string,
 }
 
 export class GetItem extends Action {
-    getArgs = (state: State): Promise<ItemRequest> => {
+    getArgs = (state: State, actor: Player): Promise<ItemRequest> => {
         const getItemName = Action.nextWord(state, 'Get what?');
         const getFrom = (itemName: string) => Promise.all([
             Promise.resolve(itemName),
@@ -68,6 +70,7 @@ export class GetItem extends Action {
             container,
         ]) => ({
             state,
+            actor,
             item,
             container,
         });
@@ -79,6 +82,7 @@ export class GetItem extends Action {
 
     private static getItem = (request: ItemRequest) => {
         const {
+            actor,
             item,
             container,
             state,
@@ -89,7 +93,7 @@ export class GetItem extends Action {
             : Promise.reject(new Error('You can\'t take things from that - it\'s not here'));
 
         return container
-            ? findAvailableItem(state, container)
+            ? findAvailableItem(state, container, actor)
                 .then(getFromContainer)
             : findHereItem(state, item);
     };
@@ -97,7 +101,7 @@ export class GetItem extends Action {
     private static checkGet = (state: State, actor: Player) => (item: Item): Promise<Item> => {
         const checkDragon = (): Promise<boolean> => getDragon(state)
             .then((dragon) => (dragon ? Promise.reject() : true));
-        const checkCarry = (): Promise<boolean> => cancarry(state, state.mynum)
+        const checkCarry = (): Promise<boolean> => cancarry(state, actor.playerId)
             ? Promise.resolve(true)
             : Promise.reject(new Error('You can\'t carry any more'));
         const checkAll = (item: Item): Promise<Item> => Promise.all([
@@ -120,7 +124,7 @@ export class GetItem extends Action {
     ]);
 
     private static take = (state: State, actor: Player) => (item: Item): Promise<any> => Promise.all([
-        holdItem(state, item.itemId, state.mynum),
+        holdItem(state, item.itemId, actor.playerId),
         sendMyMessage(state, `${sendPlayerForVisible(getName(state))}${sendVisibleName(` takes the ${item.name}\n`)}`),
         Promise.all(GetItem.onAfterGet(item, getLocationId(state)).map(event => event(state, actor, item))),
     ])
@@ -138,10 +142,11 @@ export class GetItem extends Action {
 }
 
 export class DropItem extends Action {
-    getArgs(state: State): Promise<ItemRequest> {
+    getArgs(state: State, actor: Player): Promise<ItemRequest> {
         return Action.nextWord(state, 'Drop what ?')
             .then(item => ({
                 state,
+                actor,
                 item,
             }));
     }
@@ -181,9 +186,8 @@ export class DropItem extends Action {
 }
 
 export class Inventory extends Action {
-    action(state: State): Promise<any> {
-        return getPlayer(state, state.mynum)
-            .then((player) => itemsCarriedBy(state, player));
+    action(state: State, actor: Player): Promise<any> {
+        return itemsCarriedBy(state, actor);
     }
 
     decorate(result: any): void {

@@ -1,6 +1,6 @@
 import State from "./state";
 import Events from './tk/events';
-import {getItem, getItems, getPlayer, Item, setItem, setPlayer} from "./support";
+import {getItem, getItems, getPlayer, Item, Player, setItem, setPlayer} from "./support";
 import {findAvailableItem, findVisiblePlayer, isCarriedBy, isLocatedIn} from "./objsys";
 import {sendSound, sendSoundPlayer, sendVisibleName, sendVisiblePlayer} from "./bprintf";
 import {roll} from "./magic";
@@ -303,7 +303,7 @@ const cancarry = (state: State, playerId: number): Promise<boolean> => getPlayer
 
     });
 
-const setcom = (state: State): Promise<void> => {
+const setcom = (state: State, actor: Player): Promise<void> => {
     const setmobile = (name: string) => findVisiblePlayer(state, name)
         .then((player) => {
             if (!player) {
@@ -369,7 +369,7 @@ const setcom = (state: State): Promise<void> => {
             }
             return Promise.all([
                 Promise.resolve(word),
-                findAvailableItem(state, word),
+                findAvailableItem(state, word, actor),
             ]);
         })
         .then(([
@@ -457,36 +457,35 @@ const modifwthr = (state: State, weatherId: number): number => {
     }
 };
 
-const setpflags = (state: State): Promise<void> => getPlayer(state, state.mynum)
-    .then((editor) => {
-        if (!editor.isDebugger) {
-            bprintf(state, 'You can\'t do that\n');
-            return Promise.resolve();
-        }
-        return Action.nextWord(state, 'Whose PFlags ?')
-            .then(name => findVisiblePlayer(state, name))
-            .then((player) => {
-                if (!player) {
-                    return bprintf(state, 'Who is that ?\n');
-                }
-                return Action.nextWord(state, 'Flag number ?')
-                    .then(flagId => Promise.all([
-                        Number(flagId),
-                        Action.nextWord(state),
-                    ]))
-                    .then(([b, value]) => {
-                        if (!value) {
-                            return bprintf(state, `Value is ${player.flags[b] ? 'TRUE' : 'FALSE'}\n`);
-                        }
-                        const c = Number(value);
+const setpflags = (state: State, actor: Player): Promise<void> => {
+    if (!actor.isDebugger) {
+        bprintf(state, 'You can\'t do that\n');
+        return Promise.resolve();
+    }
+    return Action.nextWord(state, 'Whose PFlags ?')
+        .then(name => findVisiblePlayer(state, name))
+        .then((player) => {
+            if (!player) {
+                return bprintf(state, 'Who is that ?\n');
+            }
+            return Action.nextWord(state, 'Flag number ?')
+                .then(flagId => Promise.all([
+                    Number(flagId),
+                    Action.nextWord(state),
+                ]))
+                .then(([b, value]) => {
+                    if (!value) {
+                        return bprintf(state, `Value is ${player.flags[b] ? 'TRUE' : 'FALSE'}\n`);
+                    }
+                    const c = Number(value);
 
-                        if ((c < 0) || (c > 1) || (b < 0) || (b > 31)) {
-                            return bprintf(state, 'Out of range\n');
-                        }
-                        return setPlayer(state, player.playerId, { flags: {
-                                ...player.flags,
-                                [b]: c !== 0,
-                            }})
-                    });
-            });
-    });
+                    if ((c < 0) || (c > 1) || (b < 0) || (b > 31)) {
+                        return bprintf(state, 'Out of range\n');
+                    }
+                    return setPlayer(state, player.playerId, { flags: {
+                        ...player.flags,
+                        [b]: c !== 0,
+                    }})
+                });
+        });
+};

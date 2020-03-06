@@ -20,7 +20,6 @@ import {
     Player,
     getHelper,
     getItem,
-    getPlayer,
     holdItem,
     putItem,
     putItemIn,
@@ -63,13 +62,13 @@ import {
 } from "./reducer";
 import {getLevel, getStrength, isWizard, updateScore, updateStrength} from "../newuaf/reducer";
 import {loadWorld} from "../opensys";
-import {sendLocalMessage, sendMyMessage} from "../parse/events";
-import {getLocationId, getName, isHere, setLocationId} from "../tk/reducer";
+import {sendMyMessage} from "../parse/events";
+import {getLocationId, getName, isHere, playerIsMe} from "../tk/reducer";
+import {setLocationId} from "../tk";
 
 const sillycom = (state: State, message: string): Promise<any> => Promise.resolve({});
 const getreinput = (state: State): string => '';
 const loseme = (state: State): void => undefined;
-const trapch = (state: State, locationId: number): void => undefined;
 
 /* This one isnt for magic */
 
@@ -79,6 +78,7 @@ const getTargetPlayer = (state: State): Promise<Player> => Action.nextWord(state
         if (name === 'at') {
             /* STARE AT etc */
             return loadWorld(state)
+                .then(world => state)
                 .then(getTargetPlayer);
         }
         return findVisiblePlayer(state, name)
@@ -91,6 +91,7 @@ const getTargetPlayer = (state: State): Promise<Player> => Action.nextWord(state
     });
 
 export const getAvailablePlayer = (state: State): Promise<Player> => loadWorld(state)
+    .then(world => state)
     .then(getTargetPlayer)
     .then((player) => {
         if (!isHere(state, player.locationId)) {
@@ -99,13 +100,13 @@ export const getAvailablePlayer = (state: State): Promise<Player> => loadWorld(s
         return player;
     });
 
-const spellFails = (state: State, reflect: boolean) => sendMessage(state, 'You fumble the magic\n')
+const spellFails = (state: State, actor: Player, reflect: boolean) => sendMessage(state, 'You fumble the magic\n')
     .then(() => {
         if (!reflect) {
             return undefined;
         }
         return sendMessage(state, 'The spell reflects back\n')
-            .then(() => getPlayer(state, state.mynum));
+            .then(() => actor);
     });
 
 const spellSuccess = (state: State) => (
@@ -114,7 +115,8 @@ const spellSuccess = (state: State) => (
         : Promise.resolve()
 );
 
-const getSpellTarget = (state: State, reflect: boolean = true): Promise<Player> => loadWorld(state)
+const getSpellTarget = (state: State, actor, reflect: boolean = true): Promise<Player> => loadWorld(state)
+    .then(world => state)
     .then(getTargetPlayer)
     .then((player) => {
         if (getStrength(state) < 10) {
@@ -141,7 +143,7 @@ const getSpellTarget = (state: State, reflect: boolean = true): Promise<Player> 
         const bonus = items.filter(item => isCarriedBy(item, player, !isWizard(state))).length;
         const chance = (bonus + 5) * getLevel(state);
         if (!isWizard(state) && (successRoll > chance)) {
-            return spellFails(state, reflect);
+            return spellFails(state, actor, reflect);
         } else {
             return spellSuccess(state)
                 .then(() => player);
@@ -154,7 +156,7 @@ const getSpellTarget = (state: State, reflect: boolean = true): Promise<Player> 
         return target;
     });
 
-const getTouchSpellTarget = (state: State): Promise<Player> => getSpellTarget(state, false)
+const getTouchSpellTarget = (state: State, actor: Player): Promise<Player> => getSpellTarget(state, actor, false)
     .then((player) => {
         if (!isHere(state, player.locationId)) {
             throw new Error('They are not here');
@@ -195,7 +197,7 @@ export class Grope extends Action {
     );
 
     private static grope = (state: State) => (player: Player): Promise<void> => (
-        (player.playerId === state.mynum)
+        playerIsMe(state, player.playerId)
             ? Grope.gropeMyself(state)
             : Grope.gropePlayer(state, player)
     );
@@ -263,8 +265,8 @@ export class Open extends Action {
         throw new Error('You can\'t shift the door from this side!!!!');
     }
 
-    action(state: State): Promise<any> {
-        return getAvailableItem(state)
+    action(state: State, actor: Player): Promise<any> {
+        return getAvailableItem(state, actor)
             .then((item) => {
                 if (item.itemId === 21) {
                     return Open.open21(state, item);
@@ -302,8 +304,8 @@ export class Close extends Action {
             .then(() => 'Ok\n');
     }
 
-    action(state: State): Promise<any> {
-        return getAvailableItem(state)
+    action(state: State, actor: Player): Promise<any> {
+        return getAvailableItem(state, actor)
             .then((item) => {
                 if (item.itemId === 1) {
                     return Close.close1(state, item)
@@ -325,10 +327,10 @@ export class Close extends Action {
 }
 
 export class Lock extends Action {
-    action(state: State): Promise<any> {
+    action(state: State, actor: Player): Promise<any> {
         return Promise.all([
-            getAvailableItem(state),
-            byMask(state, { [IS_KEY]: true })
+            getAvailableItem(state, actor),
+            byMask(state, actor, { [IS_KEY]: true })
         ])
             .then(([
                 item,
@@ -353,10 +355,10 @@ export class Lock extends Action {
 }
 
 export class Unlock extends Action {
-    action(state: State): Promise<any> {
+    action(state: State, actor: Player): Promise<any> {
         return Promise.all([
-            getAvailableItem(state),
-            byMask(state, { [IS_KEY]: true })
+            getAvailableItem(state, actor),
+            byMask(state, actor, { [IS_KEY]: true })
         ])
             .then(([
                 item,
@@ -398,18 +400,18 @@ export class Wave extends Action {
             });
     }
 
-    private static wave158(state: State): Promise<any> {
-        return teleport(state, -114)
+    private static wave158(state: State, actor: Player): Promise<any> {
+        return teleport(state, -114, actor)
             .then(() => 'You are teleported!\n');
     }
 
-    action(state: State): Promise<any> {
-        return getAvailableItem(state)
+    action(state: State, actor: Player): Promise<any> {
+        return getAvailableItem(state, actor)
             .then((item) => {
                 if (item.itemId == 136) {
                     return Wave.wave136(state);
                 } else if (item.itemId == 158) {
-                    return Wave.wave158(state);
+                    return Wave.wave158(state, actor);
                 } else {
                     return null;
                 }
@@ -426,8 +428,8 @@ export class Wave extends Action {
 }
 
 export class Blow extends Action {
-    action(state: State): Promise<any> {
-        return getAvailableItem(state)
+    action(state: State, actor: Player): Promise<any> {
+        return getAvailableItem(state, actor)
             .then(() => {
                 throw new Error('You can\'t blow that\n');
             });
@@ -484,7 +486,7 @@ export class Put extends Action {
         }
         return getItem(state, 193)
             .then(chute => Promise.all([
-                sendLocalMessage(state, chute.locationId, undefined, `The ${item.name} comes out of the chute!\n`),
+                Events.sendLocalMessage(state, chute.locationId, undefined, `The ${item.name} comes out of the chute!\n`),
                 putItem(state, item.itemId, chute.locationId),
             ]))
             .then(() => 'It vanishes down the chute....\n');
@@ -528,8 +530,8 @@ export class Put extends Action {
             });
     }
 
-    action(state: State): Promise<any> {
-        return getAvailableItem(state)
+    action(state: State, actor: Player): Promise<any> {
+        return getAvailableItem(state, actor)
             .then((item) => {
                 return Action.nextWord(state)
                     .catch(() => Promise.reject(new Error('where ?')))
@@ -560,7 +562,7 @@ export class Put extends Action {
                 name,
             ]) => Promise.all([
                 Promise.resolve(item as Item),
-                findAvailableItem(state, name as string),
+                findAvailableItem(state, name as string, actor),
             ]))
             .then(([
                 item,
@@ -598,10 +600,10 @@ export class Put extends Action {
 }
 
 export class Light extends Action {
-    action(state: State): Promise<any> {
+    action(state: State, actor: Player): Promise<any> {
         return Promise.all([
-            getAvailableItem(state),
-            byMask(state, { [IS_LIT]: true }),
+            getAvailableItem(state, actor),
+            byMask(state, actor, { [IS_LIT]: true }),
         ])
             .then(([
                 item,
@@ -629,8 +631,8 @@ export class Light extends Action {
 }
 
 export class Extinguish extends Action {
-    action(state: State): Promise<any> {
-        return getAvailableItem(state)
+    action(state: State, actor: Player): Promise<any> {
+        return getAvailableItem(state, actor)
             .then((item) => {
                 if (item.isLit) {
                     throw new Error('That isn\'t lit');
@@ -672,9 +674,9 @@ export class Push extends Action {
             .then(() => endGame(state, '             S   P    L      A         T           !'));
     }
 
-    private static push162(state: State, item: Item): Promise<any> {
-        setLocationId(state, -140);
-        return Promise.resolve('A trapdoor opens at your feet and you plumment downwards!\n');
+    private static push162(state: State, item: Item, actor: Player): Promise<any> {
+        return setLocationId(state, -140, actor)
+            .then(() => 'A trapdoor opens at your feet and you plumment downwards!\n');
     }
 
     private static push130(state: State, item: Item): Promise<any> {
@@ -739,8 +741,8 @@ export class Push extends Action {
                     ? sendVisibleName('The portcullis falls\n')
                     : sendVisibleName('The portcullis rises\n');
                 return Promise.all([
-                    sendLocalMessage(state, location1, undefined, message),
-                    sendLocalMessage(state, location2, undefined, message),
+                    Events.sendLocalMessage(state, location1, undefined, message),
+                    Events.sendLocalMessage(state, location2, undefined, message),
                 ]);
             });
     }
@@ -768,8 +770,8 @@ export class Push extends Action {
                     ? sendVisibleName('The drawbridge rises\n')
                     : sendVisibleName('The drawbridge is lowered\n');
                 return Promise.all([
-                    sendLocalMessage(state, location1, undefined, message),
-                    sendLocalMessage(state, location2, undefined, message),
+                    Events.sendLocalMessage(state, location1, undefined, message),
+                    Events.sendLocalMessage(state, location2, undefined, message),
                 ]);
             });
     }
@@ -789,9 +791,8 @@ export class Push extends Action {
         return Events.broadcast(state, sendSound('Church bells ring out around you\n'));
     }
 
-    private static push104(state: State, item: Item): Promise<any> {
-        return getPlayer(state, state.mynum)
-            .then(getHelper(state))
+    private static push104(state: State, item: Item, actor: Player): Promise<any> {
+        return getHelper(state)(actor)
             .then((helper) => {
                 if (!helper) {
                     throw new Error('You can\'t shift it alone, maybe you need help');
@@ -801,10 +802,10 @@ export class Push extends Action {
             })
     }
 
-    action(state: State): Promise<any> {
+    action(state: State, actor: Player): Promise<any> {
         return Action.nextWord(state)
             .catch(() => Promise.reject(new Error('Push what ?')))
-            .then(name => findAvailableItem(state, name))
+            .then(name => findAvailableItem(state, name, actor))
             .then((item) => {
                 if (!item) {
                     throw new Error('That is not here');
@@ -812,7 +813,7 @@ export class Push extends Action {
                 if (item.itemId === 126) {
                     return Push.push126(state, item);
                 } else if (item.itemId === 162) {
-                    return Push.push162(state, item);
+                    return Push.push162(state, item, actor);
                 } else if (item.itemId === 130) {
                     return Push.push130(state, item);
                 } else if (item.itemId === 131) {
@@ -830,7 +831,7 @@ export class Push extends Action {
                 } else if (item.itemId === 49) {
                     return Push.push49(state, item);
                 } else if (item.itemId === 104) {
-                    return Push.push104(state, item);
+                    return Push.push104(state, item, actor);
                 } else {
                     return Push.pushDefault(state, item);
                 }
@@ -839,29 +840,29 @@ export class Push extends Action {
 }
 
 export class Cripple extends Action {
-    action(state: State): Promise<any> {
-        return getSpellTarget(state)
+    action(state: State, actor: Player): Promise<any> {
+        return getSpellTarget(state, actor)
             .then(player => sendCripple(state, player));
     }
 }
 
 export class Cure extends Action {
-    action(state: State): Promise<any> {
-        return getTouchSpellTarget(state)
+    action(state: State, actor: Player): Promise<any> {
+        return getTouchSpellTarget(state, actor)
             .then(player => sendCure(state, player));
     }
 }
 
 export class Dumb extends Action {
-    action(state: State): Promise<any> {
-        return getSpellTarget(state)
+    action(state: State, actor: Player): Promise<any> {
+        return getSpellTarget(state, actor)
             .then(player => sendDumb(state, player));
     }
 }
 
 export class Force extends Action {
-    action(state: State): Promise<any> {
-        return getSpellTarget(state)
+    action(state: State, actor: Player): Promise<any> {
+        return getSpellTarget(state, actor)
             .then(player => sendForce(state, player, getreinput(state)));
     }
 }
@@ -879,15 +880,15 @@ export class Missile extends Action {
         return setPlayer(state, victim.playerId, { isDead: true });
     }
 
-    action(state: State): Promise<any> {
-        return getTouchSpellTarget(state)
+    action(state: State, actor: Player): Promise<any> {
+        return getTouchSpellTarget(state, actor)
             .then((player) => {
                 const damage = getLevel(state) * 2;
                 const promises = [sendMissile(state, player, damage)];
                 const result = (player.strength < damage);
                 if (result) {
                     promises.push(Missile.killVictim(state, player));
-                    promises.push(sendBotDamage(state, player, damage));
+                    promises.push(sendBotDamage(state, actor, player, damage));
                 }
                 return Promise.all(promises).then(() => result);
             })
@@ -901,14 +902,14 @@ export class Missile extends Action {
 }
 
 export class Change extends Action {
-    action(state: State): Promise<any> {
+    action(state: State, actor: Player): Promise<any> {
         return Action.nextWord(state)
             .catch(() => Promise.reject(new Error('change what (Sex ?) ?')))
             .then((name) => {
                 if (name !== 'sex') {
                     throw new Error('I don\'t know how to change that\n');
                 }
-                return getSpellTarget(state)
+                return getSpellTarget(state, actor)
             })
             .then((player) => {
                 const promises = [sendChangeSex(state, player)];
@@ -933,10 +934,10 @@ export class Fireball extends Action {
         return setPlayer(state, victim.playerId, { isDead: true });
     }
 
-    action(state: State): Promise<any> {
-        return getTouchSpellTarget(state)
+    action(state: State, actor: Player): Promise<any> {
+        return getTouchSpellTarget(state, actor)
             .then((player) => {
-                if (player.playerId === state.mynum) {
+                if (playerIsMe(state, player.playerId)) {
                     throw new Error('Seems rather dangerous to me....');
                 }
                 return Promise.all([
@@ -953,7 +954,7 @@ export class Fireball extends Action {
                 const result = (player.strength < damage);
                 if (result) {
                     promises.push(Fireball.killVictim(state, player));
-                    promises.push(sendBotDamage(state, player, damage));
+                    promises.push(sendBotDamage(state, actor, player, damage));
                 }
                 return Promise.all(promises).then(() => result);
             })
@@ -979,10 +980,10 @@ export class Shock extends Action {
         return setPlayer(state, victim.playerId, { isDead: true });
     }
 
-    action(state: State): Promise<any> {
-        return getTouchSpellTarget(state)
+    action(state: State, actor: Player): Promise<any> {
+        return getTouchSpellTarget(state, actor)
             .then((player) => {
-                if (player.playerId === state.mynum) {
+                if (playerIsMe(state, player.playerId)) {
                     throw new Error('You are supposed to be killing other people not yourself\n');
                 }
                 const damage = getLevel(state) * 2;
@@ -990,7 +991,7 @@ export class Shock extends Action {
                 const result = (player.strength < damage);
                 if (result) {
                     promises.push(Shock.killVictim(state, player));
-                    promises.push(sendBotDamage(state, player, damage));
+                    promises.push(sendBotDamage(state, actor, player, damage));
                 }
                 return Promise.all(promises).then(() => result);
             })
@@ -1007,7 +1008,7 @@ export class Stare extends Action {
     action(state: State): Promise<any> {
         return getAvailablePlayer(state)
             .then((player) => {
-                if (player.playerId === state.mynum) {
+                if (playerIsMe(state, player.playerId)) {
                     throw new Error('That is pretty neat if you can do it!');
                 }
                 return socialInteraction(
@@ -1025,7 +1026,7 @@ export class Squeeze extends Action {
     action(state: State): Promise<any> {
         return getAvailablePlayer(state)
             .then((player) => {
-                if (player.playerId === state.mynum) {
+                if (playerIsMe(state, player.playerId)) {
                     return 'Ok....\n';
                 }
                 if (!player) {
@@ -1046,7 +1047,7 @@ export class Kiss extends Action {
     action(state: State): Promise<any> {
         return getAvailablePlayer(state)
             .then((player) => {
-                if (player.playerId === state.mynum) {
+                if (playerIsMe(state, player.playerId)) {
                     return 'Weird!\n';
                 }
                 return socialInteraction(
@@ -1064,7 +1065,7 @@ export class Cuddle extends Action {
     action(state: State): Promise<any> {
         return getAvailablePlayer(state)
             .then((player) => {
-                if (player.playerId === state.mynum) {
+                if (playerIsMe(state, player.playerId)) {
                     return 'You aren\'t that lonely are you ?\n';
                 }
                 return socialInteraction(state, player, 'cuddles you\n');
@@ -1076,7 +1077,7 @@ export class Hug extends Action {
     action(state: State): Promise<any> {
         return getAvailablePlayer(state)
             .then((player) => {
-                if (player.playerId === state.mynum) {
+                if (playerIsMe(state, player.playerId)) {
                     return 'Ohhh flowerr!\n';
                 }
                 return socialInteraction(state, player, 'hugs you\n');
@@ -1088,7 +1089,7 @@ export class Slap extends Action {
     action(state: State): Promise<any> {
         return getAvailablePlayer(state)
             .then((player) => {
-                if (player.playerId === state.mynum) {
+                if (playerIsMe(state, player.playerId)) {
                     return 'You slap yourself\n';
                 }
                 return socialInteraction(state, player, 'slaps you\n');
@@ -1100,7 +1101,7 @@ export class Tickle extends Action {
     action(state: State): Promise<any> {
         return getAvailablePlayer(state)
             .then((player) => {
-                if (player.playerId === state.mynum) {
+                if (playerIsMe(state, player.playerId)) {
                     return 'You tickle yourself\n';
                 }
                 return socialInteraction(state, player, 'tickles you\n');
@@ -1109,10 +1110,9 @@ export class Tickle extends Action {
 }
 
 export class Wear extends Action {
-    action(state: State): Promise<any> {
+    action(state: State, actor: Player): Promise<any> {
         return Promise.all([
-            getPlayer(state, state.mynum),
-            getAvailableItem(state),
+            getAvailableItem(state, actor),
             Promise.all([
                 89,
                 113,
@@ -1120,18 +1120,17 @@ export class Wear extends Action {
             ].map(itemId => getItem(state, itemId)))
         ])
             .then(([
-                player,
                 item,
                 shields,
             ]) => {
-                if (!isCarriedBy(item, player, !isWizard(state))) {
+                if (!isCarriedBy(item, actor, !isWizard(state))) {
                     throw new Error('You are not carrying this');
                 }
-                if (isWornBy(state, item, player)) {
+                if (isWornBy(state, item, actor)) {
                     throw new Error('You are wearing this');
                 }
                 if (
-                    shields.some(shield => isWornBy(state, shield, player))
+                    shields.some(shield => isWornBy(state, shield, actor))
                         && shields.some(shield => (item.itemId === shield.itemId))
                 ) {
                     throw new Error('You can\'t use TWO shields at once...');
@@ -1139,40 +1138,34 @@ export class Wear extends Action {
                 if (!item.canBeWorn) {
                     throw new Error('Is this a new fashion ?');
                 }
-                return wearItem(state, item.itemId, state.mynum)
+                return wearItem(state, item.itemId, actor.playerId)
                     .then(() => 'OK\n');
             });
     }
 }
 
 export class Remove extends Action {
-    action(state: State): Promise<any> {
-        return Promise.all([
-            getPlayer(state, state.mynum),
-            getAvailableItem(state),
-        ])
-            .then(([
-                player,
-                item,
-            ]) => {
-                if (!isWornBy(state, item, player)) {
+    action(state: State, actor: Player): Promise<any> {
+        return getAvailableItem(state, actor)
+            .then((item) => {
+                if (!isWornBy(state, item, actor)) {
                     throw new Error('You are not wearing this');
                 }
-                return holdItem(state, item.itemId, state.mynum);
+                return holdItem(state, item.itemId, actor.playerId);
             });
     }
 }
 
 export class Deaf extends Action {
-    action(state: State): Promise<any> {
-        return getSpellTarget(state)
+    action(state: State, actor: Player): Promise<any> {
+        return getSpellTarget(state, actor)
             .then(player => sendDeaf(state, player));
     }
 }
 
 export class Blind extends Action {
-    action(state: State): Promise<any> {
-        return getSpellTarget(state)
+    action(state: State, actor: Player): Promise<any> {
+        return getSpellTarget(state, actor)
             .then(player => sendBlind(state, player));
     }
 }

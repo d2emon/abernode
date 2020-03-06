@@ -1,7 +1,7 @@
 import State from "../state";
 import {
     getItem,
-    getPlayer,
+    getPlayer, Player,
 } from '../support';
 import {logger} from '../files';
 import {dropMyItems} from '../objsys';
@@ -13,14 +13,15 @@ import {sendWizards} from "../new1/events";
 import {removePerson} from "../newuaf";
 import {getStrength, isWizard, updateScore, updateStrength} from "../newuaf/reducer";
 import {loadWorld, saveWorld} from "../opensys";
-import {Attack, sendLocalMessage, sendMyMessage} from "../parse/events";
-import {getLocationId, getName} from "../tk/reducer";
+import {Attack} from "../tk/events";
+import {sendMyMessage} from "../parse/events";
+import {getName} from "../tk/reducer";
 
 const loseme = (state: State): void => undefined;
 
 const WRAITH_ID = 16;
 
-export const receiveDamage = (state: State, attack: Attack, isMe: boolean): Promise<void> => Promise.all([
+export const receiveDamage = (state: State, attack: Attack, isMe: boolean, actor: Player): Promise<void> => Promise.all([
     getPlayer(state, attack.characterId),
     Promise.resolve(attack.damage),
     getItem(state, attack.weaponId),
@@ -35,18 +36,18 @@ export const receiveDamage = (state: State, attack: Attack, isMe: boolean): Prom
             return sendMessage(state, 'You feel weaker, as the wraiths icy touch seems to drain your very life force\n');
         };
 
-        const killed = () => dropMyItems(state)
+        const killed = () => dropMyItems(state, actor)
             .then(() => {
                 loseme(state);
                 return saveWorld(state);
             })
             .then(() => loadWorld(state))
             .then(newState => Promise.all([
-                sendMyMessage(newState, `${sendName(getName(newState))} has just died.\n`),
-                sendWizards(newState, `[ ${sendName(getName(newState))} has been slain by ${sendName(enemy.name)}[/p] ]\n`),
-                logger.write(`${getName(newState)} slain by ${enemy.name}`),
-                removePerson(newState, getName(newState)),
-                endGame(newState, 'Oh dear... you seem to be slightly dead'),
+                sendMyMessage(state, `${sendName(getName(state))} has just died.\n`),
+                sendWizards(state, `[ ${sendName(getName(state))} has been slain by ${sendName(enemy.name)}[/p] ]\n`),
+                logger.write(`${getName(state)} slain by ${enemy.name}`),
+                removePerson(state, getName(state)),
+                endGame(state, 'Oh dear... you seem to be slightly dead'),
             ]))
            .then(() => {});
 

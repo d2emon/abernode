@@ -141,6 +141,7 @@ export default interface State {
     filrf: any,
     // parse
     debug_mode: boolean,
+    mynum: number,
     stp: number,
     strbuf: string,
     wd_her: string,
@@ -168,7 +169,6 @@ export default interface State {
     me_cal: number,
     min_ms: string,
     mout_ms: string,
-    mynum: number,
     objects: Item[],
     objinfo: ItemData[],
     out_ms: string,

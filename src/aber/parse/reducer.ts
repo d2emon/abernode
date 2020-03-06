@@ -1,6 +1,6 @@
 import State from "../state";
 import {Player} from "../support";
-import {getName} from "../tk/reducer";
+import {getName, playerIsMe} from "../tk/reducer";
 
 export const getDebugMode = (state: State): boolean => state.debug_mode;
 export const getCurrentChar = (state: State): string => state.strbuf[state.stp];
@@ -77,7 +77,7 @@ export const setPlayerPronoun = (state: State, player: Player): void => {
     if (!player) {
         return;
     }
-    if (player.playerId === state.mynum) {
+    if (playerIsMe(state, player.playerId)) {
         return;
     }
     /* Assign Him her etc according to who it is */

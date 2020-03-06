@@ -5,9 +5,9 @@ import {
 } from "./reducer";
 import getAction from './actionsList';
 import Action from "../action";
-import {getPlayer} from "../support";
+import {getPlayer, Player} from "../support";
 
-export const executeCommand = (state: State, commandLine: string): Promise<void> => {
+export const executeCommand = (state: State, commandLine: string, actor: Player): Promise<void> => {
     if (commandLine !== '!') {
         setStringBuffer(state, commandLine);
     }
@@ -22,7 +22,7 @@ export const executeCommand = (state: State, commandLine: string): Promise<void>
         .catch(() => Promise.reject(new Error('Pardon ?')))
         .then((action) => Promise.all([
             getAction(action),
-            getPlayer(state, state.mynum),
+            getPlayer(state, actor.playerId),
         ]))
         .then(([
             action,

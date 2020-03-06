@@ -7,7 +7,7 @@ import {canSeePlayer} from "../bprintf/player";
 import {sendMessage} from "../bprintf/bprintf";
 import {getDebugMode, setHer, setHim, setIt, setPlayerPronoun} from "../parse/reducer";
 import Action from "../action";
-import {getLocationId, isHere} from "../tk/reducer";
+import {getLocationId, isHere, playerIsMe} from "../tk/reducer";
 
 const showwthr = (state: State): boolean => false;
 
@@ -64,11 +64,8 @@ export const isAvailable = (item: Item, player: Player, locationId: number, dest
 
 // Item finder
 
-export const byMask = (state: State, mask: { [flagId: number]: boolean }): Promise<boolean> => Promise.all([
-    getPlayer(state, state.mynum),
-    getItems(state),
-])
-    .then(([player, items]) => items.some((item) => isAvailable(item, player, getLocationId(state), !isWizard(state))
+export const byMask = (state: State, player: Player, mask: { [flagId: number]: boolean }): Promise<boolean> => getItems(state)
+    .then((items) => items.some((item) => isAvailable(item, player, getLocationId(state), !isWizard(state))
         && Object.keys(mask).every((key) => item.flags[key] === mask[key])
     ));
 
@@ -156,14 +153,8 @@ const baseFindItem = (state: State, name: string): Promise<Item> => {
         });
 };
 
-export const findAvailableItem = (state: State, name: string): Promise<Item> => Promise.all([
-        getPlayer(state, state.mynum),
-        baseFindItem(state, name.toLowerCase()),
-    ])
-    .then(([
-        player,
-        item,
-    ]) => {
+export const findAvailableItem = (state: State, name: string, player: Player): Promise<Item> => baseFindItem(state, name.toLowerCase())
+    .then((item) => {
         if (item.itemId !== SHIELD_BASE_ID) {
             return isAvailable(item, player, getLocationId(state), !isWizard(state)) && item;
         }
@@ -184,7 +175,7 @@ export const findContainedItem = (state: State, name: string, container: Item): 
         .then(item => isContainedIn(item, container, !isWizard(state)) && item)
     : Promise.reject(new Error()));
 
-export const findItem = (state: State, name: string): Promise<Item> => findAvailableItem(state, name)
+export const findItem = (state: State, name: string, player: Player): Promise<Item> => findAvailableItem(state, name, player)
     .then((item) => item || baseFindItem(state, name.toLowerCase()));
 
 //
@@ -223,8 +214,7 @@ export const dropItems = (state: State, player: Player, locationId?: number): Pr
     .then(items => Promise.all(items.map(item => putItem(state, item.itemId, (locationId === undefined) ? player.locationId : locationId))))
     .then(() => {});
 
-export const dropMyItems = (state: State) => getPlayer(state, state.mynum)
-    .then(player => dropItems(state, player, getLocationId(state)));
+export const dropMyItems = (state: State, player: Player) => dropItems(state, player, getLocationId(state));
 
 // Player finders
 
@@ -254,7 +244,7 @@ export const findVisiblePlayer = (state: State, name: string): Promise<Player> =
 
 export const listPeople = (state: State): Promise<string[]> => getPlayers(state)
     .then(players => players.filter((player) => {
-        if (player.playerId === state.mynum) {
+        if (playerIsMe(state, player.playerId)) {
             return false;
         }
         if (!player.exists) {

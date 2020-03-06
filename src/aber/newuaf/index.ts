@@ -5,7 +5,7 @@ import {sendAndShow, showMessages} from "../bprintf/output";
 import {getString} from "../gamego/input";
 import {getPerson, setPerson} from "./reducer";
 import {sendMessage} from "../bprintf/bprintf";
-import {getPlayer} from "../support";
+import {getPlayer, Player} from "../support";
 import {findItem} from "../objsys";
 import {getName} from "../tk/reducer";
 
@@ -65,14 +65,13 @@ export const initPerson = (state: State): Promise<void> => Persons.findPerson(ge
     ))
     .catch(() => endGame(state, 'Panic: Timeout event on user file'));
 
-export const savePerson = (state: State): Promise<void> => {
+export const savePerson = (state: State, actor: Player): Promise<void> => {
     if (state.zapped) {
         return Promise.resolve();
     }
     return sendMessage(state, `\nSaving ${getName(state)}\n`)
-        .then(() => getPlayer(state, state.mynum))
-        .then(player => getPerson(state, {
-            sex: player. sex, // player.flags
+        .then(() => getPerson(state, {
+            sex: actor.sex, // player.flags
         }))
         .then(person => createPerson(person))
         .catch(error => sendMessage(state, `${error}\n`));
@@ -89,7 +88,7 @@ const isReservedWord = (name: string): boolean => ([
     'Someone',
 ].indexOf(name) !== -1);
 
-const validateName = (state: State, name: string): Promise<boolean> => {
+const validateName = (state: State, name: string, actor: Player): Promise<boolean> => {
     if (isReservedWord(name)) {
         throw new Error('Sorry I cant call you that');
     }
@@ -99,7 +98,7 @@ const validateName = (state: State, name: string): Promise<boolean> => {
     if (name.indexOf(' ')) {
         throw new Error();
     }
-    return findItem(state, name)
+    return findItem(state, name, actor)
         .then((item) => {
             if (item) {
                 throw new Error('I can\'t call you that , It would be confused with an object');

@@ -122,7 +122,7 @@ export class GoDirection extends Action {
                 getName(state),
                 sendVisiblePlayer(actor.name, `${actor.name} has gone ${this.exitText[directionId]} ${state.out_ms}.\n`)
             ),
-            setLocationId(state, newLocation),
+            setLocationId(state, newLocation, actor),
             Events.sendLocalMessage(
                 state,
                 newLocation,
@@ -186,8 +186,8 @@ export class Quit extends Action {
             .then(() => Promise.all([
                 sendMyMessage(state, `${getName(state)} has left the game\n`),
                 sendWizards(state, `[ Quitting Game : ${getName(state)} ]\n`),
-                dropMyItems(state),
-                setPlayer(state, state.mynum, {
+                dropMyItems(state, actor),
+                setPlayer(state, actor.playerId, {
                     exists: false,
                     isDead: true,
                 }),
@@ -199,7 +199,7 @@ export class Quit extends Action {
                     setChannelId(state, 0);
                     return resolve();
                 }),
-                savePerson(state),
+                savePerson(state, actor),
             ]))
             .then(() => endGame(state, 'Goodbye'))
             .then(() => ({

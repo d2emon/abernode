@@ -38,7 +38,7 @@ import {teleport} from "../new1";
 import {getLevel, getStrength, isGod, isWizard, updateStrength} from "../newuaf/reducer";
 import {loadWorld, saveWorld} from "../opensys";
 import {executeCommand} from "../parse/parser";
-import {getLocationId, getName, isHere, setChannelId} from "../tk/reducer";
+import {getLocationId, getName, isHere, playerIsMe, setChannelId} from "../tk/reducer";
 import {setLocationId} from "../tk";
 import Events from '../tk/events'
 
@@ -68,22 +68,19 @@ const TUBE_ID = 144;
 const SCROLL_145_ID = 145;
 
 export class Help extends Action {
-    private helpSomeone(state: State, name) {
-        return Promise.all([
-            findVisiblePlayer(state, name),
-            getPlayer(state, state.mynum),
-        ])
-            .then(([player, me]) => {
+    private helpSomeone(state: State, actor: Player, name: string) {
+        return findVisiblePlayer(state, name)
+            .then((player) => {
                 if (player.playerId === -1) {
                     throw new Error('Help who ?');
                 }
                 if (!isHere(state, player.locationId)) {
                     throw new Error('They are not here');
                 }
-                if (player.playerId === me.playerId) {
+                if (playerIsMe(state, player.playerId)) {
                     throw new Error('You can\'t help yourself.');
                 }
-                if (me.helping !== -1) {
+                if (actor.helping !== -1) {
                     return Promise.all([
                         getPlayer(state, player.helping),
                         Events.sendPrivate(state, player, `${sendVisibleName(getName(state))} has stopped helping you\n`),
@@ -91,7 +88,7 @@ export class Help extends Action {
                         .then(([helper]) => this.output(`Stopped helping ${helper.name}\n`));
                 } else {
                     return Promise.all([
-                        setPlayer(state, me.playerId, {helping: player.playerId}),
+                        setPlayer(state, actor.playerId, {helping: player.playerId}),
                         Events.sendPrivate(state, player, `${sendVisibleName(getName(state))} has offered to help you\n`),
                     ])
                         .then(() => this.output('OK...\n'));
@@ -119,12 +116,12 @@ export class Help extends Action {
             })
     }
 
-    action(state: State): Promise<any> {
+    action(state: State, actor: Player): Promise<any> {
         return Action.nextWord(state)
             .catch(() => '')
             .then((name) => (
                 name
-                    ? this.helpSomeone(state, name)
+                    ? this.helpSomeone(state, actor, name)
                     : this.helpMessage(state)
             ));
     }
@@ -138,10 +135,10 @@ export class Levels extends Action {
 }
 
 export class Value extends Action {
-    action(state: State): Promise<any> {
+    action(state: State, actor: Player): Promise<any> {
         return Action.nextWord(state)
             .catch(() => Promise.reject(new Error('Value what ?')))
-            .then((name) => findAvailableItem(state, name))
+            .then((name) => findAvailableItem(state, name, actor))
             .then((item) => {
                 if (!item) {
                     throw new Error('There isn\'t one of those here.');
@@ -201,13 +198,13 @@ export class Stats extends Action {
             });
     }
 
-    action(state: State): Promise<any> {
+    action(state: State, actor: Player): Promise<any> {
         if (!isWizard(state)) {
             throw new Error('Sorry, this is a wizard command buster...');
         }
         return Action.nextWord(state)
             .catch(() => Promise.reject(new Error('STATS what ?')))
-            .then(name => findItem(state, name)
+            .then(name => findItem(state, name, actor)
                 .then((item: Item) => (item ? Stats.statItem(state, item) : Stats.statPlayer(state, name))));
     }
 
@@ -275,29 +272,29 @@ export class Examine extends Action {
             .catch(() => ({ description: 'You see nothing special.\n' }));
     }
 
-    private static examineTube(state: State, item: Item): Promise<any> {
+    private static examineTube(state: State, actor: Player, item: Item): Promise<any> {
         if (item.payload.used) {
             return Examine.examineDefault(state, item);
         }
         return setItem(state, item.itemId, { payload: { used: true } })
             .then(() => createItem(state, SCROLL_145_ID))
-            .then((scroll) => holdItem(state, scroll.itemId, state.mynum))
+            .then((scroll) => holdItem(state, scroll.itemId, actor.playerId))
             .then(() => ({ description: 'You take a scroll from the tube.\n' }));
     }
 
-    private static examineScroll145(state: State, item: Item): Promise<any> {
+    private static examineScroll145(state: State, item: Item, actor: Player): Promise<any> {
         return setItem(state, item.itemId, { flags: { [IS_DESTROYED]: true } })
-            .then(() => setLocationId(state, -114))
+            .then(() => setLocationId(state, -114, actor))
             .then(() => ({ description: 'As you read the scroll you are teleported!\n' }));
     }
 
-    private static examineRobe(state: State, item: Item): Promise<any> {
+    private static examineRobe(state: State, actor: Player, item: Item): Promise<any> {
         if (item.payload.used) {
             return Examine.examineDefault(state, item);
         }
         return setItem(state, item.itemId, { payload: { used: true } })
             .then(() => createItem(state, KEY_ID))
-            .then((key) => holdItem(state, key.itemId, state.mynum))
+            .then((key) => holdItem(state, key.itemId, actor.playerId))
             .then(() => ({ description: 'You take a key from one pocket\n' }));
     }
 
@@ -319,24 +316,22 @@ export class Examine extends Action {
             });
     }
 
-    private static examineScroll8(state: State, item: Item): Promise<any> {
+    private static examineScroll8(state: State, actor: Player, item: Item): Promise<any> {
         return getItem(state, CRYSTAL_BALL_ID)
             .then(crystalBall => Promise.all([
-                getPlayer(state, state.mynum),
                 Promise.resolve(crystalBall),
                 (crystalBall.state === 0)
                     ? Promise.resolve(undefined)
                     : getItem(state, 3 + crystalBall.state),
             ]))
             .then(([
-                me,
                 crystalBall,
                 candle,
             ]) => {
                 if (!candle) {
                     return undefined;
                 }
-                if (!isCarriedBy(candle, me, !isWizard(state))) {
+                if (!isCarriedBy(candle, actor, !isWizard(state))) {
                     return undefined;
                 }
                 if (!candle.isLit) {
@@ -350,7 +345,7 @@ export class Examine extends Action {
                 }
                 return Promise.all([
                     setItem(state, scroll.itemId, {flags: {[IS_DESTROYED]: true}}),
-                    teleport(state, -1074),
+                    teleport(state, -1074, actor),
                 ])
                     .then(() => ({ description: 'Everything shimmers and then solidifies into a different view!\n' }));
             })
@@ -382,24 +377,24 @@ export class Examine extends Action {
 
     }
 
-    action(state: State): Promise<any> {
+    action(state: State, actor: Player): Promise<any> {
         return Action.nextWord(state)
             .catch(() => Promise.reject(new Error('Examine what ?')))
-            .then(name => findAvailableItem(state, name))
+            .then(name => findAvailableItem(state, name, actor))
             .then((item: Item) => {
                 if (!item) {
                     throw new Error( 'You see nothing special at all\n');
                 }
                 if (item.itemId === TUBE_ID) {
-                    return Examine.examineTube(state, item);
+                    return Examine.examineTube(state, actor, item);
                 } else if (item.itemId === SCROLL_145_ID) {
-                    return Examine.examineScroll145(state, item);
+                    return Examine.examineScroll145(state, item, actor);
                 } else if (item.itemId === ROBE_ID) {
-                    return Examine.examineRobe(state, item);
+                    return Examine.examineRobe(state, actor, item);
                 } else if (item.itemId === CRYSTAL_BALL_ID) {
                     return Examine.examineCrystalBall(state, item);
                 } else if (item.itemId === SCROLL_8_ID) {
-                    return Examine.examineScroll8(state, item);
+                    return Examine.examineScroll8(state, actor, item);
                 } else if (item.itemId === BED_ID) {
                     return Examine.examineBed(state, item);
                 } else if (item.itemId === BEDDING_ID) {
@@ -427,7 +422,7 @@ export class Wizlist extends Action {
 }
 
 export class InLocation extends Action {
-    action(state: State): Promise<any> {
+    action(state: State, actor: Player): Promise<any> {
         if (!isWizard(state)) {
             throw new Error('Huh');
         }
@@ -457,7 +452,7 @@ export class InLocation extends Action {
                         return fclose(unit);
                     })
                     .then(() => loadWorld(state))
-                    .then(world => executeCommand(state, toPerform))
+                    .then(world => executeCommand(state, toPerform, actor))
                     .then(() => loadWorld(state))
                     .then(world => {
                         if (isHere(state, locationId)) {
@@ -499,29 +494,23 @@ export class Jump extends Action {
         return endGame(state, 'I suppose you could be scraped up - with a spatula');
     }
 
-    private static withUmbrella(state: State, locationId: number): Promise<any> {
+    private static withUmbrella(state: State, locationId: number, actor: Player): Promise<any> {
         const oldLocationId = getLocationId(state);
-        return setLocationId(state, locationId)
+        return setLocationId(state, locationId, actor)
             .then(() => Events.sendLocalMessage(state, oldLocationId, getName(state), sendVisiblePlayer(getName(state), `${getName(state)} has just left\n`)))
             .then(() => Events.sendLocalMessage(state, locationId, getName(state), sendVisiblePlayer(getName(state), `${getName(state)} has just dropped in\n`)))
             .then(() => ({}))
     }
 
-    action(state: State): Promise<any> {
+    action(state: State, actor: Player): Promise<any> {
         const locationId = Jump.jumps[getLocationId(state)] || 0;
         if (locationId === 0) {
             return Promise.resolve({ message : 'Wheeeeee....' });
         }
-        return Promise.all([
-            getPlayer(state, state.mynum),
-            getItem(state, UMBRELLA_ID),
-        ])
-            .then(([
-                me,
-                umbrella,
-            ]) => (
-                Jump.canJump(state, me, umbrella)
-                    ? Jump.withUmbrella(state, locationId)
+        return getItem(state, UMBRELLA_ID)
+            .then(umbrella => (
+                Jump.canJump(state, actor, umbrella)
+                    ? Jump.withUmbrella(state, locationId, actor)
                     : this.noUmbrella(state, locationId)
             ));
     }
@@ -556,23 +545,17 @@ export class Where extends Action {
             ));
     }
 
-    action(state: State): Promise<any> {
+    action(state: State, actor: Player): Promise<any> {
         if (getStrength(state) < 10) {
             throw new Error('You are too weak');
         }
         return Promise.all([
-            getPlayer(state, state.mynum),
-            Promise.all([
-                getItem(state, 111),
-                getItem(state, 121),
-                getItem(state, 163),
-            ]),
+            getItem(state, 111),
+            getItem(state, 121),
+            getItem(state, 163),
         ])
-            .then(([
-                me,
-                items,
-            ]) => {
-                const chance = items.some(item => isCarriedBy(item, me, !isWizard(state)))
+            .then((items) => {
+                const chance = items.some(item => isCarriedBy(item, actor, !isWizard(state)))
                     ? 100
                     : 10 * getLevel(state);
                 return checkRoll(r => r <= chance);
@@ -720,15 +703,11 @@ export class EditWorld extends Action {
             });
     }
 
-    action(state: State): Promise<any> {
-        return getPlayer(state, state.mynum)
-            .then((editor) => {
-                if (!editor.canEditWorld) {
-                    throw new Error('Must be Game Administrator');
-                }
-                return Action.nextWord(state);
-            })
-            .catch(() => Promise.reject(new Error('Must Specify Player or Object')))
+    action(state: State, actor: Player): Promise<any> {
+        if (!actor.canEditWorld) {
+            throw new Error('Must be Game Administrator');
+        }
+        return Action.nextWord(state, 'Must Specify Player or Object')
             .then((name) => {
                 if (name === 'player') {
                     return EditWorld.editPlayer(state);

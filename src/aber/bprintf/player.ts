@@ -2,7 +2,7 @@ import State from "../state";
 import {Player} from "../support";
 import {getBlind} from "../new1/reducer";
 import {getLevel} from "../newuaf/reducer";
-import {getLocationId, isHere} from "../tk/reducer";
+import {getLocationId, isHere, playerIsMe} from "../tk/reducer";
 
 const isdark = (state: State, locationId: number): boolean => false;
 
@@ -10,7 +10,7 @@ export const canSeePlayer = (state: State, player: Player): boolean => {
     if (!player) {
         return true;
     }
-    if (player.playerId === state.mynum) {
+    if (playerIsMe(state, player.playerId)) {
         /* me */
         return true;
     }

@@ -1,12 +1,12 @@
 import State from "../state";
 import {
     enableCalibrate,
-    getName,
+    getName, getPlayerId,
     resetEvents,
     setName,
 } from "./reducer";
 import {showMessages} from "../bprintf/output";
-import {Player} from "../support";
+import {getPlayer, Player} from "../support";
 import getInput from './input';
 import {resetMessages} from "../bprintf/bprintf";
 import {processAndSave} from "./index";
@@ -22,12 +22,13 @@ const start = (state: State, name: string): Promise<State> => Promise.all([
 ])
     .then(() => state);
 
-const checkFull = (state: State): Promise<State> => (state.mynum >= state.maxu)
+const checkFull = (state: State): Promise<State> => (getPlayerId(state) >= state.maxu)
     ? Promise.reject(new Error('Sorry AberMUD is full at the moment'))
     : Promise.resolve(state);
 
 const startPlayer = (state: State): Promise<State> => Promise.resolve(resetEvents(state))
-    .then(() => executeSpecial(state, '.g'))
+    .then(() => getPlayer(state, getPlayerId(state)))
+    .then(player => executeSpecial(state, '.g', player))
     .then(() => enableCalibrate(state))
     .then(() => state);
 

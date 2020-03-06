@@ -16,6 +16,7 @@ export const isConversationOff = (state: State): boolean => state.convflg === 0;
 export const isConversationOn = (state: State): boolean => state.convflg === 1;
 export const isConversationShell = (state: State): boolean => state.convflg === 2;
 export const isEventsUnprocessed = (state: State): boolean => state.rd_qd;
+export const getPlayerId = (state: State): number => state.mynum;
 
 export const disableCalibrate = (state: State): void => {
     state.i_setup = false;
@@ -60,8 +61,12 @@ export const setEventsProcessed = (state: State): void => {
 export const setEventsUnprocessed = (state: State): void => {
     state.rd_qd = true;
 };
+export const setPlayerId = (state: State, value: number): void => {
+    state.mynum = value;
+};
 
 export const isHere = (state: State, locationId: number): boolean => (locationId === state.curch);
+export const playerIsMe = (state: State, playerId: number): boolean => (playerId === state.mynum);
 const basePrompt = (state: State): string => {
     if (isConversationOff(state)) {
         return '>';

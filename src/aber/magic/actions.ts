@@ -26,7 +26,7 @@ import {roll} from "./index";
 import {sendWizards} from "../new1/events";
 import {isWornBy} from "../new1";
 import {getLevel, getStrength, isAdmin, isGod, isWizard, updateStrength} from "../newuaf/reducer";
-import {getLocationId, getName} from "../tk/reducer";
+import {getLocationId, getName, playerIsMe} from "../tk/reducer";
 import {setLocationId} from '../tk';
 import Events from "../tk/events";
 
@@ -46,13 +46,13 @@ export class Summon extends Action {
             .then(owner => owner.locationId);
     }
 
-    private static summonItem(state: State, item: Item):Promise<any> {
+    private static summonItem(state: State, actor: Player, item: Item):Promise<any> {
         if (!isWizard(state)) {
             throw new Error('You can only summon people');
         }
         return Summon.ownerLocationId(state, item)
             .then(locationId => Events.sendLocalMessage(state, locationId, getName(state), `${sendName(getName(state))} has summoned the ${item.name}\n`))
-            .then(() => holdItem(state, item.itemId, state.mynum))
+            .then(() => holdItem(state, item.itemId, actor.playerId))
             .then(() => ({
                 item: {
                     name: item.name,
@@ -72,28 +72,25 @@ export class Summon extends Action {
             .then((items) => baseChance + (items.length * getLevel(state)));
     }
 
-    private static summonPlayer(state: State, player: Player): Promise<any> {
+    private static summonPlayer(state: State, actor: Player, player: Player): Promise<any> {
         if (getStrength(state) < 10) {
             throw new Error('You are too weak');
         }
         if (!isWizard(state)) {
             updateStrength(state, -2);
         }
-        return getPlayer(state, state.mynum)
-            .then(me => Promise.all([
-                Promise.resolve(me),
-                Summon.getSummonChance(state, me),
-                roll(),
-                findVisiblePlayer(state, 'wraith'),
-                Promise.all([
-                    32,
-                    159,
-                    174,
-                ].map(itemId => getItem(state, itemId))),
-                getItem(state, 90),
-            ]))
+        return Promise.all([
+            Summon.getSummonChance(state, actor),
+            roll(),
+            findVisiblePlayer(state, 'wraith'),
+            Promise.all([
+                32,
+                159,
+                174,
+            ].map(itemId => getItem(state, itemId))),
+            getItem(state, 90),
+        ])
             .then(([
-                me,
                 chance,
                 successRoll,
                 wraith,
@@ -102,7 +99,7 @@ export class Summon extends Action {
             ]) => ({
                 rolled: (successRoll <= chance) && !isWornBy(state, item90, player),
                 isWraith: wraith && (player.playerId === wraith.playerId),
-                items: items.filter(item => isCarriedBy(item, me, !isWizard(state))),
+                items: items.filter(item => isCarriedBy(item, actor, !isWizard(state))),
             }))
             .then(({
                 rolled,
@@ -118,7 +115,7 @@ export class Summon extends Action {
                 if (isWraith || items.length) {
                     throw new Error('Something stops your summoning from succeeding');
                 }
-                if (player.playerId === state.mynum) {
+                if (playerIsMe(state, player.playerId)) {
                     throw new Error('Seems a waste of effort to me....');
                 }
                 if ((getLocationId(state) >= -1082) && (getLocationId(state) <= -1076)) {
@@ -145,10 +142,10 @@ export class Summon extends Action {
             }));
     }
 
-    action(state: State): Promise<any> {
+    action(state: State, actor: Player): Promise<any> {
         return Action.nextWord(state, 'Summon who ?')
             .then(name => Promise.all([
-                findItem(state, name),
+                findItem(state, name, actor),
                 findVisiblePlayer(state, name),
             ]))
             .then(([
@@ -156,10 +153,10 @@ export class Summon extends Action {
                 player,
             ]) => {
                 if (item) {
-                    return Summon.summonItem(state, item);
+                    return Summon.summonItem(state, actor, item);
                 }
                 if (player) {
-                    return Summon.summonPlayer(state, player);
+                    return Summon.summonPlayer(state, actor, player);
                 }
                 throw new Error('I dont know who that is');
             });
@@ -207,7 +204,7 @@ export class ChangePassword extends Action {
 }
 
 export class GoToLocation extends Action {
-    action(state: State): Promise<any> {
+    action(state: State, actor: Player): Promise<any> {
         if (!isWizard(state)) {
             throw new Error('huh ?');
         }
@@ -237,7 +234,7 @@ export class GoToLocation extends Action {
             })
             .then((locationId) => Promise.all([
                 Promise.resolve(sillycom(state, sendVisiblePlayer('%s', `%s ${state.mout_ms}\n`))),
-                setLocationId(state, locationId),
+                setLocationId(state, locationId, actor),
                 Promise.resolve(sillycom(state, sendVisiblePlayer('%s', `%s ${state.min_ms}\n`))),
             ]));
     }
@@ -254,25 +251,23 @@ export class Wizards extends Action {
 }
 
 export class Visible extends Action {
-    action(state: State): Promise<any> {
+    action(state: State, actor: Player): Promise<any> {
         if (!isWizard(state)) {
             throw new Error('You can\'t just do that sort of thing at will you know.');
         }
-        return getPlayer(state, state.mynum)
-            .then((me) => {
-                if (!me.visibility) {
-                    throw new Error('You already are visible');
-                }
-                return Promise.all([
-                    Events.sendVisibility(state, {
-                        playerId: me.playerId,
-                        visibility: 0,
-                    }),
-                    Promise.resolve(sillycom(state, sendVisiblePlayer('%s', '%s suddenely appears in a puff of smoke\n'))),
-                    setPlayer(state, me.playerId, { visibility: 0 }),
-                ])
-            })
-            .then(() => {});
+        if (!actor.visibility) {
+            throw new Error('You already are visible');
+        }
+        return Promise.all([
+            Events.sendVisibility(state, {
+                playerId: actor.playerId,
+                visibility: 0,
+            }),
+            Promise.resolve(sillycom(state, sendVisiblePlayer('%s', '%s suddenely appears in a puff of smoke\n'))),
+            setPlayer(state, actor.playerId, {visibility: 0}),
+        ])
+            .then(() => {
+            });
     }
 
     decorate(result: any): void {
@@ -316,12 +311,12 @@ export class Invisible extends Action {
 }
 
 export class Ressurect extends Action {
-    action(state: State): Promise<any> {
+    action(state: State, actor: Player): Promise<any> {
         if (!isWizard(state)) {
             throw new Error('Huh ?');
         }
         return Action.nextWord(state, 'Yes but what ?')
-            .then(name => findItem(state, name))
+            .then(name => findItem(state, name, actor))
             .then((item) => {
                 if (!item) {
                     throw new Error('You can only ressurect objects');

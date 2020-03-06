@@ -11,8 +11,9 @@ export interface ActionInterface {
     action(state: State, actor: Player, args:any): Promise<any>,
     check(state: State, actor: Player): Promise<void>,
     decorate(result: any): void,
+    getArgs(state: State, actor: Player): Promise<any>,
     output(message: string): void,
-    perform(state: State): Promise<void>,
+    perform(state: State, actor: Player): Promise<void>,
 }
 
 class Action implements ActionInterface {
@@ -64,7 +65,7 @@ class Action implements ActionInterface {
         return;
     };
 
-    getArgs(state: State): any {
+    getArgs(state: State, actor: Player): any {
         return {};
     }
 
@@ -74,7 +75,7 @@ class Action implements ActionInterface {
 
     perform(state: State, actor: Player): Promise<void> {
         return this.check(state, actor)
-            .then(() => this.getArgs(state))
+            .then(() => this.getArgs(state, actor))
             .then(args => this.action(state, actor, args))
             .then(this.decorate)
             .catch(e => this.output(`${e}\n`));

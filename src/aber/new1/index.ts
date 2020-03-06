@@ -28,10 +28,10 @@ import Events from "../tk/events";
 
 /* Door is 6 panel 49 */
 
-export const getAvailableItem = (state: State): Promise<Item> => {
+export const getAvailableItem = (state: State, player: Player): Promise<Item> => {
     return Action.nextWord(state, 'Tell me more ?')
         .then(name => loadWorld(state).then(() => name))
-        .then((name) => findAvailableItem(state, name))
+        .then((name) => findAvailableItem(state, name, player))
         .then((item) => {
             if (!item) {
                 throw new Error('There isn\'t one of those here');
@@ -83,18 +83,17 @@ export const setPlayerDamage = (state: State, enemy: Player, player: Player): Pr
         }));
 };
 
-export const sendBotDamage = (state: State, player: Player, damage: number): Promise<void> => {
+export const sendBotDamage = (state: State, actor: Player, player: Player, damage: number): Promise<void> => {
     if (!player.isBot) {
         return Promise.resolve();
     }
     const strength = player.strength - damage;
     if (strength >= 0) {
-        return getPlayer(state, state.mynum)
-            .then((me) => Promise.all([
-                setPlayer(state, player.playerId, { strength }),
-                setPlayerDamage(state, player, me),
-            ]))
-            .then(() => {});
+        return Promise.all([
+            setPlayer(state, player.playerId, { strength }),
+            setPlayerDamage(state, player, actor),
+        ])
+            .then(() => null);
     } else {
         return Promise.all([
             dropItems(state, player),
@@ -104,14 +103,14 @@ export const sendBotDamage = (state: State, player: Player, damage: number): Pro
                 exists: false,
             }),
         ])
-            .then(() => {});
+            .then(() => null);
     }
 };
 
-export const teleport = (state: State, locationId: number): Promise<void> => {
+export const teleport = (state: State, locationId: number, actor: Player): Promise<void> => {
     const oldLocationId = getLocationId(state);
     return Promise.all([
-        setLocationId(state, locationId),
+        setLocationId(state, locationId, actor),
         Events.sendLocalMessage(state, oldLocationId, getName(state), sendVisiblePlayer(getName(state), `${getName(state)} has left.\n`)),
         Events.sendLocalMessage(state, locationId, getName(state), sendVisiblePlayer(getName(state), `${getName(state)} has arrived.\n`)),
     ])

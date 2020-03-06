@@ -21,7 +21,7 @@ import {endGame} from "../gamego/endGame";
 import {setPlayerDamage} from "../new1";
 import {getLevel, isWizard, updateScore} from "../newuaf/reducer";
 import {sendLocalMessage} from "../parse/events";
-import {getCanCalibrate, getLocationId, isHere} from "../tk/reducer";
+import {getCanCalibrate, getLocationId, isHere, playerIsMe} from "../tk/reducer";
 
 const loseme = (state: State): Promise<void> => Promise.resolve();
 
@@ -30,7 +30,7 @@ const moveBot = (state: State, player: Player): Promise<void> => Promise.resolve
 const checkFight = (state: State, player: Player, enemy: Player): Promise<void> => {
     const hitByMonster = (): Promise<void> => Promise.all([
         checkRoll(r => r > 40),
-        byMask(state, { [IS_LIT]: true }),
+        byMask(state, player, { [IS_LIT]: true }),
         findPlayer(state, 'yeti'),
     ])
         .then(([
@@ -69,10 +69,10 @@ const checkFight = (state: State, player: Player, enemy: Player): Promise<void> 
 
 };
 
-const doRune = (state: State, runeSword: Item): Promise<void> => {
+const doRune = (state: State, actor: Player, runeSword: Item): Promise<void> => {
     const getVictim = (): Promise<Player> => getPlayers(state, 32)
         .then(players => players.find((player) => {
-            if (player.playerId === state.mynum) {
+            if (playerIsMe(state, player.playerId)) {
                 return false;
             }
             if (!player.exists) {
@@ -97,7 +97,7 @@ const doRune = (state: State, runeSword: Item): Promise<void> => {
             success,
         ]) => victim && success && Promise.all([
             sendMessage(state, 'The runesword twists in your hands lashing out savagely\n'),
-            hitPlayer(state, victim, runeSword),
+            hitPlayer(state, actor, victim, runeSword),
         ]))
         .then(() => {});
 };
@@ -114,22 +114,16 @@ const checkHelp = (state: State, player: Player): Promise<void> => getPlayer(sta
             return;
         }
         return Promise.all([
-            setPlayer(state, state.mynum, { helping: -1 }),
+            setPlayer(state, player.playerId, { helping: -1 }),
             sendMessage(state, `You can no longer help ${sendVisibleName(helping.name)}\n`),
         ]);
     })
     .then(() => {});
 
-export const onLook = (state: State): Promise<void> => Promise.all([
-    getPlayer(state, state.mynum),
-    getItem(state, 45),
-])
-    .then(([
-        player,
-        item45,
-    ]) => {
+export const onLook = (state: State, actor: Player): Promise<void> => getItem(state, 45)
+    .then((item45) => {
         const checkEnemy = (name: string): Promise<void> => findPlayer(state, name)
-            .then(enemy => checkFight(state, player, enemy));
+            .then(enemy => checkFight(state, actor, enemy));
         const enemies = [
             'shazareth',
             'bomber',
@@ -144,21 +138,21 @@ export const onLook = (state: State): Promise<void> => Promise.all([
             'yeti',
             'guardian',
         ];
-        if (!isCarriedBy(item45, player, !isWizard(state))) {
+        if (!isCarriedBy(item45, actor, !isWizard(state))) {
             enemies.push('wraith');
             enemies.push('zombie');
         }
         return Promise.all([
             ...enemies.map(checkEnemy),
             getItem(state, 32)
-                .then(runeSword => isCarriedBy(runeSword, player, !isWizard(state)) && doRune(state, runeSword)),
-            checkHelp(state, player),
+                .then(runeSword => isCarriedBy(runeSword, actor, !isWizard(state)) && doRune(state, actor, runeSword)),
+            checkHelp(state, actor),
         ]);
     })
     .then(() => {});
 
-export const onTime = (state: State): Promise<void> => checkRoll(r => r > 80)
-    .then(eventRoll => eventRoll && onLook(state));
+export const onTime = (state: State, actor: Player): Promise<void> => checkRoll(r => r > 80)
+    .then(eventRoll => eventRoll && onLook(state, actor));
 
 export const getDragon = (state: State): Promise<Player> => {
     if (isWizard(state)) {
@@ -168,7 +162,7 @@ export const getDragon = (state: State): Promise<Player> => {
         .then((dragon) => ((dragon && isHere(state, dragon.locationId)) ? dragon : undefined));
 };
 
-const dropPepper = (state: State): Promise<void> => {
+const dropPepper = (state: State, actor: Player): Promise<void> => {
     /* Fried dragon */
     const fried = (dragon: Player) => setPlayer(state, dragon.playerId, { exists: false })
         .then(() => updateScore(state, 100, true)); /* No dragon */
@@ -182,13 +176,11 @@ const dropPepper = (state: State): Promise<void> => {
     };
 
     return Promise.all([
-        getPlayer(state, state.mynum),
         getPlayer(state, 32),
         getItem(state, 89),
         sendLocalMessage(state, getLocationId(state), undefined, 'You start sneezing ATISCCHHOOOOOO!!!!\n'),
     ])
         .then(([
-            player,
             dragon,
             pepper
         ]) => {
@@ -196,7 +188,7 @@ const dropPepper = (state: State): Promise<void> => {
                 return;
             }
             /* Ok dragon and pepper time */
-            return (isCarriedBy(pepper, player, !isWizard(state)) && (pepper.heldBy !== undefined))
+            return (isCarriedBy(pepper, actor, !isWizard(state)) && (pepper.heldBy !== undefined))
                 ? fried(dragon)
                 : dragonSneeze();
         });
