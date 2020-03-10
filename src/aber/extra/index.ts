@@ -9,16 +9,16 @@ import {
 } from '../support';
 import {sendVisibleName} from '../bprintf';
 import {isWizard} from "../newuaf/reducer";
+import {getLocationName} from "../zones";
 
 const openroom = (state: State, locationId: number, permissions: string): Promise<any> => Promise.resolve({});
-const showname = (state: State, locationId: number): string => '';
 const fclose = (file: any): Promise<void> => Promise.resolve();
 const getstr = (file: any): Promise<string[]> => Promise.resolve([]);
 
 const showChannel = (state: State, locationId: number) => (channel: any): Promise<string> => getstr(channel)
     .then((text) => {
         const short = text[7];
-        const name = isWizard(state) ? ` | ${showname(state, locationId)}` : '';
+        const name = isWizard(state) ? ` | ${getLocationName(state, locationId)}` : '';
         return fclose(channel).then(() => `${short}${name}`);
     });
 

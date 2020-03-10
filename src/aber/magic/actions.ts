@@ -30,8 +30,8 @@ import {getLocationId, getName, playerIsMe} from "../tk/reducer";
 import {setLocationId} from '../tk';
 import Events from "../tk/events";
 import {sendSocialEvent} from "../weather/events";
+import {getLocationIdByZone} from "../zones";
 
-const roomnum = (state: State, roomId: string, zoneId: string): number => 0;
 const getreinput = (state: State): string => '';
 const openroom = (locationId: number, permissions: string): Promise<any> => Promise.resolve({});
 const fclose = (file: any): Promise<void> => Promise.resolve(undefined);
@@ -208,15 +208,15 @@ export class GoToLocation extends Action {
             throw new Error('huh ?');
         }
         return Action.nextWord(state, 'Go where ?')
-            .then(roomId => Promise.all([
-                Promise.resolve(roomId),
+            .then(zoneName => Promise.all([
+                Promise.resolve(zoneName),
                 Action.nextWord(state),
             ]))
             .then(([
+                zoneName,
                 roomId,
-                name,
             ]) => {
-                const locationId = roomnum(state, roomId, name || '');
+                const locationId = getLocationIdByZone(state, zoneName, Number(roomId));
                 return Promise.all([
                     Promise.resolve(locationId),
                     openroom(locationId, 'r'),

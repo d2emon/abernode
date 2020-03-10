@@ -32,7 +32,6 @@ import Action from "../action";
 import {IS_DESTROYED} from "../object";
 import {sendVisiblePlayer} from "../bprintf";
 import {showLocation} from "./index";
-import {endGame} from "../gamego/endGame";
 import {checkRoll, roll} from "../magic";
 import {teleport} from "../new1";
 import {getLevel, getStrength, isGod, isWizard, updateStrength} from "../newuaf/reducer";
@@ -41,17 +40,16 @@ import {executeCommand} from "../parse/parser";
 import {getLocationId, getName, isHere, playerIsMe, setChannelId} from "../tk/reducer";
 import {looseGame, setLocationId} from "../tk";
 import Events from '../tk/events'
+import {getLocationIdByZone, getLocationName, loadExits} from "../zones";
+import {getExits, setExits} from "../zones/reducer";
 
 const fopen = (name: string, permissions: string): Promise<any> => Promise.resolve({});
 const fclose = (file: any): Promise<void> => Promise.resolve();
 const getstr = (file: any): Promise<string[]> => Promise.resolve([]);
 
 const getchar = (state: State): Promise<string> => Promise.resolve('\n');
-const showname = (state: State, locationId: number): void => undefined;
-const roomnum = (state: State, locationId: string, zoneId: string): number => 0;
 const getreinput = (state: State): string => '';
 const openroom = (state: State, locationId: number, permissions: string): Promise<any> => Promise.resolve({});
-const lodex = (state: State, file: any): void => undefined;
 
 const UMBRELLA_ID = 1;
 const CRYSTAL_BALL_ID = 7;
@@ -159,16 +157,16 @@ export class Stats extends Action {
                 } else if (item.heldBy) {
                     return getPlayer(state, item.heldBy);
                 } else {
-                    return null;
+                    return Promise.resolve(null);
                 }
             })
             .then((result) => ({
                 globalState: state,
                 item: {
                     name: item.name,
-                    container: item.containedIn && result.name,
-                    owner: item.heldBy && result.name,
-                    locationId: item.locationId,
+                    container: item.containedIn && (result as Item).name,
+                    owner: item.heldBy && (result as Player).name,
+                    location: getLocationName(state, item.locationId),
                     state: item.state,
                     carryFlag: item.carryFlag,
                     spare: item.isDestroyed ? -1 : 0,
@@ -191,7 +189,7 @@ export class Stats extends Action {
                         level: player.level,
                         strength: player.strength,
                         sex: player.sex ? 'MALE' : 'FEMALE',
-                        locationId: player.locationId,
+                        location: getLocationName(state, player.locationId),
                     }
                 };
             });
@@ -209,7 +207,6 @@ export class Stats extends Action {
 
     decorate(result: any): void {
         const {
-            globalState,
             item,
             player,
         } = result;
@@ -218,7 +215,7 @@ export class Stats extends Action {
                 name,
                 container,
                 owner,
-                locationId,
+                location,
                 state,
                 carryFlag,
                 spare,
@@ -231,8 +228,7 @@ export class Stats extends Action {
             } else if (owner) {
                 this.output(`\nHeld By     :${owner}`);
             } else {
-                this.output('\nPosition    :');
-                showname(globalState, locationId);
+                this.output(`\nPosition    :${location}`);
             }
             this.output(`\nState       :${state}`);
             this.output(`\nCarr_Flag   :${carryFlag}`);
@@ -246,14 +242,13 @@ export class Stats extends Action {
                 level,
                 strength,
                 sex,
-                locationId,
+                location,
             } = player;
             this.output(`Name      : ${name}\n`);
             this.output(`Level     : ${level}\n`);
             this.output(`Strength  : ${strength}\n`);
             this.output(`Sex       : ${sex ? 'MALE' : 'FEMALE'}\n`);
-            this.output(`Location  : `);
-            showname(globalState, locationId);
+            this.output(`Location  : ${location}\n`);
         }
     }
 }
@@ -425,20 +420,20 @@ export class InLocation extends Action {
         if (!isWizard(state)) {
             throw new Error('Huh');
         }
-        const exBk = [...state.ex_dat];
+        const exBk = [...getExits(state)];
         return Action.nextWord(state)
             .catch(() => Promise.reject(new Error('In where ?')))
-            .then((rn) => Promise.all([
-                Promise.resolve(rn),
+            .then((zoneName) => Promise.all([
+                Promise.resolve(zoneName),
                 Action.nextWord(state),
             ]))
             .catch(() => Promise.reject(new Error('In where ?')))
             .then(([
-                rn,
-                rv,
+                zoneName,
+                roomId,
             ]) => {
                 const oldLocationId = getLocationId(state);
-                const locationId = roomnum(state, rn, rv);
+                const locationId = getLocationIdByZone(state, zoneName, Number(roomId));
                 if (locationId === 0) {
                     throw new Error('Where is that ?');
                 }
@@ -446,16 +441,14 @@ export class InLocation extends Action {
                 setChannelId(state, locationId);
                 return saveWorld(state)
                     .then(() => openroom(state, locationId, 'r'))
-                    .then((unit) => {
-                        lodex(state, unit);
-                        return fclose(unit);
-                    })
+                    .then(room => loadExits(state, room)
+                        .then(() => fclose(room)))
                     .then(() => loadWorld(state))
                     .then(world => executeCommand(state, toPerform, actor))
                     .then(() => loadWorld(state))
                     .then(world => {
                         if (isHere(state, locationId)) {
-                            state.ex_dat = [...exBk];
+                            setExits(state, exBk);
                         }
                         setChannelId(state, oldLocationId);
                     })

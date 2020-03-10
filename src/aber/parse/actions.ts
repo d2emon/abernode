@@ -29,6 +29,7 @@ import {endGame} from "../gamego/endGame";
 import {getLocationId, getName, isHere, setChannelId, setGameOff} from "../tk/reducer";
 import {processEvents, setLocationId} from "../tk";
 import Events from "../tk/events";
+import {getExit, getExits} from "../zones/reducer";
 
 export class DefaultAction extends Action {
     key: string | number = undefined;
@@ -142,7 +143,7 @@ export class GoDirection extends Action {
     private go(state: State, actor: Player) {
         return (directionId: number): Promise<any> => (directionId === undefined)
             ? Promise.reject(new Error('That\'s not a valid direction'))
-            : this.goLocation(state, actor, directionId, state.ex_dat[directionId]);
+            : this.goLocation(state, actor, directionId, getExit(state, directionId));
     };
 
     private getAction(direction: string): Promise<SearchResult> {

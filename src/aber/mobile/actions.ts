@@ -12,9 +12,9 @@ import {getAvailablePlayer} from "../new1/actions";
 import {checkDumb} from "../new1/reducer";
 import {isWizard} from "../newuaf/reducer";
 import {sendSocialEvent} from "../weather/events";
+import {findZone} from "../zones";
 
 const rescom = (state: State): Promise<any> => Promise.resolve({});
-const findzone = (state: State, locationId: number): number[] => [0, 0];
 
 export class Crash extends Action {
     check(state: State, actor: Player): Promise<void> {
@@ -74,8 +74,11 @@ export class Direction extends Action {
         }
         return getItems(state)
             .then((items) => items.map((item) => {
-                const [b, c] = findzone(state, item.locationId);
-                let d = `${b}${c}`;
+                const {
+                    name,
+                    channelId
+                } = findZone(item.locationId);
+                let d = `${name}${channelId}`;
                 if (item.heldBy !== undefined) {
                     d += ' CARRIED';
                 }

@@ -23,12 +23,11 @@ import {logger} from "../files";
 import {cureBlind, getBlind} from "../new1/reducer";
 import {isWizard} from "../newuaf/reducer";
 import {onLook} from "../mobile";
+import {getLocationName, loadExits} from "../zones";
 
 const eorte = (state: State, interrupt: boolean = false) => (): Promise<void> => Promise.resolve();
 const gamrcv = (state: State, event: Event) => (): Promise<void> => Promise.resolve();
-const showname = (state: State, roomId: number): Promise<void> => Promise.resolve();
 const openroom = (roomId: number, permissions: string): Promise<any> => Promise.resolve({});
-const lodex = (state: State, room: any): Promise<void> => Promise.resolve();
 const fclose = (room: any): Promise<void> => Promise.resolve();
 const getstr = (room: any): Promise<string[]> => Promise.resolve([]);
 
@@ -166,11 +165,11 @@ export const describeChannel = (state: State, roomId: number, actor: Player, noB
         })))
         .then(() => fclose(un1));
 
-    const showRoom = (un1: any) => lodex(state, un1)
+    const showRoom = (room: any) => loadExits(state, room)
         .then(() => isDark(state, roomId))
         .then((dark) => (dark
-            ? darkRoom(un1)
-            : lightRoom(un1)
+            ? darkRoom(room)
+            : lightRoom(room)
         ));
 
     const listContents = (): Promise<void> => showItems(state)
@@ -180,7 +179,7 @@ export const describeChannel = (state: State, roomId: number, actor: Player, noB
     return loadWorld(state)
         .then(() => saveWorld(state))
         .then(() => getBlind(state) && sendMessage(state, 'You are blind... you can\'t see a thing!\n'))
-        .then(() => isWizard(state) && showname(state, roomId))
+        .then(() => isWizard(state) && sendMessage(state, `${getLocationName(state, roomId)}\n`))
         .then(() => openroom(roomId, 'r'))
         .then((room) => (room
             ? showRoom(room)
