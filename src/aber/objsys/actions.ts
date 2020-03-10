@@ -3,10 +3,9 @@ import State from "../state";
 import {
     Item,
     Player,
-    getPlayer,
     getPlayers,
     holdItem,
-    putItem,
+    putItem, getPlayer, getItems,
 } from "../support";
 import {getDragon} from "../mobile";
 import {sendPlayerForVisible, sendVisibleName} from "../bprintf";
@@ -16,7 +15,7 @@ import {
     findAvailableItem,
     findCarriedItem,
     findContainedItem,
-    findHereItem,
+    findHereItem, isCarriedBy,
     itemsAt,
 } from "./index";
 import {sendMessage} from "../bprintf/bprintf";
@@ -24,9 +23,24 @@ import {sendMyMessage} from "../parse/events";
 import * as ChannelEvents from "../events/channel";
 import * as ItemEvents from "../events/item";
 import {getLocationId, getName} from "../tk/reducer";
-import Events from "../tk/events";
 
-const cancarry = (state: State, playerId: number): boolean => false;
+export const canCarry = (state: State, player: Player): Promise<boolean> => {
+    if (player.isWizard) {
+        return Promise.resolve(true);
+    }
+    if (player.level < 0) {
+        return Promise.resolve(true);
+    }
+    return getItems(state)
+        .then(items => items.reduce((count, item)  => {
+            if (isCarriedBy(item, player, false)) {
+                return count + 1;
+            } else {
+                return count;
+            }
+        }, 0))
+        .then(count => (count < player.level + 5));
+};
 
 const itemsCarriedBy = (state: State, player: Player): Promise<void> => itemsAt(state, player.playerId, HELD_BY)
     .then((result) => sendMessage(state, result));
@@ -100,10 +114,9 @@ export class GetItem extends Action {
 
     private static checkGet = (state: State, actor: Player) => (item: Item): Promise<Item> => {
         const checkDragon = (): Promise<boolean> => getDragon(state)
-            .then((dragon) => (dragon ? Promise.reject() : true));
-        const checkCarry = (): Promise<boolean> => cancarry(state, actor.playerId)
-            ? Promise.resolve(true)
-            : Promise.reject(new Error('You can\'t carry any more'));
+            .then(dragon => !dragon || Promise.reject());
+        const checkCarry = (): Promise<boolean> => canCarry(state, actor)
+            .then(result => result || Promise.reject(new Error('You can\'t carry any more')));
         const checkAll = (item: Item): Promise<Item> => Promise.all([
             checkDragon(),
             checkCarry(),

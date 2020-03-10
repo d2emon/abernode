@@ -27,17 +27,17 @@ import {saveWorld} from "../opensys";
 import {getDebugMode, setPlayerPronoun} from "../parse/reducer";
 import {getLocationId} from "../tk/reducer";
 import {sendMessage} from "./bprintf";
+import {isDark} from "../objsys";
 
 const f_listfl = (fileName: string): string => '';
-const isdark = (state: State, locationId: number): boolean => false;
 
-const seePlayerName = (state: State, player: Player): boolean => {
-    const canSee = canSeePlayer(state, player);
-    if (canSee) {
-        setPlayerPronoun(state, player);
-    }
-    return canSee;
-};
+const seePlayerName = (state: State, player: Player): Promise<boolean> => canSeePlayer(state, player)
+    .then((canSee) => {
+        if (canSee) {
+            setPlayerPronoun(state, player);
+        }
+        return canSee;
+    });
 
 // Replacers
 
@@ -50,21 +50,18 @@ const replaceFile = (state: State) => (match, fileName: string): string => {
     return result
 };
 const replaceSound = (state: State) => (match, message: string): string => (getDeaf(state) ? message : '');
-const replaceVisiblePlayer = (state: State) => (match, player: Player, message: string): string => (
-    seePlayerName(state, player) ? message : ''
-);
-const replaceName = (state: State) => (match, player: Player): string => (
-    seePlayerName(state, player) ? player.name : 'Someone'
-);
-const replaceDark = (state: State) => (match, message: string): string => (
-    (isdark(state, getLocationId(state)) || getBlind(state)) ? '' : message
-);
-const replaceSoundPlayer = (state: State) => (match, player: Player): string => (
-    getDeaf(state) ? '' : replaceName(state)(match, player)
-);
-const replaceSeePlayer = (state: State) => (match, player: Player): string => (
-    getBlind(state) ? '' : replaceName(state)(match, player)
-);
+const replaceVisiblePlayer = (state: State) => (match, player: Player, message: string): Promise<string> => seePlayerName(state, player)
+    .then(see => see ? message : '');
+const replaceName = (state: State) => (match, player: Player): Promise<string> => seePlayerName(state, player)
+    .then(see => see ? player.name : 'Someone');
+const replaceDark = (state: State) => (match, message: string): Promise<string> => isDark(state, getLocationId(state))
+    .then(dark => ((dark || getBlind(state)) ? '' : message));
+const replaceSoundPlayer = (state: State) => (match, player: Player): Promise<string> => getDeaf(state)
+    ? Promise.resolve('')
+    : replaceName(state)(match, player);
+const replaceSeePlayer = (state: State) => (match, player: Player): Promise<string> => getBlind(state)
+    ? Promise.resolve('')
+    : replaceName(state)(match, player);
 const replaceNotKeyboard = (state: State) => (match, message: string): string => (
     getIsKeyboard(state) ? '' : message
 );

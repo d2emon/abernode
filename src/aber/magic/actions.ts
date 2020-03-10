@@ -29,10 +29,9 @@ import {getLevel, getStrength, isAdmin, isGod, isWizard, updateStrength} from ".
 import {getLocationId, getName, playerIsMe} from "../tk/reducer";
 import {setLocationId} from '../tk';
 import Events from "../tk/events";
+import {sendSocialEvent} from "../weather/events";
 
 const roomnum = (state: State, roomId: string, zoneId: string): number => 0;
-const sillycom = (state: State, message: string): void => undefined;
-const trapch = (state: State, locationId: number): void => undefined;
 const getreinput = (state: State): string => '';
 const openroom = (locationId: number, permissions: string): Promise<any> => Promise.resolve({});
 const fclose = (file: any): Promise<void> => Promise.resolve(undefined);
@@ -233,9 +232,9 @@ export class GoToLocation extends Action {
                 return fclose(room).then(() => locationId);
             })
             .then((locationId) => Promise.all([
-                Promise.resolve(sillycom(state, sendVisiblePlayer('%s', `%s ${state.mout_ms}\n`))),
+                sendSocialEvent(state, sendVisiblePlayer('%s', `%s ${state.mout_ms}\n`)),
                 setLocationId(state, locationId, actor),
-                Promise.resolve(sillycom(state, sendVisiblePlayer('%s', `%s ${state.min_ms}\n`))),
+                sendSocialEvent(state, sendVisiblePlayer('%s', `%s ${state.min_ms}\n`)),
             ]));
     }
 }
@@ -263,7 +262,7 @@ export class Visible extends Action {
                 playerId: actor.playerId,
                 visibility: 0,
             }),
-            Promise.resolve(sillycom(state, sendVisiblePlayer('%s', '%s suddenely appears in a puff of smoke\n'))),
+            sendSocialEvent(state, sendVisiblePlayer('%s', '%s suddenely appears in a puff of smoke\n')),
             setPlayer(state, actor.playerId, {visibility: 0}),
         ])
             .then(() => {
@@ -299,7 +298,7 @@ export class Invisible extends Action {
                     playerId: actor.playerId,
                     visibility,
                 }),
-                Promise.resolve(sillycom(state, sendVisibleName('%s vanishes!\n'))),
+                sendSocialEvent(state, sendVisibleName('%s vanishes!\n')),
                 setPlayer(state, actor.playerId, { visibility }),
             ]))
             .then(() => {});

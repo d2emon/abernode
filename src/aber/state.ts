@@ -159,11 +159,12 @@ export default interface State {
     i_setup: boolean,
     lasup: number,
     rd_qd: boolean,
+    // weather
+    hasfarted: boolean,
     //
     brmode: boolean,
     ex_dat: number[],
     exittxt: string[],
-    hasfarted: boolean,
     in_ms: string,
     jumtb: number[],
     maxu: number,

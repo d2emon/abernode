@@ -1,7 +1,6 @@
 import State from "../state";
 import {Event} from '../services/world';
 import {loadWorld, saveEvent} from "../opensys";
-import {endGame} from "../gamego/endGame";
 import {getPlayer, getPlayers, Player, setPlayer} from "../support";
 import {
     getLocationId,
@@ -9,14 +8,13 @@ import {
 } from "./reducer";
 import {dropItems} from "../objsys";
 import {looseGame} from "./index";
+import {nextWeather} from "../weather";
 
 export interface Attack {
     characterId: number,
     damage: number,
     weaponId?: number,
 }
-
-const longwthr = (state: State): void => undefined;
 
 const onTimeout = (state: State) => (player: Player): Promise<void> => Promise.all([
     Events.broadcast(state, `${player.name} has been timed out\n`),
@@ -62,7 +60,7 @@ const onSave = (state: State, force: boolean) => (recordId: number): Promise<voi
     }
     return Promise.all([
         clean(state, recordId),
-        Promise.resolve(longwthr(state)),
+        nextWeather(state),
     ])
         .then(() => null);
 };

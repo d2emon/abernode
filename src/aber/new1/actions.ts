@@ -65,8 +65,8 @@ import {loadWorld} from "../opensys";
 import {sendMyMessage} from "../parse/events";
 import {getLocationId, getName, isHere, playerIsMe} from "../tk/reducer";
 import {looseGame, setLocationId} from "../tk";
+import {sendSocialEvent} from "../weather/events";
 
-const sillycom = (state: State, message: string): Promise<any> => Promise.resolve({});
 const getreinput = (state: State): string => '';
 
 /* This one isnt for magic */
@@ -208,7 +208,7 @@ export class Grope extends Action {
 
 export class Bounce extends Action {
     action(state: State): Promise<any> {
-        return sillycom(state, sendVisiblePlayer('%s', '%s bounces around\n'));
+        return sendSocialEvent(state, sendVisiblePlayer('%s', '%s bounces around\n'));
     }
 
     decorate(result: any): void {
@@ -218,10 +218,8 @@ export class Bounce extends Action {
 
 export class Sigh extends Action {
     action(state: State): Promise<any> {
-        return Promise.all([
-            checkDumb(state),
-            sillycom(state, `${sendSoundPlayer('%s')}${sendSound(' sighs loudly\n')}`),
-        ]);
+        return checkDumb(state)
+            .then(() => sendSocialEvent(state, `${sendSoundPlayer('%s')}${sendSound(' sighs loudly\n')}`));
     }
 
     decorate(result: any): void {
@@ -231,10 +229,8 @@ export class Sigh extends Action {
 
 export class Scream extends Action {
     action(state: State): Promise<any> {
-        return Promise.all([
-            checkDumb(state),
-            sillycom(state, `${sendSoundPlayer('%s')}${sendSound(' screams loudly\n')}`),
-        ]);
+        return checkDumb(state)
+            .then(() => sendSocialEvent(state, `${sendSoundPlayer('%s')}${sendSound(' screams loudly\n')}`));
     }
 
     decorate(result: any): void {

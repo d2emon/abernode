@@ -3,26 +3,26 @@ import {Player} from "../support";
 import {getBlind} from "../new1/reducer";
 import {getLevel} from "../newuaf/reducer";
 import {getLocationId, isHere, playerIsMe} from "../tk/reducer";
+import {isDark} from "../objsys";
 
-const isdark = (state: State, locationId: number): boolean => false;
-
-export const canSeePlayer = (state: State, player: Player): boolean => {
+export const canSeePlayer = (state: State, player: Player): Promise<boolean> => {
     if (!player) {
-        return true;
+        return Promise.resolve(true);
     }
     if (playerIsMe(state, player.playerId)) {
         /* me */
-        return true;
+        return Promise.resolve(true);
     }
     if (player.visibility > getLevel(state)) {
-        return false;
+        return Promise.resolve(false);
     }
     if (getBlind(state)) {
         /* Cant see */
-        return false;
+        return Promise.resolve(false);
     }
     if (!isHere(state, player.locationId)) {
-        return true;
+        return Promise.resolve(true);
     }
-    return !isdark(state, getLocationId(state));
+    return isDark(state, getLocationId(state))
+        .then(result => !result);
 };

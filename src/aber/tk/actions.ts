@@ -1,5 +1,5 @@
 import State from "../state";
-import {getPlayer, Player, setPlayer} from "../support";
+import {Player, setPlayer} from "../support";
 import {initPerson} from "../newuaf";
 import {loadWorld} from "../opensys";
 import {getLevel, getSex, getStrength, isGod} from "../newuaf/reducer";

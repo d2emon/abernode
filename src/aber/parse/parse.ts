@@ -92,6 +92,8 @@ import {
     setLocationId,
 } from "../tk";
 import {Event} from "../services/world";
+import {receiveWeather} from "../weather/events";
+import {canCarry} from "../objsys/actions";
 
 const debug2 = (state: State): Promise<void> => Promise.resolve(bprintf(state, 'No debugger available\n'));
 
@@ -636,10 +638,7 @@ const gamrcv = (state: State, block: Event): Promise<void> => {
             }
             return sendMessage(state, text);
         },
-        /*
-       case -10030:
-          wthrrcv(blok[0]);break;
-       */
+        '-10030': (payload) => receiveWeather(state, payload),
         '-10021': (payload) => {
             if (!isme) {
                 return Promise.resolve();
@@ -1156,14 +1155,17 @@ const dogive = (state: State, itemId: number, playerId: number, actor: Player): 
         if (!isCarriedBy(item, actor, !isWizard(state))) {
             return bprintf(state, 'You are not carrying that\n');
         }
-        if (!cancarry(state, player.playerId)) {
-            return bprintf(state, 'They can\'t carry that\n');
-        }
-        if (!isWizard(state) && (item.itemId === 32)) {
-            return bprintf(state, 'It doesn\'t wish to be given away.....\n');
-        }
-        return holdItem(state, item.itemId, player.playerId)
-            .then(() => sendPrivate(state, player, `${sendName(getName(state))} gives you the ${item.name}\n`));
+        return canCarry(state, player)
+            .then(result => {
+                if (!result) {
+                    return bprintf(state, 'They can\'t carry that\n');
+                }
+                if (!isWizard(state) && (item.itemId === 32)) {
+                    return bprintf(state, 'It doesn\'t wish to be given away.....\n');
+                }
+                return holdItem(state, item.itemId, player.playerId)
+                    .then(() => sendPrivate(state, player, `${sendName(getName(state))} gives you the ${item.name}\n`));
+            });
     });
 
 const stealcom = (state: State, actor: Player): Promise<void> => {
@@ -1206,28 +1208,30 @@ const stealcom = (state: State, actor: Player): Promise<void> => {
                     if (player.weaponId === item.itemId) {
                         return bprintf(state, 'They have that firmly to hand .. for KILLING people with\n');
                     }
-                    if (!cancarry(state, actor.playerId)) {
-                        return bprintf(state, 'You can\'t carry any more\n');
-                    }
-
-                    const t = time(state);
-                    srand(state, t);
-                    let e = 10 + getLevel(state) - player.level;
-                    e *= 5;
-                    return roll()
-                        .then((f) => {
-                            if (f < e) {
-                                if (f & 1) {
-                                    return Promise.all([
-                                        sendPrivate(state, player, `${sendName(getName(state))} steals the ${item.name} from you !\n`),
-                                        sendBotDamage(state, actor, player, 0),
-                                    ]);
-                                }
-                                return holdItem(state, item.itemId, actor.playerId);
-                            } else {
-                                return bprintf(state, 'Your attempt fails\n');
+                    return canCarry(state, actor)
+                        .then((result) => {
+                            if (!result) {
+                                return bprintf(state, 'You can\'t carry any more\n');
                             }
-                        });
+                            const t = time(state);
+                            srand(state, t);
+                            let e = 10 + getLevel(state) - player.level;
+                            e *= 5;
+                            return roll()
+                                .then((f) => {
+                                    if (f < e) {
+                                        if (f & 1) {
+                                            return Promise.all([
+                                                sendPrivate(state, player, `${sendName(getName(state))} steals the ${item.name} from you !\n`),
+                                                sendBotDamage(state, actor, player, 0),
+                                            ]);
+                                        }
+                                        return holdItem(state, item.itemId, actor.playerId);
+                                    } else {
+                                        return bprintf(state, 'Your attempt fails\n');
+                                    }
+                                });
+                        })
                 });
 
         })

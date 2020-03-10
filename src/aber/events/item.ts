@@ -12,13 +12,13 @@ import {
     OnGetEvent,
 } from "./index";
 import {
+    isDark,
     RUNE_SWORD_ID,
     SHIELD_BASE_ID,
     SHIELD_IDS,
 } from "../objsys";
 import {isWizard} from "../newuaf/reducer";
-
-const isdark = (state: State): boolean => false;
+import {getLocationId} from "../tk/reducer";
 
 const noItem = {
     onAfterGet: () => Promise.resolve(undefined),
@@ -55,11 +55,12 @@ const door = {
             return getItem(state, otherSideId)
                 .then(otherSide => otherSide.locationId);
         }
-        const invisible = (item.name !== "door") || isdark(state) || !item.description.length;
-        return Promise.reject(invisible
-            ? new Error('You can\'t go that way')
-            : new Error('The door is not open')
-        );
+        return isDark(state, getLocationId(state))
+            .then(dark => dark || (item.name !== "door") || !item.description.length)
+            .then(invisible => Promise.reject(invisible
+                ? new Error('You can\'t go that way')
+                : new Error('The door is not open')
+            ));
     },
 };
 

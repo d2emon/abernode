@@ -15,7 +15,7 @@ import {endGame} from "../gamego/endGame";
 import Events from "./events";
 import {Player, setPlayer} from "../support";
 import {asyncUnsetAlarm} from "../gamego/reducer";
-import {dropMyItems, findPlayer, listPeople, showItems} from "../objsys";
+import {dropMyItems, findPlayer, isDark, listPeople, showItems} from "../objsys";
 import {sendWizards} from "../new1/events";
 import {savePerson} from "../newuaf";
 import {checkSnoop} from "../bprintf/snoop";
@@ -26,6 +26,11 @@ import {onLook} from "../mobile";
 
 const eorte = (state: State, interrupt: boolean = false) => (): Promise<void> => Promise.resolve();
 const gamrcv = (state: State, event: Event) => (): Promise<void> => Promise.resolve();
+const showname = (state: State, roomId: number): Promise<void> => Promise.resolve();
+const openroom = (roomId: number, permissions: string): Promise<any> => Promise.resolve({});
+const lodex = (state: State, room: any): Promise<void> => Promise.resolve();
+const fclose = (room: any): Promise<void> => Promise.resolve();
+const getstr = (room: any): Promise<string[]> => Promise.resolve([]);
 
 /**
  * AberMUD II   C
@@ -129,66 +134,66 @@ export const processAndSave = (
 
 const tbroad = Events.broadcast;
 
-export const describeChannel = (state: State, roomId: number, actor: Player, noBrief: boolean = false): Promise<void> => loadWorld(state)
-    .then(() => saveWorld(state))
-    .then(() => getBlind(state) && sendMessage(state, 'You are blind... you can\'t see a thing!\n'))
-    .then(() => isWizard(state) && showname(state, roomId))
-    .then(() => openroom(roomId, 'r'))
-    .then((un1) => {
-        const xx1 = () => {
-            let xxx = false;
-            lodex(state, un1);
-            if (isdark(state)) {
-                return fclose(un1)
-                    .then(() => sendMessage(state, 'It is dark\n'))
-                    .then(() => loadWorld(state))
-                    .then(() => onLook(state, actor));
+export const describeChannel = (state: State, roomId: number, actor: Player, noBrief: boolean = false): Promise<void> => {
+    const darkRoom = (un1: any): Promise<void> => fclose(un1)
+        .then(() => sendMessage(state, 'It is dark\n'))
+        .then(() => loadWorld(state))
+        .then(() => onLook(state, actor));
+
+    const lightRoom = (un1: any): Promise<void> => getstr(un1)
+        .then(content => Promise.all(content.map((row, rowId) => {
+            if (row === '#DIE') {
+                if (getBlind(state)) {
+                    cureBlind(state);
+                    return Promise.resolve();
+                }
+                if (isWizard(state)) {
+                    return sendMessage(state, '<DEATH ROOM>\n');
+                } else {
+                    return looseGame(state, actor, 'bye bye.....');
+                }
+            } else if (row === '#NOBR') {
+                if (!noBrief) {
+                    state.brmode = false;
+                }
+            } else {
+                if (getBlind(state)) {
+                    return Promise.resolve();
+                }
+                const show = noBrief || !state.brmode || (rowId === 0);
+                return show && sendMessage(state, `${row}\n`);
             }
-            return getstr(un1)
-                .then((content) => {
-                    content.forEach((s) => {
-                        if (s === '#DIE') {
-                            if (getBlind(state)) {
-                                return rewind(state, un1)
-                                    .then(() => {
-                                        cureBlind(state);
-                                        return xx1();
-                                    });
-                            }
-                            if (isWizard(state)) {
-                                return sendMessage(state, '<DEATH ROOM>\n');
-                            } else {
-                                return looseGame(state, actor, 'bye bye.....');
-                            }
-                        } else if (s === '#NOBR') {
-                            if (!noBrief) {
-                                state.brmode = false;
-                            }
-                        } else {
-                            const show = !getBlind(state) && !xxx;
-                            xxx = noBrief ? false : state.brmode;
-                            return show && sendMessage(state, `${s}\n`);
-                        }
-                    });
-                    return fclose(state, un1);
-                });
-        };
-        return xx1();
-    })
-    .catch(() => sendMessage(state, `\nYou are on channel ${roomId}\n`))
-    .then(() => loadWorld(state))
-    .then(() => {
-        if (getBlind(state)) {
-            return;
-        }
-        return showItems(state)
-            .then(
-                () => getGameMode(state) && listPeople(state)
-                    .then(messages => messages.forEach(message => sendMessage(state, message)))
-            )
-    })
-    .then(() => sendMessage(state, '\n'))
-    .then(() => onLook(state, actor));
+        })))
+        .then(() => fclose(un1));
+
+    const showRoom = (un1: any) => lodex(state, un1)
+        .then(() => isDark(state, roomId))
+        .then((dark) => (dark
+            ? darkRoom(un1)
+            : lightRoom(un1)
+        ));
+
+    const listContents = (): Promise<void> => showItems(state)
+        .then(() => getGameMode(state) ? listPeople(state) : [])
+        .then(messages => messages.forEach(message => sendMessage(state, message)));
+
+    return loadWorld(state)
+        .then(() => saveWorld(state))
+        .then(() => getBlind(state) && sendMessage(state, 'You are blind... you can\'t see a thing!\n'))
+        .then(() => isWizard(state) && showname(state, roomId))
+        .then(() => openroom(roomId, 'r'))
+        .then((room) => (room
+            ? showRoom(room)
+            : sendMessage(state, `\nYou are on channel ${roomId}\n`)
+        ))
+        .then(() => loadWorld(state))
+        .then(() => getBlind(state)
+            ? undefined
+            : listContents()
+        )
+        .then(() => sendMessage(state, '\n'))
+        .then(() => onLook(state, actor));
+};
 
 export const setLocationId = (state: State, locationId: number, player: Player): Promise<void> => {
     setChannelId(state, locationId);

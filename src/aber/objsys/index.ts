@@ -8,20 +8,59 @@ import {sendMessage} from "../bprintf/bprintf";
 import {getDebugMode, setHer, setHim, setIt, setPlayerPronoun} from "../parse/reducer";
 import Action from "../action";
 import {getLocationId, isHere, playerIsMe} from "../tk/reducer";
-
-const showwthr = (state: State): boolean => false;
+import {showWeather} from "../weather";
 
 export const RUNE_SWORD_ID = 32;
 export const SHIELD_BASE_ID = 112;
 export const SHIELD_IDS = [113, 114];
 
-const seePlayerName = (state: State, player: Player): boolean => {
-    const canSee = canSeePlayer(state, player);
-    if (canSee) {
-        setPlayerPronoun(state, player);
+export const isDark = (state: State, channelId: number): Promise<boolean> => {
+    const isLight = (channelId): boolean => {
+        if (isWizard(state)) {
+            return true;
+        }
+        if ((channelId === -1100) || (channelId === -1101)) {
+            return true;
+        }
+        if ((channelId <= -1113) || (channelId >= -1123)) {
+            return false;
+        }
+        if ((channelId < -399) || (channelId > -300)) {
+            return true;
+        }
+        return false;
+    };
+
+    const checkHere = (item: Item): Promise<boolean> => {
+        if (isLocatedIn(item, getLocationId(state), !isWizard(state))) {
+            return Promise.resolve(true);
+        }
+        if ((item.heldBy === undefined) && (item.wearingBy === undefined)) {
+            return Promise.resolve(false);
+        }
+        return getPlayer(state, item.locationId)
+            .then(player => isHere(state, player.locationId));
+    };
+
+    channelId = (channelId === undefined)
+        ? getLocationId(state)
+        : channelId;
+    if (isLight(channelId)) {
+        return Promise.resolve(false);
     }
-    return canSee;
+    return getItems(state)
+        .then(items => items.filter(item => ((item.itemId === RUNE_SWORD_ID) || item.isLit)))
+        .then(items => Promise.all(items.map(checkHere)))
+        .then(items => !items.some(item => item));
 };
+
+const seePlayerName = (state: State, player: Player): Promise<boolean> => canSeePlayer(state, player)
+    .then((canSee) => {
+        if (canSee) {
+            setPlayerPronoun(state, player);
+        }
+        return canSee;
+    });
 
 // Item checkers
 
@@ -203,7 +242,8 @@ export const showItems = (state: State): Promise<void> => getItems(state)
     }))
     .then((items) => Promise.all(listItems(state, items.filter(item => item.flannel))
         .map(message => sendMessage(state, `${message}\n`)))
-        .then(() => showwthr(state))
+        .then(() => showWeather(state))
+        .then(message => message && sendMessage(state, message))
         .then(() => Promise.all(listItems(state, items.filter(item => !item.flannel))
             .map(message => sendMessage(state, `${message}\n`))))
     )
@@ -236,11 +276,8 @@ export const findPlayer = (state: State, name: string): Promise<Player> => getPl
     });
 
 export const findVisiblePlayer = (state: State, name: string): Promise<Player> => findPlayer(state, name)
-    .then((player) => (
-        player && seePlayerName(state, player)
-        ?  player
-        : undefined
-    ));
+    .then((player) => player && seePlayerName(state, player).then(result => result && player))
+    .then(player => player || undefined);
 
 export const listPeople = (state: State): Promise<string[]> => getPlayers(state)
     .then(players => players.filter((player) => {
@@ -253,8 +290,10 @@ export const listPeople = (state: State): Promise<string[]> => getPlayers(state)
         if (!isHere(state, player.locationId)) {
             return false;
         }
-        return canSeePlayer(state, player);
+        return true;
     }))
+    .then(players => Promise.all(players.map(player => canSeePlayer(state, player).then(result => result && player))))
+    .then(players => players.filter(player => !!player))
     .then(players => players.map((player) => itemsAt(state, player.playerId, HELD_BY)
         .then((items) => {
             setPlayerPronoun(state, player);
