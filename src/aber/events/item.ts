@@ -17,12 +17,17 @@ import {
     SHIELD_BASE_ID,
     SHIELD_IDS,
 } from "../objsys";
-import {isWizard} from "../newuaf/reducer";
+import {getLevel, getStrength, isWizard, updateScore, updateStrength} from "../newuaf/reducer";
 import {getLocationId} from "../tk/reducer";
+import {teleport} from "../new1";
+import {IS_DESTROYED} from "../object";
+import {sendMessage} from "../bprintf/bprintf";
+import {calibrate} from "../parse";
 
 const noItem = {
     onAfterGet: () => Promise.resolve(undefined),
     onDrop: () => Promise.resolve(),
+    onEat: () => Promise.resolve(),
     onEnter: () => Promise.resolve(undefined),
     onGet: () => Promise.resolve(undefined),
 };
@@ -37,6 +42,14 @@ const defaultEvents = {
             .then(() => item);
     },
     onDrop: () => Promise.resolve(),
+    onEat: (state: State, actor: Player, item: Item): Promise<void> => item.isFood
+        ? setItem(state, item.itemId, { flags: { [IS_DESTROYED]: true }})
+            .then(() => sendMessage(state, 'Ok....\n'))
+            .then(() => {
+                updateStrength(state, 12);
+                return calibrate(state, actor);
+            })
+        : Promise.reject(new Error('Thats sure not the latest in health food....')),
     onGet: (state: State, actor: Player, item: Item): Promise<Item> => {
         const actions = [];
         if (item.flannel) {
@@ -64,6 +77,16 @@ const door = {
     },
 };
 
+const item11 = {
+    onEat: (state: State, actor: Player, item: Item): Promise<void> => defaultEvents.onEat(state, actor, item)
+        .then(() => sendMessage(
+            state,
+            'You feel funny, and then pass out\n'
+                + 'You wake up elsewhere....\n'
+        ))
+        .then(() => teleport(state, -1076, actor)),
+};
+
 const runeSword = {
     onDrop: (state: State, actor: Player, item: Item): Promise<void> => {
         const actions = [];
@@ -80,6 +103,11 @@ const runeSword = {
         .then(() => item),
 };
 
+const item75 = {
+    onEat: (state: State, actor: Player, item: Item): Promise<void> => defaultEvents.onEat(state, actor, item)
+        .then(() => sendMessage(state, 'very refreshing\n')),
+};
+
 const shield = {
     onGet: (state: State, actor: Player, item: Item): Promise<Item> => {
         if (item.containedIn) {
@@ -92,6 +120,26 @@ const shield = {
                 : Promise.reject(new Error('The shields are all to firmly secured to the walls'))
             );
     },
+};
+
+const item175 = {
+    onEat: (state: State, actor: Player, item: Item): Promise<void> => defaultEvents.onEat(state, actor, item)
+        .then(() => {
+            if (getLevel(state) < 3) {
+                updateScore(state, 40);
+                return 'You feel a wave of energy sweeping through you.\n';
+            } else {
+                if (getStrength(state) < 40) {
+                    updateStrength(state, 2);
+                }
+                return 'Faintly magical by the taste.\n';
+            }
+        })
+        .then(message => Promise.all([
+            calibrate(state, actor),
+            sendMessage(state, message),
+        ]))
+        .then(() => null),
 };
 
 export const onAfterGet = (item: Item): OnGetEvent => {
@@ -109,6 +157,20 @@ export const onDrop = (item: Item): OnDropEvent => {
         return runeSword.onDrop;
     } else {
         return defaultEvents.onDrop;
+    }
+};
+
+export const onEat = (item: Item): OnDropEvent => {
+    if (!item) {
+        return noItem.onEat;
+    } else if (item.itemId === 11) {
+        return item11.onEat;
+    } else if (item.itemId === 75) {
+        return item75.onEat;
+    } else if (item.itemId === 175) {
+        return item175.onEat;
+    } else {
+        return defaultEvents.onEat;
     }
 };
 

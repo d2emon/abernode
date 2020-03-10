@@ -23,6 +23,7 @@ import {getLevel, isWizard, updateScore} from "../newuaf/reducer";
 import {sendLocalMessage} from "../parse/events";
 import {getCanCalibrate, getLocationId, isHere, playerIsMe} from "../tk/reducer";
 import {looseGame} from "../tk";
+import {calibrate} from "../parse";
 
 const moveBot = (state: State, player: Player): Promise<void> => Promise.resolve();
 
@@ -164,7 +165,7 @@ export const getDragon = (state: State): Promise<Player> => {
 const dropPepper = (state: State, actor: Player): Promise<void> => {
     /* Fried dragon */
     const fried = (dragon: Player) => setPlayer(state, dragon.playerId, { exists: false })
-        .then(() => updateScore(state, 100, true)); /* No dragon */
+        .then(() => calibrate(state, actor, 100)); /* No dragon */
 
     /* Whoops !*/
     const dragonSneeze = () => sendMessage(

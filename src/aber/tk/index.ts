@@ -24,9 +24,9 @@ import {cureBlind, getBlind} from "../new1/reducer";
 import {isWizard} from "../newuaf/reducer";
 import {onLook} from "../mobile";
 import {getLocationName, loadExits} from "../zones";
+import {receiveEvent} from "../parse/events";
 
 const eorte = (state: State, interrupt: boolean = false) => (): Promise<void> => Promise.resolve();
-const gamrcv = (state: State, event: Event) => (): Promise<void> => Promise.resolve();
 const openroom = (roomId: number, permissions: string): Promise<any> => Promise.resolve({});
 const fclose = (room: any): Promise<void> => Promise.resolve();
 const getstr = (room: any): Promise<string[]> => Promise.resolve([]);
@@ -71,7 +71,7 @@ export const fadePlayer = (state: State, player: Player): Promise<void> => saveE
 
 const processEvent = (state: State) => (event: Event): Promise<void> => {
     const systemEvent = (state: State, event: Event, message: string): Promise<void> => sendMessage(state, message)
-        .then(gamrcv(state, event));
+        .then(receiveEvent(state, event));
 
     /* Print appropriate stuff from data block */
     const eventCode = getDebugMode(state) ? `\n<${event.code}>` : '';

@@ -9,6 +9,7 @@ import {OnDropEvent, OnEnterEvent, OnGetEvent} from "./index";
 import {updateScore} from "../newuaf/reducer";
 import {sendLocalMessage, sendMyMessage} from "../parse/events";
 import {getLocationId} from "../tk/reducer";
+import {calibrate} from "../parse";
 
 const SHIELD_IDS = [89, 113, 114];
 
@@ -41,7 +42,7 @@ const channel139 = {
 const channel183 = {
     onDrop: (state: State, actor: Player, item: Item): Promise<void> => Promise.all([
         sendMyMessage(state, `The ${item.name} disappears into the bottomless pit.\n`),
-        Promise.resolve(updateScore(state, item.value, true)),
+        calibrate(state, actor, item.value),
         putItem(state, item.itemId, -6),
         sendMessage(state, 'It disappears down into the bottomless pit.....\n')
     ])

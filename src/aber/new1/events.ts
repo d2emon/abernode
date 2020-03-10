@@ -22,8 +22,7 @@ import {sendMyMessage} from "../parse/events";
 import {getLocationId, getName, isHere} from "../tk/reducer";
 import {emitEvent} from "../tk/events";
 import {looseGame} from "../tk";
-
-const calibme = (state: State): void => undefined;
+import {calibrate} from "../parse";
 
 interface Event {
     sender: Player,
@@ -149,11 +148,14 @@ const receiveMissile = (state: State, event: Event, isMe: boolean, actor: Player
             }
         });
 };
-const receiveChange = (state: State, event: Event) => {
+const receiveChange = (state: State, event: Event): Promise<void> => {
     revertSex(state);
-    calibme(state);
-    return sendMessage(state, `Your sex has been magically changed!\n`
-        + `You are now ${getSexName(state)}\n`);
+    return Promise.all([
+        calibrate(state, event.sender),
+        sendMessage(state, `Your sex has been magically changed!\n`
+            + `You are now ${getSexName(state)}\n`)
+    ])
+        .then(() => null);
 };
 const receiveFireball = (state: State, event: Event, isMe: boolean, actor: Player) => {
     if (!isHere(state, event.locationId)) {
@@ -281,7 +283,13 @@ export const sendDeaf = (state: State, target: Player): Promise<void> => emitEve
     payload: undefined,
 });
 
-export const newReceive = (state: State, actor: Player, isMe: boolean, locationId: number, receiver: Player, sender: Player, code: number, payload: any): Promise<void> => {
+export const newReceive = (state: State, actor: Player, isMe: boolean, receiver: Player, sender: Player, event: EventData): Promise<void> => {
+    const {
+        code,
+        channelId,
+        payload,
+    } = event;
+
     const actions = {
         '-10100': () => onlyMe(state, isMe, sender, payload, receiveCure),
         '-10101': () => onlyMe(state, isMe, sender, payload, receiveCripple),
@@ -344,6 +352,7 @@ export const newReceive = (state: State, actor: Player, isMe: boolean, locationI
         }),
         '-10120': () => onlyMe(state, isMe, sender, payload, receiveDeaf),
     };
+
     const action = actions[code] || (() => Promise.resolve());
     return action();
 };

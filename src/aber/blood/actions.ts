@@ -22,19 +22,19 @@ import {
 import {RESET_N} from "../files";
 import {getLevel, setLevel} from "../newuaf/reducer";
 import {isHere, playerIsMe} from "../tk/reducer";
-
-const calibme = (state: State): void => undefined;
-const rescom = (state: State): Promise<any> => Promise.resolve({});
-const time = (state: State): number => 0;
+import {calibrate} from "../parse";
+import {Reset} from "../parse/actions";
 
 const openlock = (filename: string, permissions: string): Promise<any> => Promise.resolve({});
 const fscanf = (file: any, template: string): Promise<any> => Promise.resolve(0);
 const fclose = (file: any): Promise<void> => Promise.resolve();
 
-const sysReset = (state: State): Promise<void> => {
+const sysReset = (state: State, actor: Player): Promise<void> => {
     const doReset = (level: number): Promise<void> => {
         setLevel(state, 10);
-        return rescom(state).then(() => setLevel(state, level));
+        const action = new Reset()
+        return action.perform(state, actor)
+            .then(() => setLevel(state, level));
     };
 
     if (scale(state) !== 2) {
@@ -47,11 +47,11 @@ const sysReset = (state: State): Promise<void> => {
         ]))
         .then(([fl, u]) => fclose(fl).then(() => u))
         .then((u) => {
-            const t = time(state);
-            if (t < u) {
+            const t = new Date();
+            if (t.getTime() < u) {
                 return false;
             }
-            return (t - u) >= 3600;
+            return (t.getTime() - u) >= 3600;
         })
         .catch(() => true)
         .then((canReset) => {
@@ -76,8 +76,8 @@ export class Weapon extends Action {
                 if (!weapon) {
                     throw new Error('Thats not a weapon');
                 }
-                calibme(state);
-            });
+            })
+            .then(() => calibrate(state, actor));
     }
 
     decorate(result: any): void {
@@ -110,12 +110,12 @@ export class Kill extends Action {
             });
     }
 
-    breakItem(state: State, item?: Item): Promise<any> {
+    breakItem(state: State, actor: Player, item?: Item): Promise<any> {
         if (!item) {
             throw new Error('What is that ?');
         }
         if (item.itemId === 171) {
-            return sysReset(state);
+            return sysReset(state, actor);
         }
         throw new Error('You can\'t do that');
     }
@@ -145,7 +145,7 @@ export class Kill extends Action {
                 player,
             ]) => (
                 item
-                    ? this.breakItem(state, item as Item)
+                    ? this.breakItem(state, actor, item as Item)
                     : this.killPlayer(state, actor, player as Player)
             ));
     }

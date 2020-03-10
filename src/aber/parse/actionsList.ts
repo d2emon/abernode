@@ -1,12 +1,28 @@
 import Action from "../action";
 import {
     DefaultAction,
+    Eat,
     GoDirection,
+    Lightning,
+    Look,
+    Play,
     Quit,
+    Reset,
+    Say,
+    Shout,
+    Tell
 } from "./actions";
-import {searchList, SearchResult} from "./helpers";
+import {
+    searchList,
+    SearchResult,
+} from "./helpers";
 import {Grope} from "../new1/actions";
-import {GetItem} from "../objsys/actions";
+import {
+    DropItem,
+    GetItem,
+    Inventory,
+    Who,
+} from "../objsys/actions";
 import {Crash} from "../mobile/actions";
 
 const NORTH = 0;
@@ -33,25 +49,24 @@ const actions = {
     'up': new GoDirection(UP),
     'down': new GoDirection(DOWN),
 
-    //
     'quit': new Quit(8),
     'get': new GetItem(9),
-    'take': new DefaultAction(9),
-    'drop': new DefaultAction(10),
+    'take': new GetItem(9),
+    'drop': new DropItem(10),
 
-    'look': new DefaultAction(11),
-    'i': new DefaultAction(12),
-    'inv': new DefaultAction(12),
-    'inventory': new DefaultAction(12),
-    'who': new DefaultAction(13),
-    'reset': new DefaultAction(14),
-    'zap': new DefaultAction(15),
-    'eat': new DefaultAction(16),
-    'drink': new DefaultAction(16),
-    'play': new DefaultAction(17),
-    'shout': new DefaultAction(18),
-    'say': new DefaultAction(19),
-    'tell': new DefaultAction(20),
+    'look': new Look(11),
+    'i': new Inventory(12),
+    'inv': new Inventory(12),
+    'inventory': new Inventory(12),
+    'who': new Who(13),
+    'reset': new Reset(14),
+    'zap': new Lightning(15),
+    'eat': new Eat(16),
+    'drink': new Eat(16),
+    'play': new Play(17),
+    'shout': new Shout(18),
+    'say': new Say(19),
+    'tell': new Tell(20),
 
     'save': new DefaultAction(21),
     'score': new DefaultAction(22),

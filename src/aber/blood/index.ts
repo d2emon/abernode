@@ -19,8 +19,7 @@ import {checkRoll, roll} from "../magic";
 import {isWornBy, sendBotDamage} from "../new1";
 import {getToHit, isWizard, updateScore} from "../newuaf/reducer";
 import Events, {Attack} from "../tk/events";
-
-const calibme = (state: State): void => undefined;
+import {calibrate} from "../parse";
 
 const SCEPTRE_ID = 16;
 const RUNE_SWORD_ID = 32;
@@ -110,10 +109,7 @@ export const hitPlayer = (state: State, actor: Player, victim: Player, weapon?: 
                     /* MARK ALREADY DEAD */
                     promises.push(setPlayer(state, victim.playerId, { isDead: true }));
                 }
-                promises.push(new Promise((resolve) => {
-                    updateScore(state, attack.damage * 2, true);
-                    return resolve();
-                }));
+                promises.push(calibrate(state, actor, attack.damage * 2));
             } else {
                 promises.push(sendMessage(state, `You missed ${sendName(victim.name)}\n`));
             }

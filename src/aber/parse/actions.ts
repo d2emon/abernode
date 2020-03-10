@@ -1,6 +1,7 @@
 import Action from "../action";
 import State from "../state";
 import {
+    sendSound,
     sendVisiblePlayer,
 } from "../bprintf";
 import {
@@ -10,7 +11,7 @@ import {
 import {
     Player,
     getPlayers,
-    setPlayer, getItem,
+    setPlayer, getItem, setItem,
 } from "../support";
 import {sendMyMessage} from "./events";
 import {getPronoun} from "./reducer";
@@ -22,14 +23,24 @@ import * as CharacterEvents from "../events/character";
 import * as ItemEvents from "../events/item";
 import {searchList, SearchResult} from "./helpers";
 import {loadWorld, saveWorld} from "../opensys";
-import {sendWizards} from "../new1/events";
-import {dropMyItems} from "../objsys";
+import {sendShout, sendWizards} from "../new1/events";
+import {dropMyItems, findAvailableItem, findVisiblePlayer, isAvailable, itemsAt} from "../objsys";
 import {savePerson} from "../newuaf";
 import {endGame} from "../gamego/endGame";
 import {getLocationId, getName, isHere, setChannelId, setGameOff} from "../tk/reducer";
-import {processEvents, setLocationId} from "../tk";
+import {describeChannel, looseGame, processEvents, setLocationId} from "../tk";
 import Events from "../tk/events";
-import {getExit, getExits} from "../zones/reducer";
+import {getExit} from "../zones/reducer";
+import {CONTAINED_IN} from "../object";
+import {Examine} from "../extra/actions";
+import {sendMessage} from "../bprintf/bprintf";
+import {logger} from "../files";
+import {resetPlayers} from "../new1/bots";
+import {sendBotDamage} from "../new1";
+import ResetData from '../services/resetData';
+import {checkDumb} from "../new1/reducer";
+
+const getreinput = (state: State): Promise<string> => Promise.resolve('');
 
 export class DefaultAction extends Action {
     key: string | number = undefined;
@@ -242,5 +253,224 @@ export class Pronouns extends Action {
         if (there) {
             this.output(`There           : ${there}\n`);
         }
+    }
+}
+
+export class Look extends Examine {
+    private static lookIn = (state: State, actor: Player) => Action.nextWord(state, 'In what ?')
+        .then(word => findAvailableItem(state, word, actor))
+        .then((item) => {
+            if (!item) {
+                throw new Error('What ?');
+            }
+            if (!item.isContainer) {
+                throw  new Error('That isn\'t a container');
+            }
+            if (item.canBeOpened && (item.state !== 0)) {
+                throw new Error('It\'s closed!');
+            }
+            return Promise.all([
+                Promise.resolve(`The ${item.name} contains:\n`),
+                itemsAt(state, item.itemId, CONTAINED_IN),
+            ]);
+        })
+        .then(messages => messages.map(message => sendMessage(state, message)))
+        .then(() => null);
+
+    action(state: State, actor: Player): Promise<any> {
+        return Action.nextWord(state)
+            .then((word) => {
+                if (!word) {
+                    return describeChannel(state, getLocationId(state), actor, true);
+                } else if (word === 'at') {
+                    return super.perform(state, actor);
+                } else if ((word === 'in') || (word === 'into')) {
+                    return Look.lookIn(state, actor);
+                } else {
+                    return Promise.resolve();
+                }
+            });
+    }
+}
+
+export class Reset extends Action {
+    check(state: State, actor: Player): Promise<void> {
+        if (!isWizard(state)) {
+            throw new Error('What ?');
+        }
+        return Promise.resolve();
+    }
+
+    private static resetItems = (state: State): Promise<void> => ResetData.getItems()
+        .then(items => items.map((data, itemId) => setItem(state, itemId, data)))
+        .then(() => null);
+
+    action(state: State, actor: Player, args: any): Promise<any> {
+        return Events.broadcast(state, 'Reset in progress....\n')
+            .then(() => Promise.all([
+                Reset.resetItems(state),
+                resetPlayers(state),
+            ]))
+            .then(() => ResetData.setTime(new Date()))
+            .then(() => Events.broadcast(state, 'Reset Completed....\n'));
+    }
+}
+
+export class Lightning extends Action {
+    check(state: State, actor: Player): Promise<void> {
+        if (!isWizard(state)) {
+            throw new Error('Your spell fails.....');
+        }
+        return Promise.resolve();
+    }
+
+    action(state: State, actor: Player, args: any): Promise<any> {
+        return Action.nextWord(state, 'But who do you wish to blast into pieces....')
+            .then(name => findVisiblePlayer(state, name))
+            .then((player) => {
+                if (!player) {
+                    throw new Error('There is no one on with that name');
+                }
+                return Promise.all([
+                    `${getName(state)} zapped ${player.name}`,
+                    sendSound('You hear an ominous clap of thunder in the distance\n'),
+                    Events.sendExorcise(state, getName(state), player, player.locationId),
+                    sendBotDamage(state, actor, player, 10000),
+                ])
+            })
+            .then(([
+                log,
+                broadcast,
+            ]) => Promise.all([
+                logger
+                    .write(log)
+                    .catch(error => looseGame(state, actor, error)),
+                Events.broadcast(state, broadcast),
+            ]));
+    }
+}
+
+export class Eat extends Action {
+    getArgs(state: State, actor: Player): any {
+        return Action.nextWord(state, 'What')
+            .then((itemName) => {
+                if (isHere(state, -609) && (itemName === 'water')) {
+                    return 'spring';
+                }
+                if (itemName === 'from') {
+                    return Action.nextWord(state);
+                }
+                return itemName;
+            })
+            .then(itemName => findAvailableItem(state, itemName, actor))
+            .then(item => ({ item }))
+    }
+
+    action(state: State, actor: Player, args: any): Promise<any> {
+        const {
+            item,
+        } = args;
+        if (!item) {
+            throw new Error('There isn\'t one of those here');
+        }
+        return ItemEvents.onEat(item)(state, actor, item);
+    }
+
+}
+
+export class Play extends Action {
+    getArgs(state: State, actor: Player): any {
+        return Action.nextWord(state, 'Play what ?')
+            .then(itemName => findAvailableItem(state, itemName, actor))
+            .then(item => ({ item }));
+    }
+
+    action(state: State, actor: Player, args: any): Promise<any> {
+        const { item } = args;
+        if (!item || !isAvailable(item, actor, getLocationId(state), !isWizard(state))) {
+            throw new Error('That isn\'t here');
+        }
+        return Promise.resolve();
+    }
+}
+
+export class Shout extends Action {
+    check(state: State, actor: Player): Promise<void> {
+        return checkDumb(state)
+            .then(() => null);
+    }
+
+    getArgs(state: State): any {
+        return getreinput(state)
+            .then(message => ({ message }))
+    }
+
+    action(state: State, actor: Player, args: any): Promise<any> {
+        const { message } = args;
+        return isWizard(state)
+            ? sendShout(state, message)
+            : Events.sendSimpleShout(state, message);
+    }
+
+    decorate(result: any): void {
+        this.output('Ok\n')
+    }
+}
+
+export class Say extends Action {
+    check(state: State, actor: Player): Promise<void> {
+        return checkDumb(state)
+            .then(() => null);
+    }
+
+    getArgs(state: State): any {
+        return getreinput(state)
+            .then(message => ({ message }))
+    }
+
+    action(state: State, actor: Player, args: any): Promise<any> {
+        const { message } = args;
+        return Events.sendSay(state, message)
+            .then(() => message);
+    }
+
+    decorate(result: any): void {
+        this.output(`You say '${result}'\n`)
+    }
+}
+
+export class Tell extends Action {
+    check(state: State, actor: Player): Promise<void> {
+        return checkDumb(state)
+            .then(() => null);
+    }
+
+    getArgs(state: State): any {
+        return Action.nextWord(state, 'Tell who ?\n')
+            .then(name => findVisiblePlayer(state, name))
+            .then((player) => {
+                if (!player) {
+                    throw new Error('No one with that name is playing');
+                }
+                return Promise.all([
+                    Promise.resolve(player),
+                    getreinput(state),
+                ]);
+            })
+            .then(([
+                player,
+                message,
+            ]) => ({
+                player,
+                message,
+            }))
+    }
+
+    action(state: State, actor: Player, args: any): Promise<any> {
+        const {
+            player,
+            message,
+        } = args;
+        return Events.sendTell(state, player, message);
     }
 }

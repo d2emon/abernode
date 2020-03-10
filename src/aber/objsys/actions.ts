@@ -209,7 +209,7 @@ export class Inventory extends Action {
     }
 }
 
-class Who extends Action {
+export class Who extends Action {
     describePlayer(state: State, player: Player): string {
         if (player.isDead) {
             /* On  Non game mode */
