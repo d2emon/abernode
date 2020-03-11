@@ -1,7 +1,7 @@
 import State from "../state";
 import {Event} from '../services/world';
 import {getLocationId, getName, isHere} from "../tk/reducer";
-import Events from '../tk/events';
+import Events, {PLAYER_MESSAGE} from '../tk/events';
 import {findPlayer} from "../objsys";
 import {newReceive, sendWizards} from "../new1/events";
 import {Player, setPlayer} from "../support";
@@ -13,8 +13,9 @@ import {saveWorld} from "../opensys";
 import {receiveDamage} from "../blood/events";
 import {
     actorName,
-    createVisiblePlayerMessage, playerName,
+    playerName,
     sendAudibleMessage,
+    sendBaseMessage,
     sendVisibleMessage,
 } from "../bprintf";
 import {receiveWeather} from "../weather/events";
@@ -27,13 +28,6 @@ export interface EventData {
     channelId?: number,
     payload?: any,
 }
-
-export const sendMyMessage = (state: State, message: string): Promise<void> => Events.sendLocalMessage(
-    state,
-    getLocationId(state),
-    getName(state),
-    message,
-);
 
 const onlyMe = (state: State, isMe: boolean, data: EventData, callback): Promise<void> => (
     isMe
@@ -70,7 +64,7 @@ const receiveChangePerson = (state: State, data: EventData): Promise<void> => {
     setStrength(state, strength);
     return calibrate(state, receiver);
 };
-const receiveEvil = (state: State, data: EventData): Promise<void> => sendMessage(
+const receiveEvil = (state: State, data: EventData): Promise<void> => sendBaseMessage(
     state,
     'Something Very Evil Has Just Happened...\n',
 )
@@ -103,18 +97,22 @@ const receiveLocalMessage = (state: State, data: EventData): Promise<void> => {
 const receiveExorcise = (state: State, data: EventData, isMe: boolean): Promise<void> => {
     if (isMe) {
         if (isWizard(state)) {
-            return sendMessage(state, `${playerName(data.sender)} cast a lightning bolt at you\n`);
+            return sendBaseMessage(state, `${playerName(data.sender)} cast a lightning bolt at you\n`);
         }
         /* You are in the .... */
         state.zapped = true;
         return Promise.all([
-            sendMessage(state, 'A massive lightning bolt arcs down out of the sky to strike you between\nthe eyes\n'),
+            sendBaseMessage(state, 'A massive lightning bolt arcs down out of the sky to strike you between\nthe eyes\n'),
             sendWizards(state, `[ ${actorName(state)} has just been zapped by ${playerName(data.sender)} and terminated ]\n`),
         ])
             .then(() => Promise.all([
                 removePerson(state, getName(state)),
-                sendMyMessage(state, createVisiblePlayerMessage(getName(state), '[author] has just died.\n\n')),
-                sendMessage(state, `You have been utterly destroyed by ${data.sender.name}\n`)
+                Events.sendSocialEvent(
+                    state,
+                    '[author] has just died.\n\n',
+                    PLAYER_MESSAGE,
+                ),
+                sendBaseMessage(state, `You have been utterly destroyed by ${data.sender.name}\n`)
             ]))
             .then(() => looseGame(state, data.actor, 'Bye Bye.... Slain By Lightning'));
     } else if (isHere(state, data.channelId)) {
@@ -144,7 +142,7 @@ const receiveKick = (state: State, data: EventData, isMe: boolean): Promise<void
     if (isMe) {
         return looseGame(state, data.actor, 'You have been kicked off');
     } else {
-        return sendMessage(state, `${data.receiver.name} has been kicked off\n`);
+        return sendBaseMessage(state, `${data.receiver.name} has been kicked off\n`);
     }
 };
 const receivePrivate = (state: State, data: EventData): Promise<void> => {
@@ -153,9 +151,9 @@ const receivePrivate = (state: State, data: EventData): Promise<void> => {
 const receiveSummon = (state: State, data: EventData): Promise<void> => {
     state.ades = data.channelId;
     if (isWizard(state)) {
-        return sendMessage(state, `${playerName(data.sender)} tried to summon you`);
+        return sendBaseMessage(state, `${playerName(data.sender)} tried to summon you`);
     }
-    return sendMessage(state, `You drop everything you have as you are summoned by ${playerName(data.sender)}`)
+    return sendBaseMessage(state, `You drop everything you have as you are summoned by ${playerName(data.sender)}`)
         .then(() => {
             state.tdes = 1;
         });

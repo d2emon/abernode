@@ -1,5 +1,5 @@
 import State from "../state";
-import Events from '../tk/events';
+import Events, {PLAYER_MESSAGE} from '../tk/events';
 import {
     createItem,
     getItem,
@@ -27,7 +27,7 @@ import {
 import {hitPlayer} from "../blood";
 import {
     actorName,
-    createVisiblePlayerMessage,
+    createVisiblePlayerMessage, sendBaseMessage,
     sendTextMessage,
 } from "../bprintf";
 import {showMessages} from "../bprintf/output";
@@ -50,13 +50,6 @@ import {
     getCurrentChar,
     nextStop,
 } from "./reducer";
-import {
-    sendEndFight,
-    sendKick,
-    sendLocalMessage,
-    sendMyMessage,
-    sendPrivate,
-} from "./events";
 import {executeCommand} from "./parser";
 import Action from "../action";
 import {
@@ -67,7 +60,6 @@ import {
     setConversationOn,
     setConversationShell,
 } from "../tk/reducer";
-import {sendMessage} from "../bprintf/bprintf";
 import {
     fadePlayer,
     looseGame,
@@ -75,7 +67,6 @@ import {
     setLocationId,
 } from "../tk";
 import {Event} from "../services/world";
-import {receiveWeather} from "../weather/events";
 import {canCarry} from "../objsys/actions";
 import {calibrate} from "./index";
 
@@ -452,8 +443,11 @@ const doaction = (state: State, actionId: number): Promise<void> => {
                             return resolve();
                         }
                         Promise.all([
-                            sendMyMessage(state, `${actorName(state)} drops everything in a frantic attempt to escape\n`),
-                            sendEndFight(state, getName(state)),
+                            Events.sendMyMessage(
+                                state,
+                                `${actorName(state)} drops everything in a frantic attempt to escape\n`
+                            ),
+                            Events.sendEndFight(state, getName(state)),
                         ])
                             .then(() => calibrate(state, actor, -(getScore(state) / 33))) /* loose 3% */
                             .then(() => {
@@ -870,16 +864,19 @@ const stealcom = (state: State, actor: Player): Promise<void> => {
         })
 };
 
-const dosumm = (state: State, locationId: number): Promise<void> => {
-    const oldLocationId = getLocationId(state);
-    return Promise.all([
-        setLocationId(state, locationId, actor),
-        sendLocalMessage(state, oldLocationId, getName(state), createVisiblePlayerMessage(getName(state), '[author] vanishes in a puff of smoke\n')),
-        sendLocalMessage(state, locationId, getName(state), createVisiblePlayerMessage(getName(state), '[author] appears in a puff of smoke\n')),
-        dropMyItems(state, actor),
-    ])
-        .then(() => {});
-};
+const dosumm = (state: State, locationId: number): Promise<void> => dropMyItems(state, actor)
+    .then(() => Events.sendSocialEvent(
+        state,
+        '[author] vanishes in a puff of smoke\n',
+        PLAYER_MESSAGE,
+    ))
+    .then(() => setLocationId(state, locationId, actor))
+    .then(() => Events.sendSocialEvent(
+        state,
+        '[author] appears in a puff of smoke\n',
+        PLAYER_MESSAGE,
+    ))
+    .then(() => null);
 
 const tsscom = (state: State): Promise<void> => {
     if (!isGod(state)) {
@@ -995,7 +992,7 @@ const systat = (state: State): Promise<void> => {
 
 const convcom = (state: State): Promise<void> => {
     setConversationOn(state);
-    return sendMessage(state, 'Type \'**\' on a line of its own to exit converse mode\n');
+    return sendBaseMessage(state, 'Type \'**\' on a line of its own to exit converse mode\n');
 };
 
 const shellcom = (state: State): Promise<void> => {
@@ -1004,7 +1001,7 @@ const shellcom = (state: State): Promise<void> => {
         return Promise.resolve();
     }
     setConversationShell(state);
-    return sendMessage(state, 'Type ** on its own on a new line to exit shell\n');
+    return sendBaseMessage(state, 'Type ** on its own on a new line to exit shell\n');
 };
 
 const rawcom = (state: State): Promise<void> => {

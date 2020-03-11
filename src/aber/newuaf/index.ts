@@ -8,6 +8,7 @@ import {sendMessage} from "../bprintf/bprintf";
 import {getPlayer, Player} from "../support";
 import {findItem} from "../objsys";
 import {getName} from "../tk/reducer";
+import {sendBaseMessage} from "../bprintf";
 
 export const removePerson = (state: State, name: string): Promise<void> => Persons.findPersons(name)
     .then(persons => persons.forEach((person) => {
@@ -38,12 +39,12 @@ const inputSex = (state: State): Promise<number> => sendAndShow(state, '\nSex (M
         } else if (sex === 'f') {
             return 1;
         } else {
-            return sendMessage(state, 'M or F')
+            return sendBaseMessage(state, 'M or F')
                 .then(() => inputSex(state));
         }
     });
 
-const addPerson = (state: State): Promise<void> => sendMessage(state, 'Creating character....\n')
+const addPerson = (state: State): Promise<void> => sendBaseMessage(state, 'Creating character....\n')
     .then(() => inputSex(state))
     .then((sex: number): Person => getPerson(state, {
         strength: 40,
@@ -69,7 +70,7 @@ export const savePerson = (state: State, actor: Player): Promise<void> => {
     if (state.zapped) {
         return Promise.resolve();
     }
-    return sendMessage(state, `\nSaving ${getName(state)}\n`)
+    return sendBaseMessage(state, `\nSaving ${getName(state)}\n`)
         .then(() => getPerson(state, {
             sex: actor.sex, // player.flags
         }))

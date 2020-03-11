@@ -1,4 +1,5 @@
 import State from "../state";
+import Events from '../tk/events';
 import {
     cureAll,
     getForce,
@@ -8,14 +9,13 @@ import {
     setDumb,
     setForce,
 } from "./reducer";
-import {playerName} from "../bprintf";
+import {playerName, sendBaseMessage} from "../bprintf";
 import {Player} from "../support";
 import {sendMessage} from "../bprintf/bprintf";
 import {logger} from "../files";
 import {removePerson} from "../newuaf";
 import {getSexName, getStrength, isWizard, revertSex, updateStrength} from "../newuaf/reducer";
 import {loadWorld, saveWorld} from "../opensys";
-import {sendMyMessage} from "../parse/events";
 import {getLocationId, getName, isHere} from "../tk/reducer";
 import {emitEvent} from "../tk/events";
 import {looseGame} from "../tk";
@@ -45,7 +45,7 @@ const receiveMagicDamage = (state: State, damage: number, message: string, actor
         })
         .then(() => Promise.all([
             sendMessage(state, message),
-            sendMyMessage(state, `${getName(state)} has just died\n`),
+            Events.sendMyMessage(state, `${getName(state)} has just died\n`),
             sendWizards(state, `[ ${getName(state)} has just died ]\n`),
             logger.write(`${getName(state)} slain magically`),
             removePerson(state, getName(state)),
@@ -57,7 +57,7 @@ const addForce = (state: State, action: string): Promise<void> => {
     const force = getForce(state);
     setForce(state, action);
     return force
-        ? sendMessage(state, `The compulsion to ${force} is overridden\n`)
+        ? sendBaseMessage(state, `The compulsion to ${force} is overridden\n`)
         : Promise.resolve();
 };
 
@@ -98,51 +98,51 @@ const notMy = (state: State, isMe: boolean, data: Event, callback): Promise<void
 
 const receiveCure = (state: State) => {
     cureAll(state);
-    return sendMessage(state, 'All your ailments have been cured\n');
+    return sendBaseMessage(state, 'All your ailments have been cured\n');
 };
 const receiveCripple = (state: State, event: Event) => {
     if (!isWizard(state)) {
         setCripple(state);
-        return sendMessage(state, 'You have been magically crippled\n');
+        return sendBaseMessage(state, 'You have been magically crippled\n');
     } else {
-        return sendMessage(state, `${playerName(event.sender)} tried to cripple you\n`)
+        return sendBaseMessage(state, `${playerName(event.sender)} tried to cripple you\n`)
     }
 };
 const receiveDumb = (state: State, event: Event) => {
     if (!isWizard(state)) {
         setDumb(state);
-        return sendMessage(state, 'You have been struck magically dumb\n');
+        return sendBaseMessage(state, 'You have been struck magically dumb\n');
     } else {
-        return sendMessage(state, `${playerName(event.sender)} tried to dumb you\n`)
+        return sendBaseMessage(state, `${playerName(event.sender)} tried to dumb you\n`)
     }
 };
 const receiveForce = (state: State, event: Event) => {
     if (!isWizard(state)) {
         return addForce(state, event.payload)
-            .then(() => sendMessage(state, `${playerName(event.sender)} has forced you to ${event.payload}\n`));
+            .then(() => sendBaseMessage(state, `${playerName(event.sender)} has forced you to ${event.payload}\n`));
     } else {
-        return sendMessage(state, `${playerName(event.sender)} tried to force you to ${event.payload}\n`);
+        return sendBaseMessage(state, `${playerName(event.sender)} tried to force you to ${event.payload}\n`);
     }
 };
-const receiveShout = (state: State, event: Event) => sendMessage(state, `${playerName(event.sender)} shouts '${event.payload}'\n`);
+const receiveShout = (state: State, event: Event) => sendBaseMessage(state, `${playerName(event.sender)} shouts '${event.payload}'\n`);
 const receiveBlind = (state: State, event: Event) => {
     if (!isWizard(state)) {
         setBlind(state);
-        return sendMessage(state, 'You have been struck magically blind\n');
+        return sendBaseMessage(state, 'You have been struck magically blind\n');
     } else {
-        return sendMessage(state, `${playerName(event.sender)} tried to blind you\n`);
+        return sendBaseMessage(state, `${playerName(event.sender)} tried to blind you\n`);
     }
 };
 const receiveMissile = (state: State, event: Event, isMe: boolean) => {
     if (!isHere(state, event.channelId)) {
         return Promise.resolve();
     }
-    return sendMessage(state, `Bolts of fire leap from the fingers of ${playerName(event.sender)}\n`)
+    return sendBaseMessage(state, `Bolts of fire leap from the fingers of ${playerName(event.sender)}\n`)
         .then(() => {
             if (isMe) {
                 return receiveMagicDamage(state, Number(event.payload), 'You are struck!\n', event.actor);
             } else {
-                return sendMessage(state, `${playerName(event.receiver)} is struck\n`);
+                return sendBaseMessage(state, `${playerName(event.receiver)} is struck\n`);
             }
         });
 };
@@ -150,7 +150,7 @@ const receiveChange = (state: State, event: Event): Promise<void> => {
     revertSex(state);
     return Promise.all([
         calibrate(state, event.sender),
-        sendMessage(state, `Your sex has been magically changed!\n`
+        sendBaseMessage(state, `Your sex has been magically changed!\n`
             + `You are now ${getSexName(state)}\n`)
     ])
         .then(() => null);
@@ -159,12 +159,12 @@ const receiveFireball = (state: State, event: Event, isMe: boolean) => {
     if (!isHere(state, event.channelId)) {
         return Promise.resolve();
     }
-    return sendMessage(state, `${playerName(event.sender)} casts a fireball\n`)
+    return sendBaseMessage(state, `${playerName(event.sender)} casts a fireball\n`)
         .then(() => {
             if (isMe) {
                 return receiveMagicDamage(state, Number(event.payload), 'You are struck!\n', event.actor);
             } else {
-                return sendMessage(state, `${playerName(event.receiver)} is struck\n`);
+                return sendBaseMessage(state, `${playerName(event.receiver)} is struck\n`);
             }
         });
 };
@@ -183,9 +183,9 @@ const receiveWizard = (state: State, event: Event) => {
 const receiveDeaf = (state: State, event: Event) => {
     if (!isWizard(state)) {
         setDeaf(state);
-        return sendMessage(state, 'You have been magically deafened\n');
+        return sendBaseMessage(state, 'You have been magically deafened\n');
     } else {
-        return sendMessage(state, `${playerName(event.sender)} tried to deafen you\n`);
+        return sendBaseMessage(state, `${playerName(event.sender)} tried to deafen you\n`);
     }
 };
 

@@ -25,6 +25,7 @@ import {isWizard} from "../newuaf/reducer";
 import {onLook} from "../mobile";
 import {getLocationName, loadExits} from "../zones";
 import {receiveEvent} from "../parse/events";
+import {sendBaseMessage} from "../bprintf";
 
 const eorte = (state: State, interrupt: boolean = false) => (): Promise<void> => Promise.resolve();
 const openroom = (roomId: number, permissions: string): Promise<any> => Promise.resolve({});
@@ -135,7 +136,7 @@ const tbroad = Events.broadcast;
 
 export const describeChannel = (state: State, roomId: number, actor: Player, noBrief: boolean = false): Promise<void> => {
     const darkRoom = (un1: any): Promise<void> => fclose(un1)
-        .then(() => sendMessage(state, 'It is dark\n'))
+        .then(() => sendBaseMessage(state, 'It is dark\n'))
         .then(() => loadWorld(state))
         .then(() => onLook(state, actor));
 
@@ -147,7 +148,7 @@ export const describeChannel = (state: State, roomId: number, actor: Player, noB
                     return Promise.resolve();
                 }
                 if (isWizard(state)) {
-                    return sendMessage(state, '<DEATH ROOM>\n');
+                    return sendBaseMessage(state, '<DEATH ROOM>\n');
                 } else {
                     return looseGame(state, actor, 'bye bye.....');
                 }
@@ -178,19 +179,19 @@ export const describeChannel = (state: State, roomId: number, actor: Player, noB
 
     return loadWorld(state)
         .then(() => saveWorld(state))
-        .then(() => getBlind(state) && sendMessage(state, 'You are blind... you can\'t see a thing!\n'))
-        .then(() => isWizard(state) && sendMessage(state, `${getLocationName(state, roomId)}\n`))
+        .then(() => getBlind(state) && sendBaseMessage(state, 'You are blind... you can\'t see a thing!\n'))
+        .then(() => isWizard(state) && sendBaseMessage(state, `${getLocationName(state, roomId)}\n`))
         .then(() => openroom(roomId, 'r'))
         .then((room) => (room
             ? showRoom(room)
-            : sendMessage(state, `\nYou are on channel ${roomId}\n`)
+            : sendBaseMessage(state, `\nYou are on channel ${roomId}\n`)
         ))
         .then(() => loadWorld(state))
         .then(() => getBlind(state)
             ? undefined
             : listContents()
         )
-        .then(() => sendMessage(state, '\n'))
+        .then(() => sendBaseMessage(state, '\n'))
         .then(() => onLook(state, actor));
 };
 

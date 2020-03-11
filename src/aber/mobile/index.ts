@@ -14,8 +14,7 @@ import {
     isCarriedBy,
 } from "../objsys";
 import {IS_LIT} from "../object";
-import {sendMessage} from "../bprintf/bprintf";
-import {playerName} from '../bprintf';
+import {playerName, sendBaseMessage} from '../bprintf';
 import {hitPlayer} from "../blood";
 import {setPlayerDamage} from "../new1";
 import {getLevel, isWizard} from "../newuaf/reducer";
@@ -95,7 +94,7 @@ const doRune = (state: State, actor: Player, runeSword: Item): Promise<void> => 
             victim,
             success,
         ]) => victim && success && Promise.all([
-            sendMessage(state, 'The runesword twists in your hands lashing out savagely\n'),
+            sendBaseMessage(state, 'The runesword twists in your hands lashing out savagely\n'),
             hitPlayer(state, actor, victim, runeSword),
         ]))
         .then(() => {});
@@ -114,7 +113,7 @@ const checkHelp = (state: State, player: Player): Promise<void> => getPlayer(sta
         }
         return Promise.all([
             setPlayer(state, player.playerId, { helping: -1 }),
-            sendMessage(state, `You can no longer help ${playerName(helping)}\n`),
+            sendBaseMessage(state, `You can no longer help ${playerName(helping)}\n`),
         ]);
     })
     .then(() => {});
@@ -167,7 +166,7 @@ const dropPepper = (state: State, actor: Player): Promise<void> => {
         .then(() => calibrate(state, actor, 100)); /* No dragon */
 
     /* Whoops !*/
-    const dragonSneeze = () => sendMessage(
+    const dragonSneeze = () => sendBaseMessage(
         state,
         'The dragon sneezes forth a massive ball of flame.....\n'
             + 'Unfortunately you seem to have been fried\n'
@@ -177,7 +176,12 @@ const dropPepper = (state: State, actor: Player): Promise<void> => {
     return Promise.all([
         getPlayer(state, 32),
         getItem(state, 89),
-        sendLocalMessage(state, getLocationId(state), undefined, 'You start sneezing ATISCCHHOOOOOO!!!!\n'),
+        sendLocalMessage(
+            state,
+            undefined,
+            getLocationId(state),
+            'You start sneezing ATISCCHHOOOOOO!!!!\n',
+        ),
     ])
         .then(([
             dragon,

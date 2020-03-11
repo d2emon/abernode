@@ -14,12 +14,17 @@ import {getName} from "../tk/reducer";
 // export const sendPlayerForVisible = (text: string): string => `[D]${text}[/D]`;
 // export const sendKeyboard = (text: string): string => `[l]${text}[/l]`;
 
+const BASE = '{{message}}';
 const TEXT = '[f]{{message}}[/f]';
 const AUDIBLE = '[P]{{author}}[/P][d]{{message}}[/d]';
 const VISIBLE = '[D]{{author}}[/D][c]{{message}}[/c]';
 const VISIBLE_PLAYER = '[s name="{{author}}"]{{message}}[/s]';
 const KEYBOARD = '[l]{{message}}[/l]';
 
+export const createBaseMessage = (message: string): string => JSON.stringify({
+    messageType: BASE,
+    message,
+});
 const createTextMessage = (message: string): string => JSON.stringify({
     messageType: TEXT,
     message,
@@ -44,6 +49,10 @@ const createKeyboardMessage = (message: string): string => JSON.stringify({
     message,
 });
 
+export const sendBaseMessage = (state: State, text: string): Promise<void> => sendMessage(
+    state,
+    createBaseMessage(text),
+);
 export const sendTextMessage = (state: State, text: string): Promise<void> => sendMessage(
     state,
     createTextMessage(text),

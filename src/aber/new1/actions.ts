@@ -1,12 +1,16 @@
 import State from "../state";
 import Action from "../action";
-import Events from '../tk/events';
+import Events, {
+    AUDIBLE_MESSAGE,
+    PLAYER_MESSAGE,
+    VISIBLE_MESSAGE,
+} from '../tk/events';
 import {
     actorName,
     createAudibleMessage,
-    createVisibleMessage,
     createVisiblePlayerMessage,
     playerName,
+    sendBaseMessage,
 } from "../bprintf";
 import {
     getAvailableItem,
@@ -42,7 +46,6 @@ import {
     IS_LIT,
 } from "../object";
 import {getDragon} from "../mobile";
-import {sendMessage} from "../bprintf/bprintf";
 import {roll} from "../magic";
 import {
     sendBlind,
@@ -60,10 +63,8 @@ import {
 } from "./reducer";
 import {getLevel, getStrength, isWizard, updateScore, updateStrength} from "../newuaf/reducer";
 import {loadWorld} from "../opensys";
-import {sendMyMessage} from "../parse/events";
 import {getLocationId, getName, isHere, playerIsMe} from "../tk/reducer";
 import {looseGame, setLocationId} from "../tk";
-import {AUDIBLE_EVENT, sendSocialEvent, VISIBLE_EVENT} from "../weather/events";
 
 const getreinput = (state: State): string => '';
 
@@ -97,18 +98,18 @@ export const getAvailablePlayer = (state: State): Promise<Player> => loadWorld(s
         return player;
     });
 
-const spellFails = (state: State, actor: Player, reflect: boolean) => sendMessage(state, 'You fumble the magic\n')
+const spellFails = (state: State, actor: Player, reflect: boolean) => sendBaseMessage(state, 'You fumble the magic\n')
     .then(() => {
         if (!reflect) {
             return undefined;
         }
-        return sendMessage(state, 'The spell reflects back\n')
+        return sendBaseMessage(state, 'The spell reflects back\n')
             .then(() => actor);
     });
 
 const spellSuccess = (state: State) => (
     !isWizard(state)
-        ? sendMessage(state, 'The spell succeeds!!\n')
+        ? sendBaseMessage(state, 'The spell succeeds!!\n')
         : Promise.resolve()
 );
 
@@ -179,7 +180,7 @@ export class Grope extends Action {
             .then(() => super.check(state, actor));
     }
 
-    private static gropeMyself = (state: State, actor: Player): Promise<void> => sendMessage(
+    private static gropeMyself = (state: State, actor: Player): Promise<void> => sendBaseMessage(
         state,
         'With a sudden attack of morality the machine edits your persona\n'
     )
@@ -206,7 +207,7 @@ export class Grope extends Action {
 
 export class Bounce extends Action {
     action(state: State): Promise<any> {
-        return sendSocialEvent(state, '[author] bounces around\n', VISIBLE_EVENT);
+        return Events.sendSocialEvent(state, '[author] bounces around\n', PLAYER_MESSAGE);
     }
 
     decorate(result: any): void {
@@ -217,7 +218,7 @@ export class Bounce extends Action {
 export class Sigh extends Action {
     action(state: State): Promise<any> {
         return checkDumb(state)
-            .then(() => sendSocialEvent(state, '[author] sighs loudly\n', AUDIBLE_EVENT));
+            .then(() => Events.sendSocialEvent(state, '[author] sighs loudly\n', AUDIBLE_MESSAGE));
     }
 
     decorate(result: any): void {
@@ -228,7 +229,7 @@ export class Sigh extends Action {
 export class Scream extends Action {
     action(state: State): Promise<any> {
         return checkDumb(state)
-            .then(() => sendSocialEvent(state, '[author] screams loudly\n', AUDIBLE_EVENT));
+            .then(() => Events.sendSocialEvent(state, '[author] screams loudly\n', AUDIBLE_MESSAGE));
     }
 
     decorate(result: any): void {
@@ -478,7 +479,12 @@ export class Put extends Action {
         }
         return getItem(state, 193)
             .then(chute => Promise.all([
-                Events.sendLocalMessage(state, chute.locationId, undefined, `The ${item.name} comes out of the chute!\n`),
+                Events.sendLocalMessage(
+                    state,
+                    undefined,
+                    chute.locationId,
+                    `The ${item.name} comes out of the chute!\n`,
+                ),
                 putItem(state, item.itemId, chute.locationId),
             ]))
             .then(() => 'It vanishes down the chute....\n');
@@ -505,7 +511,11 @@ export class Put extends Action {
                     throw new Error('You can\'t let go of it!');
                 }
                 return Promise.all([
-                    sendMyMessage(state, createVisibleMessage(`[author] puts the ${item.name} in the ${container.name}.\n`, getName(state))),
+                    Events.sendSocialEvent(
+                        state,
+                        `[author] puts the ${item.name} in the ${container.name}.\n`,
+                        VISIBLE_MESSAGE,
+                    ),
                     putItemIn(state, item.itemId, container.itemId),
                     item.changeStateOnTake
                         ? setItem(state, item.itemId, { state: 0 })
@@ -659,7 +669,7 @@ export class Push extends Action {
 
     private static push126(state: State, item: Item, actor: Player): Promise<any> {
         return Promise.all([
-            sendMessage(state, 'The tripwire moves and a huge stone crashes down from above!\n'),
+            sendBaseMessage(state, 'The tripwire moves and a huge stone crashes down from above!\n'),
             Events.broadcast(state, createAudibleMessage('You hear a thud and a squelch in the distance.\n')),
         ])
             .then(() => looseGame(state, actor, '             S   P    L      A         T           !'));
@@ -729,11 +739,23 @@ export class Push extends Action {
                 location2,
             ]) => {
                 const message = isOpen
-                    ? createVisibleMessage('The portcullis falls\n')
-                    : createVisibleMessage('The portcullis rises\n');
+                    ? 'The portcullis falls\n'
+                    : 'The portcullis rises\n';
                 return Promise.all([
-                    Events.sendLocalMessage(state, location1, undefined, message),
-                    Events.sendLocalMessage(state, location2, undefined, message),
+                    Events.sendLocalMessage(
+                        state,
+                        undefined,
+                        location1,
+                        message,
+                        VISIBLE_MESSAGE,
+                    ),
+                    Events.sendLocalMessage(
+                        state,
+                        undefined,
+                        location2,
+                        message,
+                        VISIBLE_MESSAGE,
+                    ),
                 ]);
             });
     }
@@ -758,11 +780,23 @@ export class Push extends Action {
                 location2,
             ]) => {
                 const message = isOpen
-                    ? createVisibleMessage('The drawbridge rises\n')
-                    : createVisibleMessage('The drawbridge is lowered\n');
+                    ? 'The drawbridge rises\n'
+                    : 'The drawbridge is lowered\n';
                 return Promise.all([
-                    Events.sendLocalMessage(state, location1, undefined, message),
-                    Events.sendLocalMessage(state, location2, undefined, message),
+                    Events.sendLocalMessage(
+                        state,
+                        undefined,
+                        location1,
+                        message,
+                        VISIBLE_MESSAGE,
+                    ),
+                    Events.sendLocalMessage(
+                        state,
+                        undefined,
+                        location2,
+                        message,
+                        VISIBLE_MESSAGE,
+                    ),
                 ]);
             });
     }

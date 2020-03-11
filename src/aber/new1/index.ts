@@ -12,13 +12,12 @@ import {
 } from "../support";
 import {sendWizards} from "./events";
 import {roll} from "../magic";
-import {createVisiblePlayerMessage} from "../bprintf";
 import {getLevel, isWizard} from "../newuaf/reducer";
 import {loadWorld} from "../opensys";
 import Action from "../action";
-import {getLocationId, getName, isHere} from "../tk/reducer";
+import {isHere} from "../tk/reducer";
 import {setLocationId} from "../tk";
-import Events from "../tk/events";
+import Events, {PLAYER_MESSAGE} from "../tk/events";
 
 
 /**
@@ -106,12 +105,15 @@ export const sendBotDamage = (state: State, actor: Player, player: Player, damag
     }
 };
 
-export const teleport = (state: State, locationId: number, actor: Player): Promise<void> => {
-    const oldLocationId = getLocationId(state);
-    return Promise.all([
-        setLocationId(state, locationId, actor),
-        Events.sendLocalMessage(state, oldLocationId, getName(state), createVisiblePlayerMessage(getName(state), '[author] has left.\n')),
-        Events.sendLocalMessage(state, locationId, getName(state), createVisiblePlayerMessage(getName(state), '[author] has arrived.\n')),
-    ])
-        .then(() => {});
-};
+export const teleport = (state: State, locationId: number, actor: Player): Promise<void> => Events.sendSocialEvent(
+    state,
+    '[author] has left.\n',
+    PLAYER_MESSAGE,
+)
+    .then(() => setLocationId(state, locationId, actor))
+    .then(() => Events.sendSocialEvent(
+        state,
+        '[author] has arrived.\n',
+        PLAYER_MESSAGE,
+    ))
+    .then(() => null);

@@ -2,7 +2,6 @@ import Action from "../action";
 import State from "../state";
 import {
     createAudibleMessage,
-    createVisiblePlayerMessage,
 } from "../bprintf";
 import {
     isGod,
@@ -13,7 +12,6 @@ import {
     getPlayers,
     setPlayer, getItem, setItem,
 } from "../support";
-import {sendMyMessage} from "./events";
 import {getPronoun} from "./reducer";
 import {
     OnEnterEvent,
@@ -29,7 +27,7 @@ import {savePerson} from "../newuaf";
 import {endGame} from "../gamego/endGame";
 import {getLocationId, getName, isHere, setChannelId, setGameOff} from "../tk/reducer";
 import {describeChannel, looseGame, processEvents, setLocationId} from "../tk";
-import Events from "../tk/events";
+import Events, {PLAYER_MESSAGE} from "../tk/events";
 import {getExit} from "../zones/reducer";
 import {CONTAINED_IN} from "../object";
 import {Examine} from "../extra/actions";
@@ -130,16 +128,20 @@ export class GoDirection extends Action {
         }): Promise<any> => Promise.all([
             Events.sendLocalMessage(
                 state,
-                oldLocation,
                 getName(state),
-                createVisiblePlayerMessage(actor.name, `[author] has gone ${this.exitText[directionId]} ${state.out_ms}.\n`)
+                oldLocation,
+                `[author] has gone ${this.exitText[directionId]} ${state.out_ms}.\n`,
+                PLAYER_MESSAGE,
+                actor.name,
             ),
             setLocationId(state, newLocation, actor),
             Events.sendLocalMessage(
                 state,
-                newLocation,
                 getName(state),
-                createVisiblePlayerMessage(actor.name, `[author] ${state.in_ms}.\n`)
+                newLocation,
+                `[author] ${state.in_ms}.\n`,
+                PLAYER_MESSAGE,
+                actor.name,
             ),
         ])
             .then(() => null);
@@ -196,7 +198,7 @@ export class Quit extends Action {
             .then(() => Action.checkFight(state, 'Not in the middle of a fight!'))
             .then(() => loadWorld(state))
             .then(() => Promise.all([
-                sendMyMessage(state, `${getName(state)} has left the game\n`),
+                Events.sendMyMessage(state, `${getName(state)} has left the game\n`),
                 sendWizards(state, `[ Quitting Game : ${getName(state)} ]\n`),
                 dropMyItems(state, actor),
                 setPlayer(state, actor.playerId, {

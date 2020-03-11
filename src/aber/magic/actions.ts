@@ -1,7 +1,6 @@
 import State from '../state';
 import Action from '../action';
 import {
-    createVisiblePlayerMessage,
     actorName,
 } from '../bprintf';
 import {showLocation} from '../extra';
@@ -27,8 +26,10 @@ import {isWornBy} from "../new1";
 import {getLevel, getStrength, isAdmin, isGod, isWizard, updateStrength} from "../newuaf/reducer";
 import {getLocationId, getName, playerIsMe} from "../tk/reducer";
 import {setLocationId} from '../tk';
-import Events from "../tk/events";
-import {DEFAULT_EVENT, sendSocialEvent, VISIBLE_EVENT} from "../weather/events";
+import Events, {
+    DEFAULT_MESSAGE,
+    PLAYER_MESSAGE,
+} from "../tk/events";
 import {getLocationIdByZone} from "../zones";
 
 const getreinput = (state: State): string => '';
@@ -49,7 +50,12 @@ export class Summon extends Action {
             throw new Error('You can only summon people');
         }
         return Summon.ownerLocationId(state, item)
-            .then(locationId => Events.sendLocalMessage(state, locationId, getName(state), `${actorName(state)} has summoned the ${item.name}\n`))
+            .then(locationId => Events.sendLocalMessage(
+                state,
+                getName(state),
+                locationId,
+                `${actorName(state)} has summoned the ${item.name}\n`,
+            ))
             .then(() => holdItem(state, item.itemId, actor.playerId))
             .then(() => ({
                 item: {
@@ -130,7 +136,14 @@ export class Summon extends Action {
                 }
                 return Promise.all([
                     dropItems(state, player),
-                    Events.sendLocalMessage(state, getLocationId(state), undefined, createVisiblePlayerMessage(player.name, '[author] has arrived\n')),
+                    Events.sendLocalMessage(
+                        state,
+                        undefined,
+                        getLocationId(state),
+                        '[author] has arrived\n',
+                        PLAYER_MESSAGE,
+                        player.name,
+                    ),
                     setPlayer(state, player.playerId, { locationId: getLocationId(state) }),
                 ])
                     .then(() => {});
@@ -231,9 +244,9 @@ export class GoToLocation extends Action {
                 return fclose(room).then(() => locationId);
             })
             .then((locationId) => Promise.all([
-                sendSocialEvent(state, `[author] ${state.mout_ms}\n`, VISIBLE_EVENT),
+                Events.sendSocialEvent(state, `[author] ${state.mout_ms}\n`, PLAYER_MESSAGE),
                 setLocationId(state, locationId, actor),
-                sendSocialEvent(state, `[author] ${state.min_ms}\n`, VISIBLE_EVENT),
+                Events.sendSocialEvent(state, `[author] ${state.min_ms}\n`, PLAYER_MESSAGE),
             ]));
     }
 }
@@ -261,7 +274,7 @@ export class Visible extends Action {
                 playerId: actor.playerId,
                 visibility: 0,
             }),
-            sendSocialEvent(state, '[author] suddenely appears in a puff of smoke\n', VISIBLE_EVENT),
+            Events.sendSocialEvent(state, '[author] suddenely appears in a puff of smoke\n', PLAYER_MESSAGE),
             setPlayer(state, actor.playerId, {visibility: 0}),
         ])
             .then(() => {
@@ -297,7 +310,7 @@ export class Invisible extends Action {
                     playerId: actor.playerId,
                     visibility,
                 }),
-                sendSocialEvent(state, `${actorName(state)} vanishes!\n`, DEFAULT_EVENT),
+                Events.sendSocialEvent(state, `${actorName(state)} vanishes!\n`, DEFAULT_MESSAGE),
                 setPlayer(state, actor.playerId, { visibility }),
             ]))
             .then(() => {});
@@ -325,7 +338,12 @@ export class Ressurect extends Action {
                 return createItem(state, item.itemId);
             })
             .then((item) => Promise.all([
-                Events.sendLocalMessage(state, getLocationId(state), undefined, `The ${item.name} suddenly appears`),
+                Events.sendLocalMessage(
+                    state,
+                    undefined,
+                    getLocationId(state),
+                    `The ${item.name} suddenly appears`,
+                ),
                 putItem(state, item.itemId, getLocationId(state)),
             ]));
     }

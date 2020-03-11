@@ -23,6 +23,7 @@ import {teleport} from "../new1";
 import {IS_DESTROYED} from "../object";
 import {sendMessage} from "../bprintf/bprintf";
 import {calibrate} from "../parse";
+import {sendBaseMessage} from "../bprintf";
 
 const noItem = {
     onAfterGet: () => Promise.resolve(undefined),
@@ -44,7 +45,7 @@ const defaultEvents = {
     onDrop: () => Promise.resolve(),
     onEat: (state: State, actor: Player, item: Item): Promise<void> => item.isFood
         ? setItem(state, item.itemId, { flags: { [IS_DESTROYED]: true }})
-            .then(() => sendMessage(state, 'Ok....\n'))
+            .then(() => sendBaseMessage(state, 'Ok....\n'))
             .then(() => {
                 updateStrength(state, 12);
                 return calibrate(state, actor);
@@ -79,7 +80,7 @@ const door = {
 
 const item11 = {
     onEat: (state: State, actor: Player, item: Item): Promise<void> => defaultEvents.onEat(state, actor, item)
-        .then(() => sendMessage(
+        .then(() => sendBaseMessage(
             state,
             'You feel funny, and then pass out\n'
                 + 'You wake up elsewhere....\n'
@@ -105,7 +106,7 @@ const runeSword = {
 
 const item75 = {
     onEat: (state: State, actor: Player, item: Item): Promise<void> => defaultEvents.onEat(state, actor, item)
-        .then(() => sendMessage(state, 'very refreshing\n')),
+        .then(() => sendBaseMessage(state, 'very refreshing\n')),
 };
 
 const shield = {

@@ -1,15 +1,13 @@
 import State from "../state";
+import Events from '../tk/events';
 import {
     Player,
     getItem, setItem, Item, putItem,
 } from "../support";
 import {isWornBy} from "../new1";
-import {sendMessage} from "../bprintf/bprintf";
 import {OnDropEvent, OnEnterEvent, OnGetEvent} from "./index";
-import {updateScore} from "../newuaf/reducer";
-import {sendLocalMessage, sendMyMessage} from "../parse/events";
-import {getLocationId} from "../tk/reducer";
 import {calibrate} from "../parse";
+import {sendBaseMessage} from "../bprintf";
 
 const SHIELD_IDS = [89, 113, 114];
 
@@ -34,24 +32,24 @@ const channel139 = {
             if (!shields.length) {
                 throw new Error('The intense heat drives you back');
             }
-            return sendMessage(state, 'The shield protects you from the worst of the lava stream\'s heat\n');
+            return sendBaseMessage(state, 'The shield protects you from the worst of the lava stream\'s heat\n');
         })
         .then(() => -139),
 };
 
 const channel183 = {
     onDrop: (state: State, actor: Player, item: Item): Promise<void> => Promise.all([
-        sendMyMessage(state, `The ${item.name} disappears into the bottomless pit.\n`),
+        Events.sendMyMessage(state, `The ${item.name} disappears into the bottomless pit.\n`),
         calibrate(state, actor, item.value),
         putItem(state, item.itemId, -6),
-        sendMessage(state, 'It disappears down into the bottomless pit.....\n')
+        sendBaseMessage(state, 'It disappears down into the bottomless pit.....\n')
     ])
         .then(() => null),
 };
 
 const channel1081 = {
     onAfterGet: (state: State, actor: Player, item: Item): Promise<Item> => Promise.all([
-        sendMessage(state, 'The door clicks shut....\n'),
+        sendBaseMessage(state, 'The door clicks shut....\n'),
         setItem(state, 20, {state: 1}),
     ])
         .then(() => item),

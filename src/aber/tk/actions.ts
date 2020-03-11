@@ -8,7 +8,7 @@ import {createVisiblePlayerMessage} from "../bprintf";
 import {getLocationId, getName, setGameOn} from "./reducer";
 import {roll} from "../magic";
 import {processEvents, setLocationId} from "./index";
-import Events from "./events";
+import Events, {PLAYER_MESSAGE} from "./events";
 
 const setStartingLocationId = (state: State, player: Player): Promise<number> => roll()
     .then((locationRoll) => {
@@ -40,7 +40,11 @@ const startGame = (state: State, player: Player): Promise<boolean> => initPerson
     ]))
     .then(([
         locationId,
-    ]) => Events.sendLocalMessage(state, getLocationId(state), getName(state), createVisiblePlayerMessage(getName(state), '[author]  has entered the game\n')))
+    ]) => Events.sendSocialEvent(
+        state,
+        '[author]  has entered the game\n',
+        PLAYER_MESSAGE,
+    ))
     .then(() => true);
 
 const defaultCommand = (): Promise<boolean> => {

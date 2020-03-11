@@ -18,7 +18,6 @@ import {
 } from "../support";
 import {
     actorName,
-    createVisiblePlayerMessage,
     sendTextMessage,
 } from "../bprintf";
 import {
@@ -37,9 +36,9 @@ import {teleport} from "../new1";
 import {getLevel, getStrength, isGod, isWizard, updateStrength} from "../newuaf/reducer";
 import {loadWorld, saveWorld} from "../opensys";
 import {executeCommand} from "../parse/parser";
-import {getLocationId, getName, isHere, playerIsMe, setChannelId} from "../tk/reducer";
+import {getLocationId, isHere, playerIsMe, setChannelId} from "../tk/reducer";
 import {looseGame, setLocationId} from "../tk";
-import Events from '../tk/events'
+import Events, {PLAYER_MESSAGE} from '../tk/events'
 import {getLocationIdByZone, getLocationName, loadExits} from "../zones";
 import {getExits, setExits} from "../zones/reducer";
 
@@ -488,10 +487,17 @@ export class Jump extends Action {
     }
 
     private static withUmbrella(state: State, locationId: number, actor: Player): Promise<any> {
-        const oldLocationId = getLocationId(state);
-        return setLocationId(state, locationId, actor)
-            .then(() => Events.sendLocalMessage(state, oldLocationId, getName(state), createVisiblePlayerMessage(getName(state), '[author] has just left\n')))
-            .then(() => Events.sendLocalMessage(state, locationId, getName(state), createVisiblePlayerMessage(getName(state), '[author] has just dropped in\n')))
+        return Events.sendSocialEvent(
+            state,
+            '[author] has just left\n',
+            PLAYER_MESSAGE,
+        )
+            .then(() => setLocationId(state, locationId, actor))
+            .then(() => Events.sendSocialEvent(
+                state,
+                '[author] has just dropped in\n',
+                PLAYER_MESSAGE,
+            ))
             .then(() => ({}))
     }
 

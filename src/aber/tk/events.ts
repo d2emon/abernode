@@ -9,12 +9,32 @@ import {
 import {dropItems} from "../objsys";
 import {looseGame} from "./index";
 import {nextWeather} from "../weather";
+import {createAudibleMessage, createBaseMessage, createVisibleMessage, createVisiblePlayerMessage} from "../bprintf";
+
+export type MessageType = 'DEFAULT_MESSAGE' | 'AUDIBLE_MESSAGE' | 'VISIBLE_MESSAGE' | 'PLAYER_MESSAGE';
+
+export const DEFAULT_MESSAGE = 'DEFAULT_MESSAGE';
+export const AUDIBLE_MESSAGE = 'AUDIBLE_MESSAGE';
+export const VISIBLE_MESSAGE = 'VISIBLE_MESSAGE';
+export const PLAYER_MESSAGE = 'PLAYER_MESSAGE';
 
 export interface Attack {
     characterId: number,
     damage: number,
     weaponId?: number,
 }
+
+const createMessage = (author: string | undefined, message: string, messageType: MessageType): string => {
+    if (messageType === AUDIBLE_MESSAGE) {
+        return createAudibleMessage(message, author);
+    } else if (messageType === VISIBLE_MESSAGE) {
+        return createVisibleMessage(message, author);
+    } else if (messageType === PLAYER_MESSAGE) {
+        return createVisiblePlayerMessage(message, author);
+    } else {
+        return createBaseMessage(message);
+    }
+};
 
 const onTimeout = (state: State) => (player: Player): Promise<void> => Promise.all([
     Events.broadcast(state, `${player.name} has been timed out\n`),
@@ -115,12 +135,19 @@ const Events = {
         channelId: undefined,
         payload,
     }),
-    sendLocalMessage: (state: State, channelId: number, sender: string, message: string): Promise<void> => emitEvent(state, {
+    sendLocalMessage: (
+        state: State,
+        sender: string,
+        channelId: number,
+        message: string,
+        messageType: MessageType = DEFAULT_MESSAGE,
+        author?: string,
+    ): Promise<void> => emitEvent(state, {
         receiver: sender,
         sender,
         code: -10000,
         channelId,
-        payload: message,
+        payload: createMessage(author, message, messageType),
     }),
     sendExorcise: (state: State, sender: string, receiver: Player, channelId: number): Promise<void> => emitEvent(state, {
         receiver: receiver.name,
@@ -192,6 +219,29 @@ const Events = {
         channelId: undefined,
         payload: undefined,
     }),
+    sendMyMessage: (
+        state: State,
+        message: string,
+        messageType: MessageType = DEFAULT_MESSAGE,
+        author?: string,
+    ): Promise<void> => Events.sendLocalMessage(
+        state,
+        getName(state),
+        getLocationId(state),
+        message,
+        messageType,
+        author,
+    ),
+    sendSocialEvent: (
+        state: State,
+        message: string,
+        messageType: MessageType,
+    ): Promise<void> => Events.sendMyMessage(
+        state,
+        message,
+        messageType,
+        getName(state),
+    ),
 };
 
 export default Events;

@@ -1,14 +1,15 @@
 import Action from "../action";
 import State from "../state";
+import Events, {VISIBLE_MESSAGE} from '../tk/events';
 import {
     Item,
     Player,
     getPlayers,
     holdItem,
-    putItem, getPlayer, getItems,
+    putItem,
+    getItems,
 } from "../support";
 import {getDragon} from "../mobile";
-import {createVisibleMessage} from "../bprintf";
 import {getLevel, isWizard} from "../newuaf/reducer";
 import {HELD_BY} from "../object";
 import {
@@ -19,10 +20,9 @@ import {
     itemsAt,
 } from "./index";
 import {sendMessage} from "../bprintf/bprintf";
-import {sendMyMessage} from "../parse/events";
 import * as ChannelEvents from "../events/channel";
 import * as ItemEvents from "../events/item";
-import {getLocationId, getName} from "../tk/reducer";
+import {getLocationId} from "../tk/reducer";
 
 export const canCarry = (state: State, player: Player): Promise<boolean> => {
     if (player.isWizard) {
@@ -138,7 +138,11 @@ export class GetItem extends Action {
 
     private static take = (state: State, actor: Player) => (item: Item): Promise<any> => Promise.all([
         holdItem(state, item.itemId, actor.playerId),
-        sendMyMessage(state, createVisibleMessage(`[author] takes the ${item.name}\n`, getName(state))),
+        Events.sendSocialEvent(
+            state,
+            `[author] takes the ${item.name}\n`,
+            VISIBLE_MESSAGE,
+        ),
         Promise.all(GetItem.onAfterGet(item, getLocationId(state)).map(event => event(state, actor, item))),
     ])
        .then(() => ({}));
@@ -182,7 +186,11 @@ export class DropItem extends Action {
 
     private static drop = (state: State, actor: Player) => (item: Item): Promise<any> => Promise.all([
         putItem(state, item.itemId, getLocationId(state)),
-        sendMyMessage(state, createVisibleMessage(`[author] drops the ${item.name}\n`, getName(state))),
+        Events.sendSocialEvent(
+            state,
+            `[author] drops the ${item.name}\n`,
+            VISIBLE_MESSAGE,
+        ),
         ChannelEvents.onDrop(getLocationId(state))(state, actor, item),
     ])
         .then(() => ({}));

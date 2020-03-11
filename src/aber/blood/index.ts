@@ -12,7 +12,7 @@ import {
     setFight,
     setWeapon,
 } from './reducer';
-import {playerName} from '../bprintf';
+import {playerName, sendBaseMessage} from '../bprintf';
 import {sendMessage} from '../bprintf/bprintf';
 import {checkRoll, roll} from "../magic";
 import {isWornBy, sendBotDamage} from "../new1";
@@ -25,10 +25,11 @@ const RUNE_SWORD_ID = 32;
 
 export const damageByItem = (item?: Item): number => item ? item.damage : 4;
 
-const badWeapon = (state: State, weapon: Item): Promise<undefined> => Promise.all([
-    sendMessage(state, `You belatedly realise you dont have the ${weapon.name},\n`),
-    sendMessage(state, 'and are forced to use your hands instead..\n'),
-])
+const badWeapon = (state: State, weapon: Item): Promise<undefined> => sendBaseMessage(
+    state,
+    `You belatedly realise you dont have the ${weapon.name},\n`
+        + 'and are forced to use your hands instead..\n',
+)
     .then(() => undefined);
 const swordVsSceptre = (state: State, victim: Player): Promise<void> => getItem(state, SCEPTRE_ID)
     .then((sceptre) => {
@@ -96,10 +97,10 @@ export const hitPlayer = (state: State, actor: Player, victim: Player, weapon?: 
             const promises = [];
             if (attack.damage) {
                 const weaponDescription = weapon ? `with the ${weapon.name}` : '';
-                promises.push(sendMessage(state, `You hit ${playerName(victim)} ${weaponDescription}\n`));
+                promises.push(sendBaseMessage(state, `You hit ${playerName(victim)} ${weaponDescription}\n`));
                 if (attack.damage > victim.strength) {
                     // Killed
-                    promises.push(sendMessage(state, 'Your last blow did the trick\n'));
+                    promises.push(sendBaseMessage(state, 'Your last blow did the trick\n'));
                     if (!victim.isDead) {
                         /* Bonus ? */
                         updateScore(state, victim.value);
@@ -110,7 +111,7 @@ export const hitPlayer = (state: State, actor: Player, victim: Player, weapon?: 
                 }
                 promises.push(calibrate(state, actor, attack.damage * 2));
             } else {
-                promises.push(sendMessage(state, `You missed ${playerName(victim)}\n`));
+                promises.push(sendBaseMessage(state, `You missed ${playerName(victim)}\n`));
             }
             return Promise.all(promises)
                 .then(() => attack);
