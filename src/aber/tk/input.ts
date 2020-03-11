@@ -23,12 +23,9 @@ import {
 } from "../bprintf/output";
 import {executeCommand} from "../parse/parser";
 import {resetFight} from "../blood/reducer";
-import {sendMessage} from "../bprintf/bprintf";
-import {sendKeyboard} from "../bprintf";
+import {sendKeyboardMessage} from "../bprintf";
 import {processAndSave} from "./index";
 import {executeSpecial} from "./actions";
-
-const special = (state: State, action: string, name: string): Promise<void> => Promise.resolve();
 
 const getTitle = (player: Player, name: string): string => {
     if (player.visibility > 9999) {
@@ -99,7 +96,7 @@ const afterInput = (state: State, player: Player) => (input: string): Promise<bo
             }
         });
 
-    return sendMessage(state, sendKeyboard(`${input}\n`))
+    return sendKeyboardMessage(state, `${input}\n`)
         .then(process)
         .then(applyConversation(input))
         .then(executeInput(input))

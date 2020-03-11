@@ -1,5 +1,5 @@
 import State from '../state';
-import {checkRoll, roll} from '../magic';
+import {checkRoll} from '../magic';
 import {
     Item,
     Player,
@@ -15,11 +15,10 @@ import {
 } from "../objsys";
 import {IS_LIT} from "../object";
 import {sendMessage} from "../bprintf/bprintf";
-import {sendVisibleName} from '../bprintf';
+import {playerName} from '../bprintf';
 import {hitPlayer} from "../blood";
-import {endGame} from "../gamego/endGame";
 import {setPlayerDamage} from "../new1";
-import {getLevel, isWizard, updateScore} from "../newuaf/reducer";
+import {getLevel, isWizard} from "../newuaf/reducer";
 import {sendLocalMessage} from "../parse/events";
 import {getCanCalibrate, getLocationId, isHere, playerIsMe} from "../tk/reducer";
 import {looseGame} from "../tk";
@@ -115,7 +114,7 @@ const checkHelp = (state: State, player: Player): Promise<void> => getPlayer(sta
         }
         return Promise.all([
             setPlayer(state, player.playerId, { helping: -1 }),
-            sendMessage(state, `You can no longer help ${sendVisibleName(helping.name)}\n`),
+            sendMessage(state, `You can no longer help ${playerName(helping)}\n`),
         ]);
     })
     .then(() => {});

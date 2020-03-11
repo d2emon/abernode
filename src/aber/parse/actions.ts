@@ -1,8 +1,8 @@
 import Action from "../action";
 import State from "../state";
 import {
-    sendSound,
-    sendVisiblePlayer,
+    createAudibleMessage,
+    createVisiblePlayerMessage,
 } from "../bprintf";
 import {
     isGod,
@@ -132,14 +132,14 @@ export class GoDirection extends Action {
                 state,
                 oldLocation,
                 getName(state),
-                sendVisiblePlayer(actor.name, `${actor.name} has gone ${this.exitText[directionId]} ${state.out_ms}.\n`)
+                createVisiblePlayerMessage(actor.name, `[author] has gone ${this.exitText[directionId]} ${state.out_ms}.\n`)
             ),
             setLocationId(state, newLocation, actor),
             Events.sendLocalMessage(
                 state,
                 newLocation,
                 getName(state),
-                sendVisiblePlayer(actor.name, `${actor.name} ${state.in_ms}.\n`)
+                createVisiblePlayerMessage(actor.name, `[author] ${state.in_ms}.\n`)
             ),
         ])
             .then(() => null);
@@ -333,7 +333,7 @@ export class Lightning extends Action {
                 }
                 return Promise.all([
                     `${getName(state)} zapped ${player.name}`,
-                    sendSound('You hear an ominous clap of thunder in the distance\n'),
+                    createAudibleMessage('You hear an ominous clap of thunder in the distance\n'),
                     Events.sendExorcise(state, getName(state), player, player.locationId),
                     sendBotDamage(state, actor, player, 10000),
                 ])

@@ -1,9 +1,8 @@
 import State from '../state';
 import Action from '../action';
 import {
-    sendName,
-    sendVisiblePlayer,
-    sendVisibleName,
+    createVisiblePlayerMessage,
+    actorName,
 } from '../bprintf';
 import {showLocation} from '../extra';
 import {
@@ -29,7 +28,7 @@ import {getLevel, getStrength, isAdmin, isGod, isWizard, updateStrength} from ".
 import {getLocationId, getName, playerIsMe} from "../tk/reducer";
 import {setLocationId} from '../tk';
 import Events from "../tk/events";
-import {sendSocialEvent} from "../weather/events";
+import {DEFAULT_EVENT, sendSocialEvent, VISIBLE_EVENT} from "../weather/events";
 import {getLocationIdByZone} from "../zones";
 
 const getreinput = (state: State): string => '';
@@ -50,7 +49,7 @@ export class Summon extends Action {
             throw new Error('You can only summon people');
         }
         return Summon.ownerLocationId(state, item)
-            .then(locationId => Events.sendLocalMessage(state, locationId, getName(state), `${sendName(getName(state))} has summoned the ${item.name}\n`))
+            .then(locationId => Events.sendLocalMessage(state, locationId, getName(state), `${actorName(state)} has summoned the ${item.name}\n`))
             .then(() => holdItem(state, item.itemId, actor.playerId))
             .then(() => ({
                 item: {
@@ -131,7 +130,7 @@ export class Summon extends Action {
                 }
                 return Promise.all([
                     dropItems(state, player),
-                    Events.sendLocalMessage(state, getLocationId(state), undefined, sendVisiblePlayer(player.name, `${player.name} has arrived\n`)),
+                    Events.sendLocalMessage(state, getLocationId(state), undefined, createVisiblePlayerMessage(player.name, '[author] has arrived\n')),
                     setPlayer(state, player.playerId, { locationId: getLocationId(state) }),
                 ])
                     .then(() => {});
@@ -232,9 +231,9 @@ export class GoToLocation extends Action {
                 return fclose(room).then(() => locationId);
             })
             .then((locationId) => Promise.all([
-                sendSocialEvent(state, sendVisiblePlayer('%s', `%s ${state.mout_ms}\n`)),
+                sendSocialEvent(state, `[author] ${state.mout_ms}\n`, VISIBLE_EVENT),
                 setLocationId(state, locationId, actor),
-                sendSocialEvent(state, sendVisiblePlayer('%s', `%s ${state.min_ms}\n`)),
+                sendSocialEvent(state, `[author] ${state.min_ms}\n`, VISIBLE_EVENT),
             ]));
     }
 }
@@ -245,7 +244,7 @@ export class Wizards extends Action {
             throw new Error('Such advanced conversation is beyond you');
         }
         const message = getreinput(state);
-        return sendWizards(state, `${sendName(getName(state))} : ${message}\n`, true);
+        return sendWizards(state, `${actorName(state)} : ${message}\n`, true);
     }
 }
 
@@ -262,7 +261,7 @@ export class Visible extends Action {
                 playerId: actor.playerId,
                 visibility: 0,
             }),
-            sendSocialEvent(state, sendVisiblePlayer('%s', '%s suddenely appears in a puff of smoke\n')),
+            sendSocialEvent(state, '[author] suddenely appears in a puff of smoke\n', VISIBLE_EVENT),
             setPlayer(state, actor.playerId, {visibility: 0}),
         ])
             .then(() => {
@@ -298,7 +297,7 @@ export class Invisible extends Action {
                     playerId: actor.playerId,
                     visibility,
                 }),
-                sendSocialEvent(state, sendVisibleName('%s vanishes!\n')),
+                sendSocialEvent(state, `${actorName(state)} vanishes!\n`, DEFAULT_EVENT),
                 setPlayer(state, actor.playerId, { visibility }),
             ]))
             .then(() => {});

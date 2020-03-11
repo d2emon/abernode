@@ -8,7 +8,7 @@ import {
     putItem, getPlayer, getItems,
 } from "../support";
 import {getDragon} from "../mobile";
-import {sendPlayerForVisible, sendVisibleName} from "../bprintf";
+import {createVisibleMessage} from "../bprintf";
 import {getLevel, isWizard} from "../newuaf/reducer";
 import {HELD_BY} from "../object";
 import {
@@ -138,7 +138,7 @@ export class GetItem extends Action {
 
     private static take = (state: State, actor: Player) => (item: Item): Promise<any> => Promise.all([
         holdItem(state, item.itemId, actor.playerId),
-        sendMyMessage(state, `${sendPlayerForVisible(getName(state))}${sendVisibleName(` takes the ${item.name}\n`)}`),
+        sendMyMessage(state, createVisibleMessage(`[author] takes the ${item.name}\n`, getName(state))),
         Promise.all(GetItem.onAfterGet(item, getLocationId(state)).map(event => event(state, actor, item))),
     ])
        .then(() => ({}));
@@ -182,7 +182,7 @@ export class DropItem extends Action {
 
     private static drop = (state: State, actor: Player) => (item: Item): Promise<any> => Promise.all([
         putItem(state, item.itemId, getLocationId(state)),
-        sendMyMessage(state, `${sendPlayerForVisible(getName(state))}${sendVisibleName(` drops the ${item.name}\n`)}`),
+        sendMyMessage(state, createVisibleMessage(`[author] drops the ${item.name}\n`, getName(state))),
         ChannelEvents.onDrop(getLocationId(state))(state, actor, item),
     ])
         .then(() => ({}));

@@ -1,6 +1,6 @@
 import State from "../state";
 import {Event} from '../services/world';
-import {getLocationId, getName, isHere, playerIsMe} from "../tk/reducer";
+import {getLocationId, getName, isHere} from "../tk/reducer";
 import Events from '../tk/events';
 import {findPlayer} from "../objsys";
 import {newReceive, sendWizards} from "../new1/events";
@@ -12,12 +12,10 @@ import {sendMessage} from "../bprintf/bprintf";
 import {saveWorld} from "../opensys";
 import {receiveDamage} from "../blood/events";
 import {
-    sendName,
-    sendPlayerForVisible,
-    sendSound,
-    sendSoundPlayer,
-    sendVisibleName,
-    sendVisiblePlayer
+    actorName,
+    createVisiblePlayerMessage, playerName,
+    sendAudibleMessage,
+    sendVisibleMessage,
 } from "../bprintf";
 import {receiveWeather} from "../weather/events";
 import {removePerson} from "../newuaf";
@@ -105,42 +103,42 @@ const receiveLocalMessage = (state: State, data: EventData): Promise<void> => {
 const receiveExorcise = (state: State, data: EventData, isMe: boolean): Promise<void> => {
     if (isMe) {
         if (isWizard(state)) {
-            return sendMessage(state, `${sendName(data.sender.name)} cast a lightning bolt at you\n`);
+            return sendMessage(state, `${playerName(data.sender)} cast a lightning bolt at you\n`);
         }
         /* You are in the .... */
         state.zapped = true;
         return Promise.all([
             sendMessage(state, 'A massive lightning bolt arcs down out of the sky to strike you between\nthe eyes\n'),
-            sendWizards(state, `[ ${sendName(getName(state))} has just been zapped by ${sendName(data.sender.name)} and terminated ]\n`),
+            sendWizards(state, `[ ${actorName(state)} has just been zapped by ${playerName(data.sender)} and terminated ]\n`),
         ])
             .then(() => Promise.all([
                 removePerson(state, getName(state)),
-                sendMyMessage(state, sendVisiblePlayer(getName(state), `${getName(state)} has just died.\n\n`)),
+                sendMyMessage(state, createVisiblePlayerMessage(getName(state), '[author] has just died.\n\n')),
                 sendMessage(state, `You have been utterly destroyed by ${data.sender.name}\n`)
             ]))
             .then(() => looseGame(state, data.actor, 'Bye Bye.... Slain By Lightning'));
     } else if (isHere(state, data.channelId)) {
-        return sendMessage(state, `${sendVisibleName('A massive lightning bolt strikes ')}${sendPlayerForVisible(data.sender.name)}${sendVisibleName('\n')}`);
+        return sendVisibleMessage(state, 'A massive lightning bolt strikes [author]\n', data.sender.name);
     } else {
         return Promise.resolve();
     }
 };
 const receiveSimpleShout = (state: State, data: EventData): Promise<void> => {
     if (isHere(state, data.channelId) || isWizard(state)) {
-        return sendMessage(state, `${sendSoundPlayer(data.sender.name)}${sendSound(` shouts '${data.payload}'\n`)}`);
+        return sendAudibleMessage(state, `[author] shouts '${data.payload}'\n`, data.sender.name);
     } else {
-        return sendMessage(state, sendSound(`A voice shouts '${data.payload}'\n`));
+        return sendAudibleMessage(state, `A voice shouts '${data.payload}'\n`);
     }
 };
 const receiveSay = (state: State, data: EventData): Promise<void> => {
     if (isHere(state, data.channelId)) {
-        return sendMessage(state, `${sendSoundPlayer(data.sender.name)}${sendSound(` says '${data.payload}'\n`)}`);
+        return sendAudibleMessage(state, `[author] says '${data.payload}'\n`, data.sender.name);
     } else {
         return Promise.resolve();
     }
 };
 const receiveTell = (state: State, data: EventData): Promise<void> => {
-    return sendMessage(state, `${sendSoundPlayer(data.sender.name)}${sendSound(` tells you '${data.payload}'\n`)}`);
+    return sendAudibleMessage(state, `[author] tells you '${data.payload}'\n`, data.sender.name);
 };
 const receiveKick = (state: State, data: EventData, isMe: boolean): Promise<void> => {
     if (isMe) {
@@ -155,9 +153,9 @@ const receivePrivate = (state: State, data: EventData): Promise<void> => {
 const receiveSummon = (state: State, data: EventData): Promise<void> => {
     state.ades = data.channelId;
     if (isWizard(state)) {
-        return sendMessage(state, `${sendName(data.sender.name)} tried to summon you`);
+        return sendMessage(state, `${playerName(data.sender)} tried to summon you`);
     }
-    return sendMessage(state, `You drop everything you have as you are summoned by ${sendName(data.sender.name)}`)
+    return sendMessage(state, `You drop everything you have as you are summoned by ${playerName(data.sender)}`)
         .then(() => {
             state.tdes = 1;
         });

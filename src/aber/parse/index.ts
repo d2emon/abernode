@@ -5,7 +5,10 @@ import {getLevel, getScore, getSex, getStrength, setLevel, setStrength, updateSc
 import {GWIZ, logger} from "../files";
 import {looseGame} from "../tk";
 import {sendWizards} from "../new1/events";
-import {sendName, showFile} from "../bprintf";
+import {
+    actorName,
+    sendTextMessage,
+} from "../bprintf";
 import {sendMessage} from "../bprintf/bprintf";
 
 const levelof = (state: State, score: number): number => 0;
@@ -18,12 +21,12 @@ export const calibrate = (state: State, actor: Player, score?: number): Promise<
         setLevel(state, level);
         return Promise.all([
             sendMessage(state, `You are now ${getName(state)} ${getTitle(level, getSex(state), state.hasfarted)}\n`),
-            sendWizards(state, `${sendName(getName(state))} is now level ${level}\n`),
+            sendWizards(state, `${actorName(state)} is now level ${level}\n`),
             logger
                 .write(`${getName(state)} to level ${level}`)
                 .catch(error => looseGame(state, actor, error)),
             (level === 10)
-                ? sendMessage(state, showFile(GWIZ))
+                ? sendTextMessage(state, GWIZ)
                 : Promise.resolve(),
         ])
             .then(() => null);

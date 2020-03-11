@@ -4,15 +4,13 @@ import {
     getPlayer, Player,
 } from '../support';
 import {logger} from '../files';
-import {dropMyItems} from '../objsys';
-import {sendName} from '../bprintf';
+import {actorName, playerName} from '../bprintf';
 import {setFight} from './reducer';
 import {sendMessage} from '../bprintf/bprintf';
-import {endGame} from "../gamego/endGame";
 import {sendWizards} from "../new1/events";
 import {removePerson} from "../newuaf";
 import {getStrength, isWizard, updateScore, updateStrength} from "../newuaf/reducer";
-import {loadWorld, saveWorld} from "../opensys";
+import {loadWorld} from "../opensys";
 import {Attack} from "../tk/events";
 import {sendMyMessage} from "../parse/events";
 import {getName} from "../tk/reducer";
@@ -37,8 +35,8 @@ export const receiveDamage = (state: State, attack: Attack, isMe: boolean, actor
 
         const killed = () => loadWorld(state)
             .then(() => Promise.all([
-                sendMyMessage(state, `${sendName(getName(state))} has just died.\n`),
-                sendWizards(state, `[ ${sendName(getName(state))} has been slain by ${sendName(enemy.name)}[/p] ]\n`),
+                sendMyMessage(state, `${actorName(state)} has just died.\n`),
+                sendWizards(state, `[ ${actorName(state)} has been slain by ${playerName(enemy)}[/p] ]\n`),
                 logger.write(`${getName(state)} slain by ${enemy.name}`),
                 removePerson(state, getName(state)),
             ]))
@@ -46,12 +44,12 @@ export const receiveDamage = (state: State, attack: Attack, isMe: boolean, actor
 
         const missed = () => {
             const weaponMessage = weapon ? ` with the ${weapon.name}` : '';
-            return sendMessage(state, `${sendName(enemy.name)} attacks you${weaponMessage}\n`);
+            return sendMessage(state, `${playerName(enemy)} attacks you${weaponMessage}\n`);
         };
 
         const wounded = () => {
             const weaponMessage = weapon ? ` with the ${weapon.name}` : '';
-            return sendMessage(state, `You are wounded by ${sendName(enemy.name)}${weaponMessage}\n`)
+            return sendMessage(state, `You are wounded by ${playerName(enemy)}${weaponMessage}\n`)
                 .then(() => {
                     if (isWizard(state)) {
                         return;

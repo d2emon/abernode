@@ -3,8 +3,8 @@ import {isGod, isWizard} from "../newuaf/reducer";
 import {modifyWeather} from "./index";
 import Action from "../action";
 import {checkDumb} from "../new1/reducer";
-import {sendSocialEvent} from "./events";
-import {sendSound, sendSoundPlayer, sendVisibleName, sendVisiblePlayer} from "../bprintf";
+import {AUDIBLE_EVENT, sendSocialEvent, VISIBLE_EVENT} from "./events";
+import {createVisibleMessage} from "../bprintf";
 import {setFarted} from "./reducer";
 import {roll} from "../magic";
 import Events from "../tk/events";
@@ -53,7 +53,7 @@ export class Blizzard extends Action {
 export class Laugh extends Action {
     action(state: State): Promise<any> {
         return checkDumb(state)
-            .then(() => sendSocialEvent(state, `${sendSoundPlayer('%s')}${sendSound(' falls over laughing\n')}`));
+            .then(() => sendSocialEvent(state, '[author] falls over laughing\n', AUDIBLE_EVENT));
     }
 
     decorate(result: any): void {
@@ -64,7 +64,7 @@ export class Laugh extends Action {
 export class Purr extends Action {
     action(state: State): Promise<any> {
         return checkDumb(state)
-            .then(() => sendSocialEvent(state, `${sendSoundPlayer('%s')}${sendSound(' starts purring\n')}`));
+            .then(() => sendSocialEvent(state, '[author] starts purring\n', AUDIBLE_EVENT));
     }
 
     decorate(result: any): void {
@@ -75,7 +75,7 @@ export class Purr extends Action {
 export class Cry extends Action {
     action(state: State): Promise<any> {
         return checkDumb(state)
-            .then(() => sendSocialEvent(state, sendVisiblePlayer('%s', '%s bursts into tears\n')));
+            .then(() => sendSocialEvent(state, '[author] bursts into tears\n', VISIBLE_EVENT));
     }
 
     decorate(result: any): void {
@@ -86,7 +86,7 @@ export class Cry extends Action {
 export class Sulk extends Action {
     action(state: State): Promise<any> {
         return checkDumb(state)
-            .then(() => sendSocialEvent(state, sendVisiblePlayer('%s', '%s sulks\n')));
+            .then(() => sendSocialEvent(state, '[author] sulks\n', VISIBLE_EVENT));
     }
 
     decorate(result: any): void {
@@ -97,7 +97,7 @@ export class Sulk extends Action {
 export class Burp extends Action {
     action(state: State): Promise<any> {
         return checkDumb(state)
-            .then(() => sendSocialEvent(state, `${sendSoundPlayer('%s')}${sendSound(' burps loudly\n')}`));
+            .then(() => sendSocialEvent(state, '[author] burps loudly\n', AUDIBLE_EVENT));
     }
 
     decorate(result: any): void {
@@ -108,7 +108,7 @@ export class Burp extends Action {
 export class Hiccup extends Action {
     action(state: State): Promise<any> {
         return checkDumb(state)
-            .then(() => sendSocialEvent(state, `${sendSoundPlayer('%s')}${sendSound(' hiccups\n')}`));
+            .then(() => sendSocialEvent(state, '[author] hiccups\n', AUDIBLE_EVENT));
     }
 
     decorate(result: any): void {
@@ -119,7 +119,7 @@ export class Hiccup extends Action {
 export class Fart extends Action {
     action(state: State): Promise<any> {
         setFarted(state);
-        return sendSocialEvent(state, `${sendSoundPlayer('%s')}${sendSound(' lets off a real rip roarer\n')}`);
+        return sendSocialEvent(state, '[author] lets off a real rip roarer\n', AUDIBLE_EVENT);
     }
 
     decorate(result: any): void {
@@ -129,7 +129,7 @@ export class Fart extends Action {
 
 export class Grin extends Action {
     action(state: State): Promise<any> {
-        return sendSocialEvent(state, sendVisiblePlayer('%s', '%s grins evilly\n'));
+        return sendSocialEvent(state, '[author] grins evilly\n', VISIBLE_EVENT);
     }
 
     decorate(result: any): void {
@@ -139,7 +139,7 @@ export class Grin extends Action {
 
 export class Smile extends Action {
     action(state: State): Promise<any> {
-        return sendSocialEvent(state, sendVisiblePlayer('%s', '%s smiles happily\n'));
+        return sendSocialEvent(state, '[author] smiles happily\n', VISIBLE_EVENT);
     }
 
     decorate(result: any): void {
@@ -150,7 +150,7 @@ export class Smile extends Action {
 export class Wink extends Action {
     action(state: State): Promise<any> {
         /* At person later maybe ? */
-        return sendSocialEvent(state, sendVisiblePlayer('%s', '%s winks suggestively\n'));
+        return sendSocialEvent(state, '[author] winks suggestively\n', VISIBLE_EVENT);
     }
 
     decorate(result: any): void {
@@ -161,7 +161,7 @@ export class Wink extends Action {
 export class Snigger extends Action {
     action(state: State): Promise<any> {
         return checkDumb(state)
-            .then(() => sendSocialEvent(state, `${sendSoundPlayer('%s')}${sendSound(' sniggers\n')}`));
+            .then(() => sendSocialEvent(state, '[author] sniggers\n', AUDIBLE_EVENT));
     }
 
     decorate(result: any): void {
@@ -180,16 +180,16 @@ export class Pose extends Action {
     private static pose = (state: State, poseId: number): Promise<void> => {
         if (poseId === 1) {
             return Promise.all([
-                sendSocialEvent(state, sendVisiblePlayer('%s', '%s throws out one arm and sends a huge bolt of fire high\ninto the sky\n')),
-                Events.broadcast(state, sendVisibleName('A massive ball of fire explodes high up in the sky\n')),
+                sendSocialEvent(state, '[author] throws out one arm and sends a huge bolt of fire high\ninto the sky\n', VISIBLE_EVENT),
+                Events.broadcast(state, createVisibleMessage('A massive ball of fire explodes high up in the sky\n')),
             ])
                 .then(() => null);
             } else if (poseId === 2) {
-                return sendSocialEvent(state, sendVisiblePlayer('%s', '%s turns casually into a hamster before resuming normal shape\n'));
+                return sendSocialEvent(state, '[author] turns casually into a hamster before resuming normal shape\n', VISIBLE_EVENT);
             } else if (poseId === 3) {
-                return sendSocialEvent(state, sendVisiblePlayer('%s', '%s starts sizzling with magical energy\n'));
+                return sendSocialEvent(state, '[author] starts sizzling with magical energy\n', VISIBLE_EVENT);
             } else if (poseId === 4) {
-                return sendSocialEvent(state, sendVisiblePlayer('%s', '%s begins to crackle with magical fire\n'));
+                return sendSocialEvent(state, '[author] begins to crackle with magical fire\n', VISIBLE_EVENT);
             } else {
                 return Promise.resolve();
             }
@@ -219,13 +219,13 @@ export class Emote extends Action {
     }
 
     action(state: State): Promise<any> {
-        return sendSocialEvent(state, `${sendSoundPlayer('%s')} ${getreinput(state)}\n`);
+        return sendSocialEvent(state, `[author] ${getreinput(state)}\n`, AUDIBLE_EVENT);
     }
 }
 
 export class Pray extends Action {
     action(state: State): Promise<any> {
-        return sendSocialEvent(state, sendVisiblePlayer('%s', '%s falls down and grovels in the dirt\n'));
+        return sendSocialEvent(state, '[author] falls down and grovels in the dirt\n', VISIBLE_EVENT);
     }
 
     decorate(result: any): void {
@@ -235,13 +235,13 @@ export class Pray extends Action {
 
 export class Yawn extends Action {
     action(state: State): Promise<any> {
-        return sendSocialEvent(state, `${sendSoundPlayer('%s')}${sendSound(' yawns\n')}`);
+        return sendSocialEvent(state, '[author] yawns\n', AUDIBLE_EVENT);
     }
 }
 
 export class Groan extends Action {
     action(state: State): Promise<any> {
-        return sendSocialEvent(state, `${sendSoundPlayer('%s')}${sendSound(' groans loudly\n')}`);
+        return sendSocialEvent(state, '[author] groans loudly\n', AUDIBLE_EVENT);
     }
 
     decorate(result: any): void {
@@ -251,7 +251,7 @@ export class Groan extends Action {
 
 export class Moan extends Action {
     action(state: State): Promise<any> {
-        return sendSocialEvent(state, `${sendSoundPlayer('%s')}${sendSound(' starts making moaning noises\n')}`);
+        return sendSocialEvent(state, '[author] starts making moaning noises\n', AUDIBLE_EVENT);
     }
 
     decorate(result: any): void {

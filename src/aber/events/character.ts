@@ -7,8 +7,7 @@ import {OnExitEvent} from "./index";
 import {isCarriedBy} from "../objsys";
 import {isWizard} from "../newuaf/reducer";
 import {
-    sendName,
-    sendVisibleName,
+    playerName,
 } from "../bprintf";
 import {isWornBy} from "../new1";
 import {playerIsMe} from "../tk/reducer";
@@ -28,7 +27,7 @@ const golem = {
                 isCarriedBy(runeSword, actor, !isWizard(state))
                     && player.exists
             ) {
-                throw new Error(`${sendVisibleName('The Golem')} bars the doorway!`);
+                throw new Error(`${playerName(player)} bars the doorway!`); // The Golem
             }
         }),
 };
@@ -48,8 +47,8 @@ const figure = {
                     && !playerIsMe(state, player.playerId)
                     && !signs.some(item => isWornBy(state, item, actor))
                 ) {
-                    throw new Error(`${sendName('The Figure')} holds you back\n`
-                        + `${sendName('The Figure')} says \'Only true sorcerors may pass\'\n`);
+                    throw new Error(`${playerName(player)} holds you back\n`
+                        + `${playerName(player)} says \'Only true sorcerors may pass\'\n`); // The Figure
                 }
             })
     },

@@ -3,7 +3,6 @@ import {
     Item,
     Player,
     getItem,
-    getPlayer,
     setPlayer,
 } from '../support';
 import {isCarriedBy} from '../objsys';
@@ -13,7 +12,7 @@ import {
     setFight,
     setWeapon,
 } from './reducer';
-import {sendName} from '../bprintf';
+import {playerName} from '../bprintf';
 import {sendMessage} from '../bprintf/bprintf';
 import {checkRoll, roll} from "../magic";
 import {isWornBy, sendBotDamage} from "../new1";
@@ -97,7 +96,7 @@ export const hitPlayer = (state: State, actor: Player, victim: Player, weapon?: 
             const promises = [];
             if (attack.damage) {
                 const weaponDescription = weapon ? `with the ${weapon.name}` : '';
-                promises.push(sendMessage(state, `You hit ${sendName(victim.name)} ${weaponDescription}\n`));
+                promises.push(sendMessage(state, `You hit ${playerName(victim)} ${weaponDescription}\n`));
                 if (attack.damage > victim.strength) {
                     // Killed
                     promises.push(sendMessage(state, 'Your last blow did the trick\n'));
@@ -111,7 +110,7 @@ export const hitPlayer = (state: State, actor: Player, victim: Player, weapon?: 
                 }
                 promises.push(calibrate(state, actor, attack.damage * 2));
             } else {
-                promises.push(sendMessage(state, `You missed ${sendName(victim.name)}\n`));
+                promises.push(sendMessage(state, `You missed ${playerName(victim)}\n`));
             }
             return Promise.all(promises)
                 .then(() => attack);

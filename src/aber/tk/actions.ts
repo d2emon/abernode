@@ -4,7 +4,7 @@ import {initPerson} from "../newuaf";
 import {loadWorld} from "../opensys";
 import {getLevel, getSex, getStrength, isGod} from "../newuaf/reducer";
 import {sendWizards} from "../new1/events";
-import {sendVisiblePlayer} from "../bprintf";
+import {createVisiblePlayerMessage} from "../bprintf";
 import {getLocationId, getName, setGameOn} from "./reducer";
 import {roll} from "../magic";
 import {processEvents, setLocationId} from "./index";
@@ -31,7 +31,7 @@ const startGame = (state: State, player: Player): Promise<boolean> => initPerson
             weaponId: -1,
             helping: -1,
         }),
-        sendWizards(state, sendVisiblePlayer(getName(state), `[ ${getName(state)}  has entered the game ]\n`)),
+        sendWizards(state, createVisiblePlayerMessage(getName(state), '[ [author]  has entered the game ]\n')),
         Promise.resolve(setGameOn(state)),
     ]))
     .then(() => Promise.all([
@@ -40,7 +40,7 @@ const startGame = (state: State, player: Player): Promise<boolean> => initPerson
     ]))
     .then(([
         locationId,
-    ]) => Events.sendLocalMessage(state, getLocationId(state), getName(state), sendVisiblePlayer(getName(state), `${getName(state)}  has entered the game\n`)))
+    ]) => Events.sendLocalMessage(state, getLocationId(state), getName(state), createVisiblePlayerMessage(getName(state), '[author]  has entered the game\n')))
     .then(() => true);
 
 const defaultCommand = (): Promise<boolean> => {

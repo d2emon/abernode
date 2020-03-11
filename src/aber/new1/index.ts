@@ -8,12 +8,11 @@ import {
     Item,
     Player,
     getItem,
-    getPlayer,
     setPlayer,
 } from "../support";
 import {sendWizards} from "./events";
 import {roll} from "../magic";
-import {sendVisiblePlayer} from "../bprintf";
+import {createVisiblePlayerMessage} from "../bprintf";
 import {getLevel, isWizard} from "../newuaf/reducer";
 import {loadWorld} from "../opensys";
 import Action from "../action";
@@ -111,8 +110,8 @@ export const teleport = (state: State, locationId: number, actor: Player): Promi
     const oldLocationId = getLocationId(state);
     return Promise.all([
         setLocationId(state, locationId, actor),
-        Events.sendLocalMessage(state, oldLocationId, getName(state), sendVisiblePlayer(getName(state), `${getName(state)} has left.\n`)),
-        Events.sendLocalMessage(state, locationId, getName(state), sendVisiblePlayer(getName(state), `${getName(state)} has arrived.\n`)),
+        Events.sendLocalMessage(state, oldLocationId, getName(state), createVisiblePlayerMessage(getName(state), '[author] has left.\n')),
+        Events.sendLocalMessage(state, locationId, getName(state), createVisiblePlayerMessage(getName(state), '[author] has arrived.\n')),
     ])
         .then(() => {});
 };

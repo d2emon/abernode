@@ -5,10 +5,8 @@ import State from "../state";
 import {getItem, setItem} from "../support";
 import Events from "../tk/events";
 import {roll} from "../magic";
-import {getLocationId, getName} from "../tk/reducer";
-import {sendVisibleName} from "../bprintf";
-import {sendMessage} from "../bprintf/bprintf";
-import {sendMyMessage} from "../parse/events";
+import {getLocationId} from "../tk/reducer";
+import {createVisibleMessage} from "../bprintf";
 
 /**
  * Weather Routines
@@ -82,13 +80,13 @@ export const showWeather = (state: State): Promise<string | void> => getWeather(
             return ((getLocationId(state) > -199) && (getLocationId(state) < -178))
                 ? 'It is raining, a gentle mist of rain, which sticks to everything around\n'
                     + 'you making it glisten and shine. High in the skies above you is a rainbow\n'
-                : sendVisibleName('It is raining\n');
+                : createVisibleMessage('It is raining\n');
         } else if (weatherId === 2) {
-            return sendVisibleName('The skies are dark and stormy\n');
+            return createVisibleMessage('The skies are dark and stormy\n');
         } else if (weatherId === 3) {
-            return sendVisibleName('It is snowing\n');
+            return createVisibleMessage('It is snowing\n');
         } else if (weatherId === 4) {
-            return sendVisibleName('A blizzard is howling around you\n');
+            return createVisibleMessage('A blizzard is howling around you\n');
         }
         return undefined;
     });

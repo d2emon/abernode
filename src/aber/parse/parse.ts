@@ -13,10 +13,8 @@ import {
     setPlayer
 } from "../support";
 import {CREDITS, GWIZ, logger, RESET_DATA, ROOMS} from "../files";
-import {CONTAINED_IN, IS_DESTROYED} from "../object";
 import {
     isCarriedBy,
-    isAvailable,
     findAvailableItem,
     findCarriedItem,
     findItem,
@@ -27,30 +25,23 @@ import {
     isContainedIn,
 } from "../objsys";
 import {hitPlayer} from "../blood";
-import {receiveDamage} from '../blood/events';
 import {
-    sendName,
-    sendPlayerForVisible,
-    sendSound,
-    sendSoundPlayer,
-    sendVisibleName,
-    sendVisiblePlayer,
-    showFile
+    actorName,
+    createVisiblePlayerMessage,
+    sendTextMessage,
 } from "../bprintf";
 import {showMessages} from "../bprintf/output";
 import {checkRoll, roll} from "../magic";
 import {getAvailableItem, isWornBy, sendBotDamage} from "../new1";
 import {clearForce, getDumb, getForce} from "../new1/reducer";
-import {newReceive, sendWizards} from "../new1/events";
-import {removePerson, savePerson} from "../newuaf";
+import {sendWizards} from "../new1/events";
+import {savePerson} from "../newuaf";
 import {
     getLevel,
     getScore,
     getSex,
     getStrength, isAdmin, isGod,
-    isWizard, setLevel,
-    setScore,
-    setStrength,
+    isWizard,
     updateStrength
 } from "../newuaf/reducer";
 import {loadWorld, saveWorld} from "../opensys";
@@ -432,10 +423,7 @@ const doaction = (state: State, actionId: number): Promise<void> => {
           rollcom();
           break;
        */
-            169: () => new Promise((resolve) => {
-                bprintf(state, showFile(CREDITS));
-                resolve();
-            }),
+            169: () => sendTextMessage(state, CREDITS),
         /*
        case 170:
           brmode=!brmode;
@@ -464,7 +452,7 @@ const doaction = (state: State, actionId: number): Promise<void> => {
                             return resolve();
                         }
                         Promise.all([
-                            sendMyMessage(state, `${sendVisibleName(getName(state))} drops everything in a frantic attempt to escape\n`),
+                            sendMyMessage(state, `${actorName(state)} drops everything in a frantic attempt to escape\n`),
                             sendEndFight(state, getName(state)),
                         ])
                             .then(() => calibrate(state, actor, -(getScore(state) / 33))) /* loose 3% */
@@ -809,7 +797,7 @@ const dogive = (state: State, itemId: number, playerId: number, actor: Player): 
                     return bprintf(state, 'It doesn\'t wish to be given away.....\n');
                 }
                 return holdItem(state, item.itemId, player.playerId)
-                    .then(() => sendPrivate(state, player, `${sendName(getName(state))} gives you the ${item.name}\n`));
+                    .then(() => sendPrivate(state, player, `${actorName(state)} gives you the ${item.name}\n`));
             });
     });
 
@@ -867,7 +855,7 @@ const stealcom = (state: State, actor: Player): Promise<void> => {
                                     if (f < e) {
                                         if (f & 1) {
                                             return Promise.all([
-                                                sendPrivate(state, player, `${sendName(getName(state))} steals the ${item.name} from you !\n`),
+                                                sendPrivate(state, player, `${actorName(state)} steals the ${item.name} from you !\n`),
                                                 sendBotDamage(state, actor, player, 0),
                                             ]);
                                         }
@@ -886,8 +874,8 @@ const dosumm = (state: State, locationId: number): Promise<void> => {
     const oldLocationId = getLocationId(state);
     return Promise.all([
         setLocationId(state, locationId, actor),
-        sendLocalMessage(state, oldLocationId, getName(state), sendVisiblePlayer(getName(state), `${getName(state)} vanishes in a puff of smoke\n`)),
-        sendLocalMessage(state, locationId, getName(state), sendVisiblePlayer(getName(state), `${getName(state)} appears in a puff of smoke\n`)),
+        sendLocalMessage(state, oldLocationId, getName(state), createVisiblePlayerMessage(getName(state), '[author] vanishes in a puff of smoke\n')),
+        sendLocalMessage(state, locationId, getName(state), createVisiblePlayerMessage(getName(state), '[author] appears in a puff of smoke\n')),
         dropMyItems(state, actor),
     ])
         .then(() => {});
@@ -915,7 +903,7 @@ const rmedit = (state: State, actor: Player): Promise<void> => {
     if (!actor.isEditor) {
         return bprintf(state, 'Dum de dum.....\n');
     }
-    return sendWizards(state, sendVisiblePlayer(getName(state), `${getName(state)} fades out of reality\n`))
+    return sendWizards(state, createVisiblePlayerMessage(getName(state), '[author] fades out of reality\n'))
         .then(() => fadePlayer(state, actor)) /* CODE NUMBER */
         .then(() => showMessages(state))
         .then(() => saveWorld(state))
@@ -933,7 +921,7 @@ const rmedit = (state: State, actor: Player): Promise<void> => {
             if (!me) {
                 return looseGame(state, actor, 'You have been kicked off');
             }
-            return sendWizards(state, sendVisiblePlayer(getName(state), `${getName(state)} re-enters the normal universe\n`));
+            return sendWizards(state, createVisiblePlayerMessage(getName(state), '[author] re-enters the normal universe\n'));
         })
         .then(() => processEvents(state, actor));
 };
@@ -943,7 +931,7 @@ const u_system = (state: State, actor: Player): Promise<void> => {
         return bprintf(state, 'You\'ll have to leave the game first!\n');
     }
     return fadePlayer(state, actor) /* CODE NUMBER */
-        .then(() => sendWizards(state, sendVisiblePlayer(getName(state), `${getName(state)} has dropped into BB\n`)))
+        .then(() => sendWizards(state, createVisiblePlayerMessage(getName(state), '[author] has dropped into BB\n')))
         .then(() => saveWorld(state))
         .then(() => system(state, '/cs_d/aberstudent/yr2/iy7/bt'))
         .then(() => loadWorld(state))
@@ -958,7 +946,7 @@ const u_system = (state: State, actor: Player): Promise<void> => {
             return processEvents(state, actor);
         })
         .then(() => loadWorld(state))
-        .then(world => sendWizards(state, sendVisiblePlayer(getName(state), `${getName(state)} has returned to AberMud\n`)));
+        .then(world => sendWizards(state, createVisiblePlayerMessage(getName(state), '[author] has returned to AberMud\n')));
 };
 
 const inumcom = (state: State, actor: Player): Promise<void> => {

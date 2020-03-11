@@ -17,8 +17,9 @@ import {
     getItems,
 } from "../support";
 import {
-    sendVisibleName,
-    showFile,
+    actorName,
+    createVisiblePlayerMessage,
+    sendTextMessage,
 } from "../bprintf";
 import {
     EXAMINES,
@@ -30,7 +31,6 @@ import {
 import {sendAndShow} from "../bprintf/output";
 import Action from "../action";
 import {IS_DESTROYED} from "../object";
-import {sendVisiblePlayer} from "../bprintf";
 import {showLocation} from "./index";
 import {checkRoll, roll} from "../magic";
 import {teleport} from "../new1";
@@ -80,13 +80,13 @@ export class Help extends Action {
                 if (actor.helping !== -1) {
                     return Promise.all([
                         getPlayer(state, player.helping),
-                        Events.sendPrivate(state, player, `${sendVisibleName(getName(state))} has stopped helping you\n`),
+                        Events.sendPrivate(state, player, `${actorName(state)} has stopped helping you\n`),
                     ])
                         .then(([helper]) => this.output(`Stopped helping ${helper.name}\n`));
                 } else {
                     return Promise.all([
                         setPlayer(state, actor.playerId, {helping: player.playerId}),
-                        Events.sendPrivate(state, player, `${sendVisibleName(getName(state))} has offered to help you\n`),
+                        Events.sendPrivate(state, player, `${actorName(state)} has offered to help you\n`),
                     ])
                         .then(() => this.output('OK...\n'));
                 }
@@ -96,20 +96,22 @@ export class Help extends Action {
     private helpMessage(state: State): Promise<any> {
         return saveWorld(state)
             .then(() => {
-                const parts = [showFile(HELP1)];
+                const parts = [() => sendTextMessage(state, HELP1)];
                 if (isWizard(state)) {
-                    parts.push(showFile(HELP2));
+                    parts.push(() => sendTextMessage(state, HELP2));
                 }
                 if (isGod(state)) {
-                    parts.push(showFile(HELP3));
+                    parts.push(() => sendTextMessage(state, HELP3));
                 }
-                return Promise.all([parts.map((text, textId) => new Promise((resolve) => {
-                    this.output(`${text}\n`);
-                    if (textId < parts.length - 1) {
-                        return sendAndShow(state, 'Hit <Return> For More....\n')
-                            .then(() => getchar(state));
-                    }
-                }))]);
+                return Promise.all([parts.map((send, messageId) => send()
+                    .then(() => {
+                        this.output('\n');
+                        if (messageId < parts.length - 1) {
+                            return sendAndShow(state, 'Hit <Return> For More....\n')
+                                .then(() => getchar(state));
+                        }
+                    })
+                )]);
             })
     }
 
@@ -127,7 +129,7 @@ export class Help extends Action {
 export class Levels extends Action {
     action(state: State): Promise<any> {
         return saveWorld(state)
-            .then(() => showFile(LEVELS));
+            .then(() => sendTextMessage(state, LEVELS));
     }
 }
 
@@ -411,7 +413,7 @@ export class Wizlist extends Action {
             throw new Error('Huh ?');
         }
         return saveWorld(state)
-            .then(() => showFile(WIZLIST));
+            .then(() => sendTextMessage(state, WIZLIST));
     }
 }
 
@@ -488,8 +490,8 @@ export class Jump extends Action {
     private static withUmbrella(state: State, locationId: number, actor: Player): Promise<any> {
         const oldLocationId = getLocationId(state);
         return setLocationId(state, locationId, actor)
-            .then(() => Events.sendLocalMessage(state, oldLocationId, getName(state), sendVisiblePlayer(getName(state), `${getName(state)} has just left\n`)))
-            .then(() => Events.sendLocalMessage(state, locationId, getName(state), sendVisiblePlayer(getName(state), `${getName(state)} has just dropped in\n`)))
+            .then(() => Events.sendLocalMessage(state, oldLocationId, getName(state), createVisiblePlayerMessage(getName(state), '[author] has just left\n')))
+            .then(() => Events.sendLocalMessage(state, locationId, getName(state), createVisiblePlayerMessage(getName(state), '[author] has just dropped in\n')))
             .then(() => ({}))
     }
 

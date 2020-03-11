@@ -1,17 +1,13 @@
 import Action from '../action';
 import State from '../state';
 import Events from "../tk/events";
-import {
-    sendSound,
-    sendSoundPlayer,
-} from "../bprintf";
 import {findAvailableItem} from "../objsys";
 import {getItems, Item, Player} from "../support";
-import {sendAndShow, showMessages} from "../bprintf/output";
+import {sendAndShow} from "../bprintf/output";
 import {getAvailablePlayer} from "../new1/actions";
 import {checkDumb} from "../new1/reducer";
 import {isWizard} from "../newuaf/reducer";
-import {sendSocialEvent} from "../weather/events";
+import {AUDIBLE_EVENT, sendSocialEvent} from "../weather/events";
 import {findZone} from "../zones";
 
 const rescom = (state: State): Promise<any> => Promise.resolve({});
@@ -40,7 +36,7 @@ export class Sing extends Action {
     action(state: State): Promise<any> {
         return Promise.all([
             checkDumb(state),
-            sendSocialEvent(state, `${sendSoundPlayer('%s')}${sendSound(' sings in Gaelic\n')}`),
+            sendSocialEvent(state, '[author] sings in Gaelic\n', AUDIBLE_EVENT),
         ]);
     }
 

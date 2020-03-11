@@ -1,5 +1,4 @@
 import State from "../state";
-import {Event as EventData} from '../services/world';
 import {
     cureAll,
     getForce,
@@ -9,12 +8,10 @@ import {
     setDumb,
     setForce,
 } from "./reducer";
-import {sendName} from "../bprintf";
+import {playerName} from "../bprintf";
 import {Player} from "../support";
 import {sendMessage} from "../bprintf/bprintf";
 import {logger} from "../files";
-import {dropMyItems} from "../objsys";
-import {endGame} from "../gamego/endGame";
 import {removePerson} from "../newuaf";
 import {getSexName, getStrength, isWizard, revertSex, updateStrength} from "../newuaf/reducer";
 import {loadWorld, saveWorld} from "../opensys";
@@ -108,7 +105,7 @@ const receiveCripple = (state: State, event: Event) => {
         setCripple(state);
         return sendMessage(state, 'You have been magically crippled\n');
     } else {
-        return sendMessage(state, `${sendName(event.sender.name)} tried to cripple you\n`)
+        return sendMessage(state, `${playerName(event.sender)} tried to cripple you\n`)
     }
 };
 const receiveDumb = (state: State, event: Event) => {
@@ -116,36 +113,36 @@ const receiveDumb = (state: State, event: Event) => {
         setDumb(state);
         return sendMessage(state, 'You have been struck magically dumb\n');
     } else {
-        return sendMessage(state, `${sendName(event.sender.name)} tried to dumb you\n`)
+        return sendMessage(state, `${playerName(event.sender)} tried to dumb you\n`)
     }
 };
 const receiveForce = (state: State, event: Event) => {
     if (!isWizard(state)) {
         return addForce(state, event.payload)
-            .then(() => sendMessage(state, `${sendName(event.sender.name)} has forced you to ${event.payload}\n`));
+            .then(() => sendMessage(state, `${playerName(event.sender)} has forced you to ${event.payload}\n`));
     } else {
-        return sendMessage(state, `${sendName(event.sender.name)} tried to force you to ${event.payload}\n`);
+        return sendMessage(state, `${playerName(event.sender)} tried to force you to ${event.payload}\n`);
     }
 };
-const receiveShout = (state: State, event: Event) => sendMessage(state, `${sendName(event.sender.name)} shouts '${event.payload}'\n`);
+const receiveShout = (state: State, event: Event) => sendMessage(state, `${playerName(event.sender)} shouts '${event.payload}'\n`);
 const receiveBlind = (state: State, event: Event) => {
     if (!isWizard(state)) {
         setBlind(state);
         return sendMessage(state, 'You have been struck magically blind\n');
     } else {
-        return sendMessage(state, `${sendName(event.sender.name)} tried to blind you\n`);
+        return sendMessage(state, `${playerName(event.sender)} tried to blind you\n`);
     }
 };
 const receiveMissile = (state: State, event: Event, isMe: boolean) => {
     if (!isHere(state, event.channelId)) {
         return Promise.resolve();
     }
-    return sendMessage(state, `Bolts of fire leap from the fingers of ${sendName(event.sender.name)}\n`)
+    return sendMessage(state, `Bolts of fire leap from the fingers of ${playerName(event.sender)}\n`)
         .then(() => {
             if (isMe) {
                 return receiveMagicDamage(state, Number(event.payload), 'You are struck!\n', event.actor);
             } else {
-                return sendMessage(state, `${sendName(event.receiver.name)} is struck\n`);
+                return sendMessage(state, `${playerName(event.receiver)} is struck\n`);
             }
         });
 };
@@ -162,18 +159,18 @@ const receiveFireball = (state: State, event: Event, isMe: boolean) => {
     if (!isHere(state, event.channelId)) {
         return Promise.resolve();
     }
-    return sendMessage(state, `${sendName(event.sender.name)} casts a fireball\n`)
+    return sendMessage(state, `${playerName(event.sender)} casts a fireball\n`)
         .then(() => {
             if (isMe) {
                 return receiveMagicDamage(state, Number(event.payload), 'You are struck!\n', event.actor);
             } else {
-                return sendMessage(state, `${sendName(event.receiver.name)} is struck\n`);
+                return sendMessage(state, `${playerName(event.receiver)} is struck\n`);
             }
         });
 };
 const receiveShock = (state: State, event: Event, isMe: boolean) => {
     if (isMe) {
-        return receiveMagicDamage(state, Number(event.payload), `${sendName(event.sender.name)} touches you giving you a sudden electric shock!\n`, event.actor);
+        return receiveMagicDamage(state, Number(event.payload), `${playerName(event.sender)} touches you giving you a sudden electric shock!\n`, event.actor);
     }
 };
 const receiveSocial = (state: State, event: Event) => sendMessage(state, `${event.payload}\n`);
@@ -188,7 +185,7 @@ const receiveDeaf = (state: State, event: Event) => {
         setDeaf(state);
         return sendMessage(state, 'You have been magically deafened\n');
     } else {
-        return sendMessage(state, `${sendName(event.sender.name)} tried to deafen you\n`);
+        return sendMessage(state, `${playerName(event.sender)} tried to deafen you\n`);
     }
 };
 

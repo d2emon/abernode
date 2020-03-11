@@ -7,7 +7,7 @@ import {
     getItem,
     getPlayer,
 } from '../support';
-import {sendVisibleName} from '../bprintf';
+import {playerName} from '../bprintf';
 import {isWizard} from "../newuaf/reducer";
 import {getLocationName} from "../zones";
 
@@ -32,7 +32,7 @@ export const showLocation = (state: State, locationId: number, carryFlag: number
     }
     if (carryFlag !== LOCATED_IN) {
         return getPlayer(state, locationId)
-            .then(player => `Carried by ${sendVisibleName(player.name)}`);
+            .then(player => `Carried by ${playerName(player)}`);
     }
     return openroom(state, locationId, 'r')
         .then(showChannel(state, locationId))
