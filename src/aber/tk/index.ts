@@ -1,36 +1,53 @@
 import State from "../state";
 import {Event} from '../services/world';
-import {getDebugMode} from "../parse/reducer";
+import {
+    checkInterrupt, disableBriefMode,
+    getCalibrationNeeded,
+    getDebugMode,
+    getSummon, isBriefMode,
+    isDrunk,
+    isSummoned,
+    resetCalibration, resetIsDamagedBy,
+    resetSummoned,
+    tickDrunk,
+    tickInvisibility
+} from "../parse/reducer";
 import {sendMessage} from "../bprintf/bprintf";
 import {loadEvent, loadMeta, loadWorld, saveWorld} from "../opensys";
 import {
     disableCalibrate,
     getEventId, getGameMode, getLocationId,
     getName, getNeedUpdate,
-    isEventsUnprocessed, setChannelId,
+    isEventsUnprocessed, isHere, setChannelId,
     setEventId,
     setEventsProcessed, setUpdated,
 } from "./reducer";
 import {endGame} from "../gamego/endGame";
 import Events from "./events";
-import {Player, setPlayer} from "../support";
+import {getItem, getPlayer, Player, setPlayer} from "../support";
 import {asyncUnsetAlarm} from "../gamego/reducer";
 import {dropMyItems, findPlayer, isDark, listPeople, showItems} from "../objsys";
 import {sendWizards} from "../new1/events";
 import {savePerson} from "../newuaf";
 import {checkSnoop} from "../bprintf/snoop";
 import {logger} from "../files";
-import {cureBlind, getBlind} from "../new1/reducer";
-import {isWizard} from "../newuaf/reducer";
+import {clearForce, cureBlind, getBlind, getDumb, getForce} from "../new1/reducer";
+import {isWizard, updateStrength} from "../newuaf/reducer";
 import {onLook} from "../mobile";
 import {getLocationName, loadExits} from "../zones";
 import {receiveEvent} from "../parse/events";
 import {sendBaseMessage} from "../bprintf";
+import {calibrate, getChannel} from "../parse";
+import {hitPlayer} from "../blood";
+import {checkRoll} from "../magic";
+import {isWornBy} from "../new1";
+import {executeCommand} from "../parse/parser";
+import {getEnemy, getFight, getWeapon, resetFight} from "../blood/reducer";
 
-const eorte = (state: State, interrupt: boolean = false) => (): Promise<void> => Promise.resolve();
-const openroom = (roomId: number, permissions: string): Promise<any> => Promise.resolve({});
 const fclose = (room: any): Promise<void> => Promise.resolve();
 const getstr = (room: any): Promise<string[]> => Promise.resolve([]);
+
+const dosumm = (state: State, ades: number): Promise<void> => Promise.resolve();
 
 /**
  * AberMUD II   C
@@ -58,6 +75,83 @@ const getstr = (room: any): Promise<string[]> => Promise.resolve([]);
  * - 1 = general request
  */
 
+const onEventsProcessed = (oldState: State, actor: Player, interrupt: boolean) => (): Promise<void> => {
+    const checkInvisibility = (state: State): Promise<State> => Promise.resolve(tickInvisibility(state))
+        .then(() => state);
+    const doCalibrate = (state: State): Promise<State> => getCalibrationNeeded(state)
+        ? calibrate(state, actor)
+            .then(() => resetCalibration(state))
+            .then(() => state)
+        : Promise.resolve(state);
+    const doSummon = (state: State): Promise<State> => isSummoned(state)
+        ? dosumm(state, getSummon(state))
+            .then(() => state)
+        : Promise.resolve(state);
+    const doHit = (state: State, enemy: Player) => getWeapon(state)
+        .then(weapon => hitPlayer(state, actor, enemy, weapon))
+        .then(() => resetFight(state));
+    const doFight = (state: State): Promise<State> => {
+        if (!getFight(state)) {
+            return Promise.resolve(state);
+        }
+        return getEnemy(state)
+            .then((enemy) => {
+                if (!enemy) {
+                    return resetFight(state);
+                } else if (!isHere(state, enemy.playerId)) {
+                    return resetFight(state);
+                } else if (!enemy.exists) {
+                    return resetFight(state);
+                } else {
+                    return interrupt && doHit(state, enemy);
+                }
+            })
+            .then(() => state);
+    };
+    const checkXp = (state: State): Promise<State> => Promise.all([
+        checkRoll(r => r < 10),
+        getItem(state, 18),
+    ])
+        .then(([
+            xpRoll,
+            item,
+        ]) => {
+            if (xpRoll || isWornBy(state, item, actor)) {
+                updateStrength(state, 1);
+                return calibrate(state, actor);
+            }
+        })
+        .then(() => state);
+    const checkForce = (state: State): Promise<State> => Promise.resolve(getForce(state))
+        .then((force) => force
+            ? executeCommand(state, force, actor, true)
+            : Promise.resolve()
+        )
+        .then(() => clearForce(state))
+        .then(() => state);
+    const checkDrunk = (state: State): Promise<void> => Promise.resolve(isDrunk(state))
+        .then((drunk) => {
+            if (!drunk) {
+                return;
+            }
+            tickDrunk(state);
+            if (getDumb(state)) {
+                return;
+            } else {
+                return executeCommand(state, 'hiccup', actor);
+            }
+        });
+
+
+    return checkInvisibility(oldState)
+        .then(doCalibrate)
+        .then(doSummon)
+        .then(doFight)
+        .then(checkXp)
+        .then(checkForce)
+        .then(checkDrunk);
+};
+
 const saveEventId = (state: State, player: Player, eventId: number): Promise<void> => {
     setEventId(state, eventId);
     if (getNeedUpdate(state, eventId)) {
@@ -70,9 +164,9 @@ const saveEventId = (state: State, player: Player, eventId: number): Promise<voi
 
 export const fadePlayer = (state: State, player: Player): Promise<void> => saveEventId(state, player, -2);
 
-const processEvent = (state: State) => (event: Event): Promise<void> => {
+const processEvent = (state: State, actor: Player) => (event: Event): Promise<void> => {
     const systemEvent = (state: State, event: Event, message: string): Promise<void> => sendMessage(state, message)
-        .then(receiveEvent(state, event));
+        .then(() => receiveEvent(state, actor, event));
 
     /* Print appropriate stuff from data block */
     const eventCode = getDebugMode(state) ? `\n<${event.code}>` : '';
@@ -83,17 +177,17 @@ const processEvent = (state: State) => (event: Event): Promise<void> => {
     }
 };
 
-const loadAndProcess = (state: State, eventId: number): Promise<void> => {
+const loadAndProcess = (state: State, actor: Player, eventId: number): Promise<void> => {
     setEventId(state, eventId);
     return loadEvent(eventId)
-        .then(processEvent(state));
+        .then(processEvent(state, actor));
 };
 
-const getEvents = (state: State, firstEventId: number | undefined, lastEventId: number): Promise<void>[] => {
+const getEvents = (state: State, actor: Player, firstEventId: number | undefined, lastEventId: number): Promise<void>[] => {
     firstEventId = (firstEventId !== undefined) ? firstEventId : lastEventId;
     const events = [];
     for (let eventId = firstEventId; eventId < lastEventId; eventId += 1) {
-        events.push(loadAndProcess(state, eventId));
+        events.push(loadAndProcess(state, actor, eventId));
     }
     setEventId(state, lastEventId);
     return events;
@@ -106,15 +200,15 @@ export const processEvents = (
 ): Promise<void> => loadMeta()
     .then(({ lastEventId }) => Promise.all(getEvents(
         state,
+        player,
         getEventId(state),
         lastEventId,
     )))
     .then(() => saveEventId(state, player, getEventId(state)))
-    .then(eorte(state, interrupt))
+    .then(onEventsProcessed(state, player, checkInterrupt(state, interrupt)))
     .then(() => {
-        state.rdes = 0;
-        state.tdes = 0;
-        state.vdes = 0;
+        resetSummoned(state);
+        resetIsDamagedBy(state);
     })
     .catch(() => endGame(state, 'AberMUD: FILE_ACCESS : Access failed'));
 
@@ -154,13 +248,13 @@ export const describeChannel = (state: State, roomId: number, actor: Player, noB
                 }
             } else if (row === '#NOBR') {
                 if (!noBrief) {
-                    state.brmode = false;
+                    disableBriefMode(state);
                 }
             } else {
                 if (getBlind(state)) {
                     return Promise.resolve();
                 }
-                const show = noBrief || !state.brmode || (rowId === 0);
+                const show = noBrief || !isBriefMode(state) || (rowId === 0);
                 return show && sendMessage(state, `${row}\n`);
             }
         })))
@@ -181,7 +275,7 @@ export const describeChannel = (state: State, roomId: number, actor: Player, noB
         .then(() => saveWorld(state))
         .then(() => getBlind(state) && sendBaseMessage(state, 'You are blind... you can\'t see a thing!\n'))
         .then(() => isWizard(state) && sendBaseMessage(state, `${getLocationName(state, roomId)}\n`))
-        .then(() => openroom(roomId, 'r'))
+        .then(() => getChannel(roomId))
         .then((room) => (room
             ? showRoom(room)
             : sendBaseMessage(state, `\nYou are on channel ${roomId}\n`)

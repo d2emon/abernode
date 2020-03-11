@@ -9,6 +9,7 @@ import {getPlayer, Player} from "../support";
 import {findItem} from "../objsys";
 import {getName} from "../tk/reducer";
 import {sendBaseMessage} from "../bprintf";
+import {canSave} from "../parse/reducer";
 
 export const removePerson = (state: State, name: string): Promise<void> => Persons.findPersons(name)
     .then(persons => persons.forEach((person) => {
@@ -67,7 +68,7 @@ export const initPerson = (state: State): Promise<void> => Persons.findPerson(ge
     .catch(() => endGame(state, 'Panic: Timeout event on user file'));
 
 export const savePerson = (state: State, actor: Player): Promise<void> => {
-    if (state.zapped) {
+    if (!canSave(state)) {
         return Promise.resolve();
     }
     return sendBaseMessage(state, `\nSaving ${getName(state)}\n`)

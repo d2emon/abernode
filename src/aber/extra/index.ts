@@ -10,12 +10,12 @@ import {
 import {playerName} from '../bprintf';
 import {isWizard} from "../newuaf/reducer";
 import {getLocationName} from "../zones";
+import {getChannel} from "../parse";
 
-const openroom = (state: State, locationId: number, permissions: string): Promise<any> => Promise.resolve({});
 const fclose = (file: any): Promise<void> => Promise.resolve();
 const getstr = (file: any): Promise<string[]> => Promise.resolve([]);
 
-const showChannel = (state: State, locationId: number) => (channel: any): Promise<string> => getstr(channel)
+const showChannel = (state: State, locationId: number, channel: any): Promise<string> => getstr(channel)
     .then((text) => {
         const short = text[7];
         const name = isWizard(state) ? ` | ${getLocationName(state, locationId)}` : '';
@@ -34,7 +34,9 @@ export const showLocation = (state: State, locationId: number, carryFlag: number
         return getPlayer(state, locationId)
             .then(player => `Carried by ${playerName(player)}`);
     }
-    return openroom(state, locationId, 'r')
-        .then(showChannel(state, locationId))
-        .catch(() => 'Out in the void');
+    return getChannel(locationId)
+        .then(channel => channel
+            ? showChannel(state, locationId, channel)
+            :  'Out in the void'
+        );
 };

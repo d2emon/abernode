@@ -17,6 +17,12 @@ export const getPronoun = (state: State, pronoun: string): string => {
     };
     return pronouns[pronoun];
 };
+export const getCalibrationNeeded = (state: State): boolean => state.me_cal;
+export const isSummoned = (state: State): boolean => state.tdes;
+export const getSummon = (state: State): number => state.ades;
+export const isDrunk = (state: State): boolean => state.me_drunk > 0;
+export const isBriefMode = (state: State): boolean => state.brmode;
+export const canSave = (state: State): boolean => !state.zapped;
 
 export const changeDebugMode = (state: State): void => {
     state.debug_mode = !state.debug_mode;
@@ -91,4 +97,51 @@ export const setPlayerPronoun = (state: State, player: Player): void => {
     }
     setPronoun(state, 'wd_them', player.name);
 };
-
+export const checkInterrupt = (state: State, force: boolean): boolean => {
+    const date = new Date();
+    const interrupt = force || (date.getTime() - state.last_io_interrupt > 2);
+    if (!interrupt) {
+        return false;
+    }
+    state.last_io_interrupt = date.getTime();
+};
+export const tickInvisibility = (state: State): void => {
+    if (state.me_ivct) {
+        state.me_ivct -= 1;
+    }
+};
+export const setCalibration = (state: State): void => {
+    state.me_cal = true;
+};
+export const resetCalibration = (state: State): void => {
+    state.me_cal = false;
+};
+export const setSummoned = (state: State, channelId: number): void => {
+    state.tdes = true;
+    state.ades = channelId;
+};
+export const resetSummoned = (state: State): void => {
+    state.tdes = false;
+};
+export const setIsDamagedBy = (state: State, playerId: number): void => {
+    state.rdes = true;
+    state.vdes = playerId;
+};
+export const resetIsDamagedBy = (state: State): void => {
+    state.rdes = false;
+    state.vdes = 0;
+};
+export const tickDrunk = (state: State): void => {
+    if (state.me_drunk > 0) {
+        state.me_drunk -= 1;
+    }
+};
+export const disableBriefMode = (state: State): void => {
+    state.brmode = false;
+};
+export const switchBriefMode = (state: State): void => {
+    state.brmode = !state.brmode;
+};
+export const setZapped = (state: State): void => {
+    state.zapped = true;
+};

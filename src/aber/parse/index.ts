@@ -2,7 +2,7 @@ import State from "../state";
 import {getTitle, Player, setPlayer} from "../support";
 import {getCanCalibrate, getName} from "../tk/reducer";
 import {getLevel, getScore, getSex, getStrength, setLevel, setStrength, updateScore} from "../newuaf/reducer";
-import {GWIZ, logger} from "../files";
+import {GWIZ, logger, ROOMS} from "../files";
 import {looseGame} from "../tk";
 import {sendWizards} from "../new1/events";
 import {
@@ -51,3 +51,7 @@ export const calibrate = (state: State, actor: Player, score?: number): Promise<
         : Promise.resolve();
 };
 
+export const getChannel = (channelId: number, permissions: string = 'r'): Promise<any> => Promise.resolve({
+    fileName: `${ROOMS}${-channelId}`,
+    permissions,
+});

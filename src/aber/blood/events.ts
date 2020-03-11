@@ -14,6 +14,7 @@ import {loadWorld} from "../opensys";
 import {Attack} from "../tk/events";
 import {getName} from "../tk/reducer";
 import {looseGame} from "../tk";
+import {setCalibration} from "../parse/reducer";
 
 const WRAITH_ID = 16;
 
@@ -59,13 +60,10 @@ export const receiveDamage = (state: State, attack: Attack, isMe: boolean, actor
                         return lifeDrain();
                     }
                 })
-                .then(() => {
-                    if (getStrength(state) < 0) {
-                        return killed();
-                    }
-
-                    state.me_cal = 1; /* Queue an update when ready */
-                });
+                .then(() => (getStrength(state) < 0)
+                    ? killed()
+                    : setCalibration(state) /* Queue an update when ready */
+                );
         };
 
         if (!isMe) {

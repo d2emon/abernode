@@ -73,7 +73,10 @@ class Action implements ActionInterface {
         console.log(message)
     }
 
-    perform(state: State, actor: Player): Promise<void> {
+    perform(state: State, actor: Player, isForced?: boolean): Promise<void> {
+        if (isForced !== undefined) {
+            state.isforce = isForced;
+        }
         return this.check(state, actor)
             .then(() => this.getArgs(state, actor))
             .then(args => this.action(state, actor, args))

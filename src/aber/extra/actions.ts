@@ -41,6 +41,7 @@ import {looseGame, setLocationId} from "../tk";
 import Events, {PLAYER_MESSAGE} from '../tk/events'
 import {getLocationIdByZone, getLocationName, loadExits} from "../zones";
 import {getExits, setExits} from "../zones/reducer";
+import {getChannel} from "../parse";
 
 const fopen = (name: string, permissions: string): Promise<any> => Promise.resolve({});
 const fclose = (file: any): Promise<void> => Promise.resolve();
@@ -48,7 +49,6 @@ const getstr = (file: any): Promise<string[]> => Promise.resolve([]);
 
 const getchar = (state: State): Promise<string> => Promise.resolve('\n');
 const getreinput = (state: State): string => '';
-const openroom = (state: State, locationId: number, permissions: string): Promise<any> => Promise.resolve({});
 
 const UMBRELLA_ID = 1;
 const CRYSTAL_BALL_ID = 7;
@@ -441,22 +441,21 @@ export class InLocation extends Action {
                 const toPerform = getreinput(state);
                 setChannelId(state, locationId);
                 return saveWorld(state)
-                    .then(() => openroom(state, locationId, 'r'))
-                    .then(room => loadExits(state, room)
-                        .then(() => fclose(room)))
-                    .then(() => loadWorld(state))
-                    .then(world => executeCommand(state, toPerform, actor))
-                    .then(() => loadWorld(state))
-                    .then(world => {
-                        if (isHere(state, locationId)) {
-                            setExits(state, exBk);
-                        }
-                        setChannelId(state, oldLocationId);
-                    })
-                    .catch(() => {
-                        setChannelId(state, oldLocationId);
-                        throw new Error('No such room');
-                    });
+                    .then(() => getChannel(locationId))
+                    .then(channel => channel
+                        ? loadExits(state, channel)
+                        .then(() => loadWorld(state))
+                        .then(world => executeCommand(state, toPerform, actor))
+                        .then(() => loadWorld(state))
+                        .then(world => {
+                            if (isHere(state, locationId)) {
+                                setExits(state, exBk);
+                            }
+                            setChannelId(state, oldLocationId);
+                        })
+                        : Promise.resolve(setChannelId(state, oldLocationId))
+                            .then(() => Promise.reject(new Error('No such room')))
+                    );
 
             });
     }

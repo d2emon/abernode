@@ -48,7 +48,7 @@ import {loadWorld, saveWorld} from "../opensys";
 import {
     changeDebugMode,
     getCurrentChar,
-    nextStop,
+    nextStop, switchBriefMode,
 } from "./reducer";
 import {executeCommand} from "./parser";
 import Action from "../action";
@@ -71,16 +71,6 @@ import {canCarry} from "../objsys/actions";
 import {calibrate} from "./index";
 
 const debug2 = (state: State): Promise<void> => Promise.resolve(bprintf(state, 'No debugger available\n'));
-
-const checkForce = (state: State, actor: Player): Promise<void> => Promise.resolve(getForce(state))
-    .then((force) => {
-        state.isforce = true;
-        return force ? executeCommand(state, force, actor) : Promise.resolve();
-    })
-    .then(() => {
-        state.isforce = false;
-        clearForce(state);
-    });
 
 const onFlee = (state: State, actor: Player): Promise<void> => getItems(state)
     .then(items => items.forEach((item) => isCarriedBy(item, actor, !isWizard(state)) && !isWornBy(state, item, actor) && putItem(state, item.itemId, item.locationId)))
@@ -415,10 +405,8 @@ const doaction = (state: State, actionId: number): Promise<void> => {
           break;
        */
             169: () => sendTextMessage(state, CREDITS),
+            170: () => Promise.resolve(switchBriefMode(state)),
         /*
-       case 170:
-          brmode=!brmode;
-          break;
        case 171:
           debugcom();
           break;
@@ -530,102 +518,6 @@ char min_ms[81]="appears with an ear-splitting bang.";
 char here_ms[81]="is here";
     */
 
-/*
-long tdes=0;
-long vdes=0;
-long rdes=0;
-long ades=0;
-long zapped;
-*/
-
-/*
-ong me_ivct=0;
-long last_io_interrupt=0;
-*/
-
-const eorte = (state: State): Promise<void> => {
-    const ctm = time();
-    if (ctm - state.last_io_interrupt > 2) {
-        state.interrupt = true;
-    }
-    if (state.interrupt) {
-        state.last_io_interrupt = ctm;
-    }
-    if (state.me_ivct) {
-        state.me_ivct -= 1;
-    }
-    if (state.me_cal) {
-        state.me_cal = false;
-        calibrate(state, actor);
-    }
-    if (state.tdes) {
-        dosumm(state, state.ades);
-    }
-    let p = Promise.resolve();
-    if (state.in_fight) {
-        p = getPlayer(state, state.fighting)
-            .then((enemy) => {
-                if (!isHere(state, enemy.playerId)) {
-                    state.fighting = -1;
-                    state.in_fight = 0;
-                    return;
-                }
-                if (!enemy.exists) {
-                    state.fighting = -1;
-                    state.in_fight = 0;
-                    return;
-                }
-                if (state.in_fight) {
-                    if (state.interrupt) {
-                        state.in_fight = 0;
-                        return Promise.all([
-                            getPlayer(state, state.fighting),
-                            getItem(state, state.wpnheld),
-                        ])
-                            .then(([enemy, weapon]) => hitPlayer(state, actor, enemy, weapon));
-                    }
-                }
-            });
-    }
-    return p
-        .then(() => Promise.all([
-            checkRoll(r => r < 10),
-            getItem(state, 18),
-        ])
-        .then(([
-            xpRoll,
-            item,
-        ]) => {
-            if (xpRoll || isWornBy(state, item, actor)) {
-                updateStrength(state, 1);
-                calibrate(state, actor);
-            }
-            checkForce(state, actor);
-            if (state.me_drunk > 0) {
-                state.me_drunk -= 1;
-                if (!getDumb(state)) {
-                    executeCommand(state, 'hiccup', actor);
-                }
-            }
-            state.interrupt = false;
-        });
-};
-
-/*
-long me_drunk=0;
-
-FILE *openroom(n,mod)
-    {
-    long  blob[64];
-    FILE *x;
-    sprintf(blob,"%s%d",ROOMS,-n);
-    x=fopen(blob,mod);
-    return(x);
-    }
-
-long me_cal=0;
-*/
-
 const levelof = (state: State, score: number): number => {
     const realScore = score / 2; /* Scaling factor */
     const level = getLevel(state);
@@ -655,10 +547,10 @@ const levelof = (state: State, score: number): number => {
 };
 
 const getreinput = (state: State): string => {
-    let blob = '';
     while (getCurrentChar(state) === ' ') {
         nextStop(state);
     }
+    let blob = '';
     while (getCurrentChar(state)) {
         blob += getCurrentChar(state);
         nextStop(state);
@@ -1026,10 +918,6 @@ const rollcom = (state: State, actor: Player): Promise<void> => getAvailableItem
         }
     })
 
-/*
-long brmode=0;
-*/
-
 const debugcom = (state: State): Promise<void> => {
     if (!isGod(state)) {
         bprintf(state, 'I don\'t know that verb\n');
@@ -1063,7 +951,6 @@ const set_ms = (state: State): string => {
 }
 
 /*
-
 setmincom()
 {
 	extern char min_ms[];

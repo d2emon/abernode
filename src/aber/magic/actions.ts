@@ -31,9 +31,9 @@ import Events, {
     PLAYER_MESSAGE,
 } from "../tk/events";
 import {getLocationIdByZone} from "../zones";
+import {getChannel} from "../parse";
 
 const getreinput = (state: State): string => '';
-const openroom = (locationId: number, permissions: string): Promise<any> => Promise.resolve({});
 const fclose = (file: any): Promise<void> => Promise.resolve(undefined);
 
 export class Summon extends Action {
@@ -231,17 +231,17 @@ export class GoToLocation extends Action {
                 const locationId = getLocationIdByZone(state, zoneName, Number(roomId));
                 return Promise.all([
                     Promise.resolve(locationId),
-                    openroom(locationId, 'r'),
+                    getChannel(locationId),
                 ])
             })
             .then(([
                 locationId,
-                room,
+                channel,
             ]) => {
-                if ((locationId >= 0) || !room) {
+                if ((locationId >= 0) || !channel) {
                     throw new Error('Unknown Room')
                 }
-                return fclose(room).then(() => locationId);
+                return locationId;
             })
             .then((locationId) => Promise.all([
                 Events.sendSocialEvent(state, `[author] ${state.mout_ms}\n`, PLAYER_MESSAGE),

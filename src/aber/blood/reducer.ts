@@ -2,7 +2,7 @@ import State from '../state';
 import {
     Item,
     Player,
-    getItem,
+    getItem, getPlayer,
 } from '../support';
 
 export const getWeaponId = (state: State): number => state.wpnheld;
@@ -10,6 +10,7 @@ export const setWeapon = (state: State, weapon?: Item): void => {
     state.wpnheld = weapon ? weapon.itemId : undefined;
 };
 export const getWeapon = (state: State): Promise<Item> => getItem(state, state.wpnheld);
+export const getEnemy = (state: State): Promise<Player> => getPlayer(state, state.fighting);
 
 export const getFight = (state: State): number => state.in_fight;
 export const setFight = (state: State, enemy: Player): void => {

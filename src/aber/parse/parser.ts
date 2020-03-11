@@ -7,7 +7,7 @@ import getAction from './actionsList';
 import Action from "../action";
 import {getPlayer, Player} from "../support";
 
-export const executeCommand = (state: State, commandLine: string, actor: Player): Promise<void> => {
+export const executeCommand = (state: State, commandLine: string, actor: Player, isForced?: boolean): Promise<void> => {
     if (commandLine !== '!') {
         setStringBuffer(state, commandLine);
     }
@@ -27,5 +27,5 @@ export const executeCommand = (state: State, commandLine: string, actor: Player)
         .then(([
             action,
             actor,
-        ]) => action.perform(state, actor));
+        ]) => action.perform(state, actor, isForced));
 };

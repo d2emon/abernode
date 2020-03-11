@@ -20,6 +20,7 @@ import {getLocationId, getName, isHere} from "../tk/reducer";
 import {emitEvent} from "../tk/events";
 import {looseGame} from "../tk";
 import {calibrate} from "../parse";
+import {setCalibration, setZapped} from "../parse/reducer";
 
 interface Event {
     actor?: Player,
@@ -34,15 +35,13 @@ const receiveMagicDamage = (state: State, damage: number, message: string, actor
         return Promise.resolve();
     }
     updateStrength(state, -damage);
-    state.me_cal = 1;
+    setCalibration(state);
     if (getStrength(state) >= 0) {
         return Promise.resolve();
     }
     return saveWorld(state)
         .then(() => loadWorld(state))
-        .then(() => {
-            state.zapped = true;
-        })
+        .then(() => setZapped(state))
         .then(() => Promise.all([
             sendMessage(state, message),
             Events.sendMyMessage(state, `${getName(state)} has just died\n`),

@@ -20,6 +20,7 @@ import {
 } from "../bprintf";
 import {receiveWeather} from "../weather/events";
 import {removePerson} from "../newuaf";
+import {setIsDamagedBy, setSummoned, setZapped} from "./reducer";
 
 export interface EventData {
     actor: Player,
@@ -100,8 +101,8 @@ const receiveExorcise = (state: State, data: EventData, isMe: boolean): Promise<
             return sendBaseMessage(state, `${playerName(data.sender)} cast a lightning bolt at you\n`);
         }
         /* You are in the .... */
-        state.zapped = true;
         return Promise.all([
+            Promise.resolve(setZapped(state)),
             sendBaseMessage(state, 'A massive lightning bolt arcs down out of the sky to strike you between\nthe eyes\n'),
             sendWizards(state, `[ ${actorName(state)} has just been zapped by ${playerName(data.sender)} and terminated ]\n`),
         ])
@@ -149,21 +150,17 @@ const receivePrivate = (state: State, data: EventData): Promise<void> => {
     return sendMessage(state, data.payload);
 };
 const receiveSummon = (state: State, data: EventData): Promise<void> => {
-    state.ades = data.channelId;
     if (isWizard(state)) {
         return sendBaseMessage(state, `${playerName(data.sender)} tried to summon you`);
     }
-    return sendBaseMessage(state, `You drop everything you have as you are summoned by ${playerName(data.sender)}`)
-        .then(() => {
-            state.tdes = 1;
-        });
+    setSummoned(state, data.channelId);
+    return sendBaseMessage(state, `You drop everything you have as you are summoned by ${playerName(data.sender)}`);
 };
 const receiveDamageEvent = (state: State, data: EventData, isMe: boolean): Promise<void> => {
     if (!isHere(state, data.channelId)) {
         return Promise.resolve();
     }
-    state.rdes = 1;
-    state.vdes = data.sender.playerId;
+    setIsDamagedBy(state, data.sender.playerId);
     return receiveDamage(state, data.payload, isMe, data.actor);
 };
 const receiveEndFight = (state: State, data: EventData): Promise<void> => {
