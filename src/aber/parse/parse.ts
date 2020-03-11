@@ -1,5 +1,7 @@
 import State from "../state";
-import Events, {PLAYER_MESSAGE} from '../tk/events';
+import Events, {
+    PLAYER_MESSAGE,
+} from '../tk/events';
 import {
     createItem,
     getItem,
@@ -12,7 +14,11 @@ import {
     setItem,
     setPlayer
 } from "../support";
-import {CREDITS, GWIZ, logger, RESET_DATA, ROOMS} from "../files";
+import {
+    CREDITS,
+    logger,
+    ROOMS,
+} from "../files";
 import {
     isCarriedBy,
     findAvailableItem,
@@ -24,31 +30,39 @@ import {
     findPlayer,
     isContainedIn,
 } from "../objsys";
-import {hitPlayer} from "../blood";
 import {
     actorName,
-    createVisiblePlayerMessage, sendBaseMessage,
+    createVisiblePlayerMessage,
+    sendBaseMessage,
     sendTextMessage,
 } from "../bprintf";
 import {showMessages} from "../bprintf/output";
-import {checkRoll, roll} from "../magic";
-import {getAvailableItem, isWornBy, sendBotDamage} from "../new1";
-import {clearForce, getDumb, getForce} from "../new1/reducer";
+import {roll} from "../magic";
+import {
+    getAvailableItem,
+    isWornBy,
+    sendBotDamage,
+} from "../new1";
 import {sendWizards} from "../new1/events";
 import {savePerson} from "../newuaf";
 import {
     getLevel,
     getScore,
     getSex,
-    getStrength, isAdmin, isGod,
+    getStrength,
+    isAdmin,
+    isGod,
     isWizard,
-    updateStrength
 } from "../newuaf/reducer";
-import {loadWorld, saveWorld} from "../opensys";
+import {
+    loadWorld,
+    saveWorld,
+} from "../opensys";
 import {
     changeDebugMode,
     getCurrentChar,
-    nextStop, switchBriefMode,
+    nextStop,
+    switchBriefMode,
 } from "./reducer";
 import {executeCommand} from "./parser";
 import Action from "../action";

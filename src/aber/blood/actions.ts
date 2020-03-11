@@ -1,5 +1,6 @@
 import Action from '../action';
 import State from '../state';
+import Battle from './battle';
 import {
     getPlayer,
     Item,
@@ -12,7 +13,6 @@ import {
     findVisiblePlayer,
 } from '../objsys';
 import {
-    getWeapon,
     setWeapon,
 } from './reducer';
 import {

@@ -6,6 +6,7 @@ import {
 } from '../support';
 
 export const getWeaponId = (state: State): number => state.wpnheld;
+export const getEnemyId = (state: State): number => state.fighting;
 export const setWeapon = (state: State, weapon?: Item): void => {
     state.wpnheld = weapon ? weapon.itemId : undefined;
 };
