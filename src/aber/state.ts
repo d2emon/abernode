@@ -162,6 +162,7 @@ export default interface State {
     // weather
     hasfarted: boolean,
     //
+    ades: number,
     brmode: boolean,
     ex_dat: number[],
     exittxt: string[],

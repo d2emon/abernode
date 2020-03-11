@@ -25,10 +25,11 @@ import {looseGame} from "../tk";
 import {calibrate} from "../parse";
 
 interface Event {
-    sender: Player,
+    actor?: Player,
+    sender?: Player,
     receiver?: Player,
-    locationId?: number,
-    payload: any,
+    channelId?: number,
+    payload?: any,
 }
 
 const receiveMagicDamage = (state: State, damage: number, message: string, actor: Player): Promise<void> => {
@@ -72,29 +73,29 @@ const iAm = (state: State, name: string): boolean => {
     return (name2.substr(0, 4) === 'the ') && (name1.substr(4) === name2.substr(4));
 };
 
-const onlyMe = (state: State, isMe: boolean, sender: Player, payload: any, callback): Promise<void> => (
+const onlyMe = (state: State, isMe: boolean, data: Event, callback): Promise<void> => (
     isMe
         ? callback(state, {
-            sender,
+            sender: data.sender,
             receiver: null,
-            payload,
+            payload: data.payload,
             locationId: 0,
-        })
+        }, isMe)
         : Promise.resolve()
 );
-const notMe = (state: State, isMe: boolean, sender: Player, payload: any, callback): Promise<void> => (
+const notMe = (state: State, isMe: boolean, data: Event, callback): Promise<void> => (
     !isMe
         ? callback(state, {
-            sender,
+            sender: data.sender,
             receiver: null,
-            payload,
+            payload: data.payload,
             locationId: 0,
-        })
+        }, isMe)
         : Promise.resolve()
 );
-const notMy = (state: State, actor: Player, event: Event, isMe: boolean, callback): Promise<void> => (
-    !iAm(state, event.sender.name)
-        ? callback(state, event, isMe, actor)
+const notMy = (state: State, isMe: boolean, data: Event, callback): Promise<void> => (
+    !iAm(state, data.sender.name)
+        ? callback(state, data, isMe)
         : Promise.resolve()
 );
 
@@ -135,14 +136,14 @@ const receiveBlind = (state: State, event: Event) => {
         return sendMessage(state, `${sendName(event.sender.name)} tried to blind you\n`);
     }
 };
-const receiveMissile = (state: State, event: Event, isMe: boolean, actor: Player) => {
-    if (!isHere(state, event.locationId)) {
+const receiveMissile = (state: State, event: Event, isMe: boolean) => {
+    if (!isHere(state, event.channelId)) {
         return Promise.resolve();
     }
     return sendMessage(state, `Bolts of fire leap from the fingers of ${sendName(event.sender.name)}\n`)
         .then(() => {
             if (isMe) {
-                return receiveMagicDamage(state, Number(event.payload), 'You are struck!\n', actor);
+                return receiveMagicDamage(state, Number(event.payload), 'You are struck!\n', event.actor);
             } else {
                 return sendMessage(state, `${sendName(event.receiver.name)} is struck\n`);
             }
@@ -157,22 +158,22 @@ const receiveChange = (state: State, event: Event): Promise<void> => {
     ])
         .then(() => null);
 };
-const receiveFireball = (state: State, event: Event, isMe: boolean, actor: Player) => {
-    if (!isHere(state, event.locationId)) {
+const receiveFireball = (state: State, event: Event, isMe: boolean) => {
+    if (!isHere(state, event.channelId)) {
         return Promise.resolve();
     }
     return sendMessage(state, `${sendName(event.sender.name)} casts a fireball\n`)
         .then(() => {
             if (isMe) {
-                return receiveMagicDamage(state, Number(event.payload), 'You are struck!\n', actor);
+                return receiveMagicDamage(state, Number(event.payload), 'You are struck!\n', event.actor);
             } else {
                 return sendMessage(state, `${sendName(event.receiver.name)} is struck\n`);
             }
         });
 };
-const receiveShock = (state: State, event: Event, isMe: boolean, actor: Player) => {
+const receiveShock = (state: State, event: Event, isMe: boolean) => {
     if (isMe) {
-        return receiveMagicDamage(state, Number(event.payload), `${sendName(event.sender.name)} touches you giving you a sudden electric shock!\n`, actor);
+        return receiveMagicDamage(state, Number(event.payload), `${sendName(event.sender.name)} touches you giving you a sudden electric shock!\n`, event.actor);
     }
 };
 const receiveSocial = (state: State, event: Event) => sendMessage(state, `${event.payload}\n`);
@@ -283,76 +284,22 @@ export const sendDeaf = (state: State, target: Player): Promise<void> => emitEve
     payload: undefined,
 });
 
-export const newReceive = (state: State, actor: Player, isMe: boolean, receiver: Player, sender: Player, event: EventData): Promise<void> => {
-    const {
-        code,
-        channelId,
-        payload,
-    } = event;
-
+export const newReceive = (state: State, code: number, isMe: boolean) => {
     const actions = {
-        '-10100': () => onlyMe(state, isMe, sender, payload, receiveCure),
-        '-10101': () => onlyMe(state, isMe, sender, payload, receiveCripple),
-        '-10102': () => onlyMe(state, isMe, sender, payload, receiveDumb),
-        '-10103': () => onlyMe(state, isMe, sender, payload, receiveForce),
-        '-10104': () => notMy(
-            state,
-            actor,
-            {
-                sender,
-                payload,
-            },
-            isMe,
-            receiveShout,
-        ),
-        '-10105': () => onlyMe(state, isMe, sender, payload, receiveBlind),
-        '-10106': () => notMy(
-            state,
-            actor,
-            {
-                sender,
-                receiver,
-                locationId,
-                payload,
-            },
-            isMe,
-            receiveMissile,
-        ),
-        '-10107': () => onlyMe(state, isMe, sender, payload, receiveChange),
-        '-10109': () => notMy(
-            state,
-            actor,
-            {
-                sender,
-                receiver,
-                locationId,
-                payload,
-            },
-            isMe,
-            receiveFireball,
-        ),
-        '-10110': () => notMy(
-            state,
-            actor,
-            {
-                sender,
-                receiver,
-                locationId,
-                payload,
-            },
-            isMe,
-            receiveShock,
-        ),
-        '-10111': () => onlyMe(state, isMe, sender, payload, receiveSocial),
-        '-10113': () => receiveWizard(state, {
-            sender,
-            receiver,
-            locationId,
-            payload,
-        }),
-        '-10120': () => onlyMe(state, isMe, sender, payload, receiveDeaf),
+        '-10100': (data: Event) => onlyMe(state, isMe, data, receiveCure),
+        '-10101': (data: Event) => onlyMe(state, isMe, data, receiveCripple),
+        '-10102': (data: Event) => onlyMe(state, isMe, data, receiveDumb),
+        '-10103': (data: Event) => onlyMe(state, isMe, data, receiveForce),
+        '-10104': (data: Event) => notMy(state, isMe, data, receiveShout),
+        '-10105': (data: Event) => onlyMe(state, isMe, data, receiveBlind),
+        '-10106': (data: Event) => notMy(state, isMe, data, receiveMissile),
+        '-10107': (data: Event) => onlyMe(state, isMe, data, receiveChange),
+        '-10109': (data: Event) => notMy(state, isMe, data, receiveFireball),
+        '-10110': (data: Event) => notMy(state, isMe, data, receiveShock),
+        '-10111': (data: Event) => onlyMe(state, isMe, data, receiveSocial),
+        '-10113': (data: Event) => receiveWizard(state, data),
+        '-10120': (data: Event) => onlyMe(state, isMe, data, receiveDeaf),
     };
 
-    const action = actions[code] || (() => Promise.resolve());
-    return action();
+    return actions[code] || (() => Promise.resolve());
 };

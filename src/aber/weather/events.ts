@@ -2,7 +2,7 @@ import State from "../state";
 import {sendVisibleName} from "../bprintf";
 import {sendMessage} from "../bprintf/bprintf";
 import {adjustWeather} from "./index";
-import {sendMyMessage} from "../parse/events";
+import {EventData, sendMyMessage} from "../parse/events";
 import {getName} from "../tk/reducer";
 
 export const sendSocialEvent = (state: State, text: string): Promise<void> => sendMyMessage(
@@ -10,8 +10,8 @@ export const sendSocialEvent = (state: State, text: string): Promise<void> => se
     text.replace('%s', getName(state)),
 );
 
-export const receiveWeather = (state: State, weatherId: number): Promise<void> => {
-    weatherId = adjustWeather(state, weatherId);
+export const receiveWeather = (state: State, data:EventData): Promise<void> => {
+    const weatherId = adjustWeather(state, data.payload);
     if (weatherId === 0) {
         return sendMessage(state, sendVisibleName('The sun comes out of the clouds\n'));
     } else if (weatherId === 1) {
