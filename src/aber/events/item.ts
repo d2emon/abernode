@@ -7,6 +7,7 @@ import {
     getHelper, getItems, setItem,
 } from "../support";
 import {
+    OnBreakEvent,
     OnDropEvent,
     OnEnterEvent,
     OnGetEvent,
@@ -24,9 +25,11 @@ import {IS_DESTROYED} from "../object";
 import {sendMessage} from "../bprintf/bprintf";
 import {calibrate} from "../parse";
 import {sendBaseMessage} from "../bprintf";
+import {Reset} from "../parse/actions";
 
 const noItem = {
     onAfterGet: () => Promise.resolve(undefined),
+    onBreak: () => Promise.reject(new Error('What is that?')),
     onDrop: () => Promise.resolve(),
     onEat: () => Promise.resolve(),
     onEnter: () => Promise.resolve(undefined),
@@ -42,6 +45,7 @@ const defaultEvents = {
         return Promise.all(actions)
             .then(() => item);
     },
+    onBreak: () => Promise.reject(new Error('You can\'t do that')),
     onDrop: () => Promise.resolve(),
     onEat: (state: State, actor: Player, item: Item): Promise<void> => item.isFood
         ? setItem(state, item.itemId, { flags: { [IS_DESTROYED]: true }})
@@ -123,6 +127,10 @@ const shield = {
     },
 };
 
+const item171 = {
+    onBreak: (state: State) => Reset.sysReset(state),
+};
+
 const item175 = {
     onEat: (state: State, actor: Player, item: Item): Promise<void> => defaultEvents.onEat(state, actor, item)
         .then(() => {
@@ -148,6 +156,16 @@ export const onAfterGet = (item: Item): OnGetEvent => {
         return noItem.onAfterGet;
     } else {
         return defaultEvents.onAfterGet;
+    }
+};
+
+export const onBreak = (item: Item): OnBreakEvent => {
+    if (!item) {
+        return noItem.onBreak;
+    } else if (item.itemId === 171) {
+        return item171.onBreak;
+    } else {
+        return defaultEvents.onBreak;
     }
 };
 

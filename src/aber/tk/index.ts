@@ -24,7 +24,7 @@ import {
 } from "./reducer";
 import {endGame} from "../gamego/endGame";
 import Events from "./events";
-import {getItem, getPlayer, Player, setPlayer} from "../support";
+import {getItem, Player, setPlayer} from "../support";
 import {asyncUnsetAlarm} from "../gamego/reducer";
 import {dropMyItems, findPlayer, isDark, listPeople, showItems} from "../objsys";
 import {sendWizards} from "../new1/events";
@@ -38,11 +38,10 @@ import {getLocationName, loadExits} from "../zones";
 import {receiveEvent} from "../parse/events";
 import {sendBaseMessage} from "../bprintf";
 import {calibrate, getChannel} from "../parse";
-import {hitPlayer} from "../blood";
+import {doFight, hitPlayer, hitPlayerDefault} from "../blood";
 import {checkRoll} from "../magic";
 import {isWornBy} from "../new1";
 import {executeCommand} from "../parse/parser";
-import {getEnemy, getFight, getWeapon, resetFight} from "../blood/reducer";
 
 const fclose = (room: any): Promise<void> => Promise.resolve();
 const getstr = (room: any): Promise<string[]> => Promise.resolve([]);
@@ -87,27 +86,8 @@ const onEventsProcessed = (oldState: State, actor: Player, interrupt: boolean) =
         ? dosumm(state, getSummon(state))
             .then(() => state)
         : Promise.resolve(state);
-    const doHit = (state: State, enemy: Player) => getWeapon(state)
-        .then(weapon => hitPlayer(state, actor, enemy, weapon))
-        .then(() => resetFight(state));
-    const doFight = (state: State): Promise<State> => {
-        if (!getFight(state)) {
-            return Promise.resolve(state);
-        }
-        return getEnemy(state)
-            .then((enemy) => {
-                if (!enemy) {
-                    return resetFight(state);
-                } else if (!isHere(state, enemy.playerId)) {
-                    return resetFight(state);
-                } else if (!enemy.exists) {
-                    return resetFight(state);
-                } else {
-                    return interrupt && doHit(state, enemy);
-                }
-            })
-            .then(() => state);
-    };
+    const applyFight = (state: State): Promise<State> => doFight(state, actor, interrupt)
+        .then(() => state);
     const checkXp = (state: State): Promise<State> => Promise.all([
         checkRoll(r => r < 10),
         getItem(state, 18),
@@ -146,7 +126,7 @@ const onEventsProcessed = (oldState: State, actor: Player, interrupt: boolean) =
     return checkInvisibility(oldState)
         .then(doCalibrate)
         .then(doSummon)
-        .then(doFight)
+        .then(applyFight)
         .then(checkXp)
         .then(checkForce)
         .then(checkDrunk);

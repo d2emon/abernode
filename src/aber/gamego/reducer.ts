@@ -10,6 +10,7 @@ import {saveWorld} from "../opensys";
 import {getName} from "../tk/reducer";
 import {looseGame, processEvents} from "../tk";
 import {Player} from "../support";
+import Battle from "../blood/battle";
 
 const NO_ACTION = (): Promise<void> => Promise.resolve();
 
@@ -36,7 +37,7 @@ const onTimer = (state: State, actor: Player): Promise<void> => state.sig_active
 const onError = (state: State, actor: Player, { error }): Promise<void> => looseGame(state, actor, error);
 const onExit = (state: State, actor: Player): Promise<void> => {
     console.log('^C\n');
-    return state.in_fight
+    return Battle.isBattle(state)
         ? NO_ACTION()
         : looseGame(state, actor, 'Byeeeeeeeeee  ...........');
 };

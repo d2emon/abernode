@@ -18,4 +18,5 @@ export default {
         data.time = time;
         return resolve();
     }),
+    getTime: (): Promise<number> => Promise.resolve(data.time.getTime()),
 };

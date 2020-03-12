@@ -4,13 +4,14 @@ import {
     createAudibleMessage,
 } from "../bprintf";
 import {
+    getLevel,
     isGod,
-    isWizard,
+    isWizard, setLevel,
 } from "../newuaf/reducer";
 import {
     Player,
     getPlayers,
-    setPlayer, getItem, setItem,
+    setPlayer, getItem, setItem, scale,
 } from "../support";
 import {getPronoun} from "./reducer";
 import {
@@ -296,6 +297,21 @@ export class Look extends Examine {
 }
 
 export class Reset extends Action {
+    private static checkTime = (lastReset: number): void => {
+        const date = new Date();
+        const time = date.getTime();
+        if (time < lastReset + 3600) {
+            throw new Error('Sorry at least an hour must pass between resets')
+        }
+    };
+
+    private static checkSysReset = (state: State): Promise<number> => {
+        if (scale(state) !== 2) {
+            throw new Error('There are other people on.... So it wont work!');
+        }
+        return ResetData.getTime();
+    };
+
     check(state: State, actor: Player): Promise<void> {
         if (!isWizard(state)) {
             throw new Error('What ?');
@@ -307,14 +323,24 @@ export class Reset extends Action {
         .then(items => items.map((data, itemId) => setItem(state, itemId, data)))
         .then(() => null);
 
-    action(state: State, actor: Player, args: any): Promise<any> {
-        return Events.broadcast(state, 'Reset in progress....\n')
-            .then(() => Promise.all([
-                Reset.resetItems(state),
-                resetPlayers(state),
-            ]))
-            .then(() => ResetData.setTime(new Date()))
-            .then(() => Events.broadcast(state, 'Reset Completed....\n'));
+    private static resetAll = (state: State): Promise<void> => Promise.all([
+        Reset.resetItems(state),
+        resetPlayers(state),
+        ResetData.setTime(new Date())
+    ])
+        .then(() => null);
+
+    private static doReset = (state: State) => (): Promise<any> => Events
+        .broadcast(state, 'Reset in progress....\n')
+        .then(() => Reset.resetAll(state))
+        .then(() => Events.broadcast(state, 'Reset Completed....\n'));
+
+    static sysReset = (state: State): Promise<void> => Reset.checkSysReset(state)
+        .then(Reset.checkTime)
+        .then(Reset.doReset(state));
+
+    action(state: State): Promise<any> {
+        return Reset.doReset(state)();
     }
 }
 

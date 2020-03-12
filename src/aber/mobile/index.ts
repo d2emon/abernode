@@ -22,6 +22,7 @@ import {sendLocalMessage} from "../parse/events";
 import {getCanCalibrate, getLocationId, isHere, playerIsMe} from "../tk/reducer";
 import {looseGame} from "../tk";
 import {calibrate} from "../parse";
+import Battle from "../blood/battle";
 
 const moveBot = (state: State, player: Player): Promise<void> => Promise.resolve();
 
@@ -83,21 +84,20 @@ const doRune = (state: State, actor: Player, runeSword: Item): Promise<void> => 
         }))
         .then(player => findPlayer(state, player.name));
 
-    if (state.in_fight) {
-        return Promise.resolve();
-    }
-    return Promise.all([
-        getVictim(),
-        checkRoll(r => r < 9 * getLevel(state)),
-    ])
-        .then(([
-            victim,
-            success,
-        ]) => victim && success && Promise.all([
-            sendBaseMessage(state, 'The runesword twists in your hands lashing out savagely\n'),
-            hitPlayer(state, actor, victim, runeSword),
-        ]))
-        .then(() => {});
+    return Battle.isBattle(state)
+        ? Promise.resolve()
+        : Promise.all([
+            getVictim(),
+            checkRoll(r => r < 9 * getLevel(state)),
+        ])
+            .then(([
+                target,
+                success,
+            ]) => target && success && Promise.all([
+                sendBaseMessage(state, 'The runesword twists in your hands lashing out savagely\n'),
+                hitPlayer(state, actor, target, runeSword),
+            ]))
+            .then(() => {});
 };
 
 const checkHelp = (state: State, player: Player): Promise<void> => getPlayer(state, player.helping)
@@ -143,7 +143,8 @@ export const onLook = (state: State, actor: Player): Promise<void> => getItem(st
         return Promise.all([
             ...enemies.map(checkEnemy),
             getItem(state, 32)
-                .then(runeSword => isCarriedBy(runeSword, actor, !isWizard(state)) && doRune(state, actor, runeSword)),
+                .then(runeSword => isCarriedBy(runeSword, actor, !isWizard(state)) && doRune(state, actor, runeSword))
+                .catch(e => sendBaseMessage(state, `${e}\n`)),
             checkHelp(state, actor),
         ]);
     })

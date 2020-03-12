@@ -1,4 +1,5 @@
 import State from "../state";
+import Battle from "../blood/battle";
 import Action from "../action";
 import Events, {
     AUDIBLE_MESSAGE,
@@ -899,8 +900,7 @@ export class Missile extends Action {
         }
         /* Bonus ? */
         updateScore(state, victim.value);
-        state.in_fight = 0;
-        state.fighting = -1;
+        Battle.stopFight(state);
         /* MARK ALREADY DEAD */
         return setPlayer(state, victim.playerId, { isDead: true });
     }
@@ -953,8 +953,7 @@ export class Fireball extends Action {
         }
         /* Bonus ? */
         updateScore(state, victim.value);
-        state.in_fight = 0;
-        state.fighting = -1;
+        Battle.stopFight(state);
         /* MARK ALREADY DEAD */
         return setPlayer(state, victim.playerId, { isDead: true });
     }
@@ -999,8 +998,7 @@ export class Shock extends Action {
         }
         /* Bonus ? */
         updateScore(state, victim.value);
-        state.in_fight = 0;
-        state.fighting = -1;
+        Battle.stopFight(state);
         /* MARK ALREADY DEAD */
         return setPlayer(state, victim.playerId, { isDead: true });
     }

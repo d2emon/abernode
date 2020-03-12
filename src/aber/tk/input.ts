@@ -1,4 +1,5 @@
 import State from "../state";
+import Battle from "../blood/battle";
 import {
     Player,
     getPlayer,
@@ -22,7 +23,6 @@ import {
     showMessages,
 } from "../bprintf/output";
 import {executeCommand} from "../parse/parser";
-import {resetFight} from "../blood/reducer";
 import {sendKeyboardMessage} from "../bprintf";
 import {processAndSave} from "./index";
 import {executeSpecial} from "./actions";
@@ -82,19 +82,11 @@ const afterInput = (state: State, player: Player) => (input: string): Promise<bo
         }
         return Promise.resolve();
     };
-    const checkFightRound = () => Promise.resolve(state.fighting)
-        .then(enemyId => (enemyId > -1)
-            ? getPlayer(state, enemyId)
-            : undefined
-        )
-        .then((enemy) => {
-            if (enemy && (!enemy.exists || !isHere(state, enemy.locationId))) {
-                resetFight(state);
-            }
-            if (state.in_fight) {
-                state.in_fight -= 1;
-            }
-        });
+    const checkFightRound = () => Battle.getEnemy(state)
+        .then(enemy => ((enemy && (!enemy.exists || !isHere(state, enemy.locationId)))
+            ? Battle.stopFight(state)
+            : Battle.updateFight(state)
+        ));
 
     return sendKeyboardMessage(state, `${input}\n`)
         .then(process)

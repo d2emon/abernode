@@ -19,6 +19,7 @@ export const VISIBLE_MESSAGE = 'VISIBLE_MESSAGE';
 export const PLAYER_MESSAGE = 'PLAYER_MESSAGE';
 
 export interface Attack {
+    hit?: boolean,
     characterId: number,
     damage: number,
     weaponId?: number,

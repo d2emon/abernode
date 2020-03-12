@@ -1,4 +1,5 @@
 import State from '../state';
+import Battle from './battle';
 import {
     Item,
     Player,
@@ -6,31 +7,25 @@ import {
     setPlayer,
 } from '../support';
 import {isCarriedBy} from '../objsys';
-import {
-    getFight,
-    resetFight,
-    setFight,
-    setWeapon,
-} from './reducer';
 import {playerName, sendBaseMessage} from '../bprintf';
-import {sendMessage} from '../bprintf/bprintf';
-import {checkRoll, roll} from "../magic";
-import {isWornBy, sendBotDamage} from "../new1";
-import {getToHit, isWizard, updateScore} from "../newuaf/reducer";
-import Events, {Attack} from "../tk/events";
+import {sendBotDamage} from "../new1";
+import {
+    isWizard,
+    updateScore,
+} from "../newuaf/reducer";
+import Events, {
+    Attack,
+} from "../tk/events";
 import {calibrate} from "../parse";
+import {isHere} from "../tk/reducer";
+import {
+    DefaultWeapon,
+    useWeapon,
+} from "./weapon";
 
 const SCEPTRE_ID = 16;
 const RUNE_SWORD_ID = 32;
 
-export const damageByItem = (item?: Item): number => item ? item.damage : 4;
-
-const badWeapon = (state: State, weapon: Item): Promise<undefined> => sendBaseMessage(
-    state,
-    `You belatedly realise you dont have the ${weapon.name},\n`
-        + 'and are forced to use your hands instead..\n',
-)
-    .then(() => undefined);
 const swordVsSceptre = (state: State, victim: Player): Promise<void> => getItem(state, SCEPTRE_ID)
     .then((sceptre) => {
         if (isCarriedBy(sceptre, victim, !isWizard(state))) {
@@ -38,90 +33,48 @@ const swordVsSceptre = (state: State, victim: Player): Promise<void> => getItem(
         }
     });
 
-export const hitPlayer = (state: State, actor: Player, victim: Player, weapon?: Item): Promise<void> => {
-    if (!victim.exists) {
-        return;
-    }
-    /* Chance to hit stuff */
-    let p = Promise.resolve(weapon);
-    if (weapon && !isCarriedBy(weapon, actor, !isWizard(state))) {
-        p = badWeapon(state, weapon)
-    }
-    return p
-        .then((weapon) => {
-            setWeapon(state, weapon);
-            if (!weapon) {
-                return;
-            }
-            if (weapon.itemId === RUNE_SWORD_ID) {
-                return swordVsSceptre(state, victim);
-            }
-        })
-        .then(() => {
-            if (damageByItem(weapon) === undefined) {
-                setWeapon(state, undefined);
-                throw new Error('Thats no good as a weapon');
-            }
-            if (getFight(state)) {
-                throw new Error('You are already fighting!');
-            }
-            setFight(state, victim);
-            return Promise.all([
-                getItem(state, 89),
-                getItem(state, 113),
-                getItem(state, 114),
-            ])
-        })
-        .then((shields) => {
-            let toHit = getToHit(state);
-            if (shields.some(shield => isWornBy(state, shield, victim))) {
-                toHit -= 10;
-            }
-            if (toHit < 0) {
-                toHit = 0;
-            }
-            return Promise.all([
-                checkRoll(r => r < toHit),
-                roll(),
-            ]);
-        })
+export const hitPlayer = (state: State, actor: Player, target: Player, weapon?: Item): Promise<void> => {
+    const onHit = (attack: Attack): Promise<void> => target.isBot
+        ? sendBotDamage(state, actor, target, attack.damage || 0)
+        : Events.sendDamage(state, target, attack);
+    const hitTarget = (attack: Attack): Promise<void> => {
+        const killTarget = () => sendBaseMessage(state, 'Your last blow did the trick\n')
+            .then(() => (!target.isDead) && updateScore(state, target.value)) // Bonus
+            .then(() => Battle.stopFight(state))
+            .then(() => setPlayer(state, target.playerId, { isDead: true })); // MARK ALREADY DEAD
+
+        const weaponDescription = weapon ? `with the ${weapon.name}` : '';
+        return sendBaseMessage(state, `You hit ${playerName(target)} ${weaponDescription}\n`)
+            .then(() => (attack.damage > target.strength) && killTarget())
+            .then(() => calibrate(state, actor, attack.damage * 2))
+            .then(() => onHit(attack));
+    };
+    const missTarget = (attack: Attack): Promise<void> => sendBaseMessage(state, `You missed ${playerName(target)}\n`)
+        .then(() => onHit(attack));
+
+    return target.exists && Promise.all([
+        useWeapon(state, actor, weapon),
+        Battle.newFight(state, target),
+    ])
         .then(([
-            hit,
-            damageRoll,
-        ]) => ({
-            characterId: actor.playerId,
-            damage: hit ? (damageRoll % damageByItem(weapon)) : undefined,
-            weaponId: weapon ? weapon.itemId : undefined,
-        }))
-        .then((attack: Attack) => {
-            const promises = [];
-            if (attack.damage) {
-                const weaponDescription = weapon ? `with the ${weapon.name}` : '';
-                promises.push(sendBaseMessage(state, `You hit ${playerName(victim)} ${weaponDescription}\n`));
-                if (attack.damage > victim.strength) {
-                    // Killed
-                    promises.push(sendBaseMessage(state, 'Your last blow did the trick\n'));
-                    if (!victim.isDead) {
-                        /* Bonus ? */
-                        updateScore(state, victim.value);
-                    }
-                    resetFight(state);
-                    /* MARK ALREADY DEAD */
-                    promises.push(setPlayer(state, victim.playerId, { isDead: true }));
-                }
-                promises.push(calibrate(state, actor, attack.damage * 2));
-            } else {
-                promises.push(sendBaseMessage(state, `You missed ${playerName(victim)}\n`));
-            }
-            return Promise.all(promises)
-                .then(() => attack);
-        })
-        .then((attack) => {
-            if (!victim.isBot) {
-                return Events.sendDamage(state, victim, attack);
-            } else {
-                return sendBotDamage(state, actor, victim, attack.damage || 0);
-            }
-        })
-        .catch(e => sendMessage(state, `${e}\n`));
+            weapon,
+        ]) => weapon.attack(state, actor, target))
+        .then(attack => attack.hit
+            ? hitTarget(attack)
+            : missTarget(attack)
+        );
 };
+
+const hitPlayerDefault = (state: State, actor: Player, battle): Promise<void> => DefaultWeapon(state)
+    .then(weapon => hitPlayer(state, actor, battle.enemy, weapon.item))
+    .then(() => battle.stop());
+
+export const doFight = (state: State, actor: Player, interrupt: boolean): Promise<void> => Battle.getBattle(state)
+    .then((battle) => {
+        if (!battle) {
+            return battle.stop();
+        } else if (battle.fight() && interrupt) {
+            return hitPlayerDefault(state, actor, battle);
+        }
+    })
+    .catch(e => sendBaseMessage(state, `${e}\n`));

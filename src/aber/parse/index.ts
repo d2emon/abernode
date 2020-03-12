@@ -1,4 +1,5 @@
 import State from "../state";
+import Battle from "../blood/battle";
 import {getTitle, Player, setPlayer} from "../support";
 import {getCanCalibrate, getName} from "../tk/reducer";
 import {getLevel, getScore, getSex, getStrength, setLevel, setStrength, updateScore} from "../newuaf/reducer";
@@ -41,11 +42,22 @@ export const calibrate = (state: State, actor: Player, score?: number): Promise<
     /* Routine to correct me in user file */
     return getCanCalibrate(state)
         ? updateLevel(levelof(state, getScore(state)))
-            .then(() => setPlayer(state, actor.playerId, {
-                level: getLevel(state),
-                strength: getStrength(state),
-                sex: getSex(state),
-                weaponId: state.wpnheld,
+            .then(() => Promise.all([
+                getLevel(state),
+                getStrength(state),
+                getSex(state),
+                Battle.getWeaponId(state),
+            ])
+            .then(([
+                level,
+                strength,
+                sex,
+                weaponId,
+            ]) => setPlayer(state, actor.playerId, {
+                level,
+                strength,
+                sex,
+                weaponId,
             }))
             .then(() => calibrateStrength(30 + 10 * getLevel(state)))
         : Promise.resolve();

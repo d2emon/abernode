@@ -1,7 +1,9 @@
 import State from "./state";
-import {getPlayer, Player} from "./support";
+import {getPlayer, Item, Player} from "./support";
 import {addWordChar, applyPronouns, getCurrentChar, getWordBuffer, nextStop, resetWordBuffer} from "./parse/reducer";
 import {checkCrippled, checkIsForced} from "./new1/reducer";
+import {isHere, playerIsMe} from "./tk/reducer";
+import Battle from "./blood/battle";
 
 type Validator = (state: State, actor: Player, actionId: number) => Promise<boolean>;
 
@@ -25,16 +27,39 @@ class Action implements ActionInterface {
         this.actionId = actionId;
     }
 
+    // Validators
     static checkCrippled = (state: State): Promise<void> => checkCrippled(state)
         .then(() => null);
 
     static checkIsForced = (state: State, message?: string): Promise<void> => checkIsForced(state, message)
         .then(() => null);
 
-    static checkFight = (state: State, message: string): Promise<void> => (
-        (state.in_fight)
-            ? Promise.reject(new Error(message))
-            : Promise.resolve()
+    static checkFight = (state: State, message: string): Promise<void> => (Battle.isBattle(state)
+        ? Promise.reject(new Error(message))
+        : Promise.resolve()
+    );
+
+    static checkItem = (item: Item, message: string): Promise<Item> => (item
+        ? Promise.reject(new Error(message))
+        : Promise.resolve(item)
+    );
+
+    static checkPlayer = (player: Player, message: string): Promise<Player> => (player
+        ? Promise.reject(new Error(message))
+        : Promise.resolve(player)
+    );
+
+    static checkNotMe = (state: State, player: Player, message: string): Promise<Player> => (playerIsMe(
+            state,
+            player.playerId
+        )
+        ? Promise.reject(new Error(message))
+        : Promise.resolve(player)
+    );
+
+    static checkHere = (state: State, channelId: number, message: string): Promise<void> => (isHere(state, channelId)
+        ? Promise.resolve()
+        : Promise.reject(new Error(message))
     );
 
     static nextWord(state: State, message?: string): Promise<string> {

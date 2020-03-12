@@ -83,6 +83,7 @@ import {
 import {Event} from "../services/world";
 import {canCarry} from "../objsys/actions";
 import {calibrate} from "./index";
+import Battle from "../blood/battle";
 
 const debug2 = (state: State): Promise<void> => Promise.resolve(bprintf(state, 'No debugger available\n'));
 
@@ -434,11 +435,9 @@ const doaction = (state: State, actionId: number): Promise<void> => {
           bprintf("Your adventurers automatic monster detecting radar, and long range\n");
           bprintf("mapping kit, is, sadly, out of order.\n");break;
        */
-            174: (actor: Player) => new Promise((resolve) => {
-                if (!state.in_fight) {
-                    return dogocom(state);
-                }
-                return getItem(state, 32)
+            174: (actor: Player) => new Promise((resolve) => (!Battle.isBattle(state))
+                ? dogocom(state)
+                : getItem(state, 32)
                     .then((runeSword) => {
                         if (isCarriedBy(runeSword, actor, !isWizard(state))) {
                             bprintf(state, 'The sword won\'t let you!!!!\n');
@@ -453,7 +452,7 @@ const doaction = (state: State, actionId: number): Promise<void> => {
                         ])
                             .then(() => calibrate(state, actor, -(getScore(state) / 33))) /* loose 3% */
                             .then(() => {
-                                state.in_fight = 0;
+                                Battle.stopFight(state);
                                 return onFlee(state, actor);
                             })
                             .then(() => dogocom(state));

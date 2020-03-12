@@ -1,12 +1,12 @@
 import State from "../state";
 import Events from '../tk/events';
+import Battle from './battle';
 import {
     getItem,
     getPlayer, Player,
 } from '../support';
 import {logger} from '../files';
 import {actorName, playerName, sendBaseMessage} from '../bprintf';
-import {setFight} from './reducer';
 import {sendWizards} from "../new1/events";
 import {removePerson} from "../newuaf";
 import {getStrength, isWizard, updateScore, updateStrength} from "../newuaf/reducer";
@@ -77,7 +77,7 @@ export const receiveDamage = (state: State, attack: Attack, isMe: boolean, actor
             return;
         }
 
-        setFight(state, enemy);
+        Battle.startFight(state, enemy);
         return (damage === undefined)
             ? missed()
             : wounded();
