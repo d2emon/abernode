@@ -17,10 +17,13 @@ import {
     calibrate
 } from "../parse";
 import * as ItemEvents from "../events/item";
-import {setValidWeapon} from "./weapon";
+import {
+    Weapon as WeaponItem,
+    WeaponModel,
+} from "./weapon";
 
 interface WeaponArgs {
-    weapon?: Item,
+    weapon?: WeaponModel,
 }
 interface WeaponResult {
     weaponId?: number,
@@ -45,16 +48,22 @@ export class Weapon extends Action {
         return Action.nextWord(state, 'Which weapon do you wish to select though')
             .then(name => findCarriedItem(state, name, actor))
             .then(weapon => Action.checkItem(weapon, 'What\'s one of those?'))
+            .then(WeaponItem)
             .then(weapon => ({ weapon }));
     }
 
     action(state: State, actor: Player, args: WeaponArgs): Promise<WeaponResult> {
-        const weapon = setValidWeapon(state, args.weapon);
-        return calibrate(state, actor)
-            .then(() => ({ weaponId: weapon && weapon.itemId }));
+        const { weapon } = args;
+        if (!weapon.isWeapon) {
+            throw new Error('That\'s not a weapon')
+        }
+        return weapon.wield(state)
+            .catch(() => Promise.reject(new Error('That\'s not a weapon')))
+            .then(() => calibrate(state, actor))
+            .then(() => ({ weaponId: weapon.weaponId }));
     }
 
-    decorate(result: any): void {
+    decorate(result: WeaponResult): void {
         this.output('OK...\n');
     }
 }
@@ -82,7 +91,7 @@ export class Kill extends Action {
         Action.checkNotMe(state, target, 'Come on, it will look better tomorrow...'),
         Action.checkHere(state, target.locationId, 'They aren\'t here'),
     ])
-        .then(() => hitPlayer(state, actor, target, weapon))
+        .then(() => hitPlayer(state, Battle(state), actor, target, weapon))
         .then(() => ({
             playerId: target && target.playerId,
             weaponId: weapon && weapon.itemId,

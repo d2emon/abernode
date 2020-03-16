@@ -2,11 +2,10 @@ import State from "../state";
 import {getItem, Item, Player} from "../support";
 import {checkRoll, roll} from "../magic";
 import {Attack} from "../tk/events";
-import {sendBaseMessage} from "../bprintf";
-import {isCarriedBy} from "../objsys";
-import {getToHit, isWizard} from "../newuaf/reducer";
+import {getToHit} from "../newuaf/reducer";
 import {isWornBy} from "../new1";
-import Battle from "./battle";
+import * as BloodReducer from './reducer';
+import * as ItemEvents from "../events/item";
 
 const UNARMED_DAMAGE = 4;
 
@@ -16,13 +15,21 @@ export interface WeaponModel {
     isWeapon: boolean,
     unarmed: boolean,
     weaponId?: number,
-    wield: (state: State) => void,
+    wield: (state: State) => Promise<void>,
     attack: (state: State, actor: Player, target: Player) => Promise<Attack>,
 }
 
 const fromState = (state: State) => ({
-    getWeapon: (): Promise<Item> => Battle.getWeapon(state),
-    setWeapon: (item?: Item): void => Battle.setWeapon(state, item),
+    getWeapon: (): Promise<Item> => getItem(
+        state,
+        BloodReducer.getWeaponId(state)
+    ),
+    setWeapon: (item?: Item): void => BloodReducer.setWeaponId(
+        state,
+        item
+            ? item.itemId
+            : undefined
+    ),
 });
 
 const getArmorBonus = (state: State, player: Player): Promise<number> => Promise.all([
@@ -68,8 +75,12 @@ export const Weapon = (item?: Item): WeaponModel => {
         isWeapon,
         unarmed,
         weaponId,
-        wield: (state: State): void => fromState(state).setWeapon(item),
-        attack: (state: State, actor: Player, target: Player): Promise<Attack> => hitRoll(state, target)
+        wield: (state: State): Promise<void> => isWeapon
+            ? Promise.resolve(fromState(state).setWeapon(item))
+            : Promise.reject(new Error()),
+        attack: (state: State, actor: Player, target: Player): Promise<Attack> => ItemEvents
+            .onHit(item)(state, actor, target, item)
+            .then(() => hitRoll(state, target))
             .then(attack(actor)),
     };
 };
@@ -77,48 +88,3 @@ export const Weapon = (item?: Item): WeaponModel => {
 export const DefaultWeapon = (state: State) => fromState(state)
     .getWeapon()
     .then(item => Weapon(item));
-
-export const useWeapon = (state: State, actor: Player, item?: Item): Promise<WeaponModel> => {
-    const useGoodWeapon = (state: State): Promise<Item> => Promise.resolve(Weapon(item))
-        .then((weapon) => {
-            weapon.wield(state);
-            /*
-            if (weapon.itemId === RUNE_SWORD_ID) {
-                return swordVsSceptre(state, target)
-            }
-             */
-            return weapon.item;
-        });
-
-    return Promise.resolve(item)
-        .then((item) => {
-            if (!item) {
-                return;
-            } else if (!isCarriedBy(item, actor, !isWizard(state))) {
-                return Promise.reject(new Error(
-                    `You belatedly realise you dont have the ${item.name},\n`
-                        + 'and are forced to use your hands instead..',
-                ));
-            }
-            return useGoodWeapon(state);
-        })
-        .catch(message => sendBaseMessage(state, message))
-        .then(item => Weapon(item || undefined))
-        .then(weapon => weapon.isWeapon
-            ? weapon
-            : Promise.reject(new Error('That\'s no good as a weapon'))
-        )
-        .then((weapon) => {
-            weapon.wield(state);
-            return weapon;
-        });
-};
-
-export const setValidWeapon = (state: State, weapon?: Item): Item | undefined => {
-    const weaponModel = Weapon(weapon);
-    if (!weaponModel.isWeapon) {
-        throw new Error('That\'s not a weapon')
-    }
-    fromState(state).setWeapon(weapon);
-    return weapon;
-};

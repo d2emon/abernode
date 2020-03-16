@@ -37,7 +37,7 @@ const onTimer = (state: State, actor: Player): Promise<void> => state.sig_active
 const onError = (state: State, actor: Player, { error }): Promise<void> => looseGame(state, actor, error);
 const onExit = (state: State, actor: Player): Promise<void> => {
     console.log('^C\n');
-    return Battle.isBattle(state)
+    return Battle(state).inBattle
         ? NO_ACTION()
         : looseGame(state, actor, 'Byeeeeeeeeee  ...........');
 };

@@ -84,7 +84,8 @@ const doRune = (state: State, actor: Player, runeSword: Item): Promise<void> => 
         }))
         .then(player => findPlayer(state, player.name));
 
-    return Battle.isBattle(state)
+    const battle = Battle(state);
+    return battle.inBattle
         ? Promise.resolve()
         : Promise.all([
             getVictim(),
@@ -95,7 +96,7 @@ const doRune = (state: State, actor: Player, runeSword: Item): Promise<void> => 
                 success,
             ]) => target && success && Promise.all([
                 sendBaseMessage(state, 'The runesword twists in your hands lashing out savagely\n'),
-                hitPlayer(state, actor, target, runeSword),
+                hitPlayer(state, battle, actor, target, runeSword),
             ]))
             .then(() => {});
 };

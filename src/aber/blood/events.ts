@@ -77,7 +77,7 @@ export const receiveDamage = (state: State, attack: Attack, isMe: boolean, actor
             return;
         }
 
-        Battle.startFight(state, enemy);
+        Battle(state).start(enemy);
         return (damage === undefined)
             ? missed()
             : wounded();

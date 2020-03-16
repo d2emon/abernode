@@ -1,5 +1,5 @@
 import State from "../state";
-import Battle from "../blood/battle";
+import Battle, {BattleModel} from "../blood/battle";
 import {
     Player,
     getPlayer,
@@ -82,11 +82,7 @@ const afterInput = (state: State, player: Player) => (input: string): Promise<bo
         }
         return Promise.resolve();
     };
-    const checkFightRound = () => Battle.getEnemy(state)
-        .then(enemy => ((enemy && (!enemy.exists || !isHere(state, enemy.locationId)))
-            ? Battle.stopFight(state)
-            : Battle.updateFight(state)
-        ));
+    const checkFightRound = (): Promise<boolean> => Battle(state).fight();
 
     return sendKeyboardMessage(state, `${input}\n`)
         .then(process)

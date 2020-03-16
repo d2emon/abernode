@@ -3,7 +3,7 @@ import {getPlayer, Item, Player} from "./support";
 import {addWordChar, applyPronouns, getCurrentChar, getWordBuffer, nextStop, resetWordBuffer} from "./parse/reducer";
 import {checkCrippled, checkIsForced} from "./new1/reducer";
 import {isHere, playerIsMe} from "./tk/reducer";
-import Battle from "./blood/battle";
+import Battle, {BattleModel} from "./blood/battle";
 
 type Validator = (state: State, actor: Player, actionId: number) => Promise<boolean>;
 
@@ -34,10 +34,11 @@ class Action implements ActionInterface {
     static checkIsForced = (state: State, message?: string): Promise<void> => checkIsForced(state, message)
         .then(() => null);
 
-    static checkFight = (state: State, message: string): Promise<void> => (Battle.isBattle(state)
-        ? Promise.reject(new Error(message))
-        : Promise.resolve()
-    );
+    static checkFight = (state: State, message: string): Promise<BattleModel> => Promise.resolve(Battle(state))
+        .then(battle => battle.inBattle
+            ? Promise.reject(new Error(message))
+            : Promise.resolve(battle)
+        );
 
     static checkItem = (item: Item, message: string): Promise<Item> => (item
         ? Promise.reject(new Error(message))

@@ -69,6 +69,17 @@ import {looseGame, setLocationId} from "../tk";
 
 const getreinput = (state: State): string => '';
 
+const onKill = (state: State, target: Player): Promise<void> => {
+    if (target.isDead) {
+        return Promise.resolve();
+    }
+    /* Bonus ? */
+    updateScore(state, target.value);
+    Battle(state).stop();
+    /* MARK ALREADY DEAD */
+    return setPlayer(state, target.playerId, { isDead: true });
+};
+
 /* This one isnt for magic */
 
 const getTargetPlayer = (state: State): Promise<Player> => Action.nextWord(state)
@@ -894,17 +905,6 @@ export class Force extends Action {
 }
 
 export class Missile extends Action {
-    private static killVictim(state: State, victim: Player): Promise<void> {
-        if (victim.isDead) {
-            return Promise.resolve();
-        }
-        /* Bonus ? */
-        updateScore(state, victim.value);
-        Battle.stopFight(state);
-        /* MARK ALREADY DEAD */
-        return setPlayer(state, victim.playerId, { isDead: true });
-    }
-
     action(state: State, actor: Player): Promise<any> {
         return getTouchSpellTarget(state, actor)
             .then((player) => {
@@ -912,7 +912,7 @@ export class Missile extends Action {
                 const promises = [sendMissile(state, player, damage)];
                 const result = (player.strength < damage);
                 if (result) {
-                    promises.push(Missile.killVictim(state, player));
+                    promises.push(onKill(state, player));
                     promises.push(sendBotDamage(state, actor, player, damage));
                 }
                 return Promise.all(promises).then(() => result);
@@ -947,17 +947,6 @@ export class Change extends Action {
 }
 
 export class Fireball extends Action {
-    private static killVictim(state: State, victim: Player): Promise<void> {
-        if (victim.isDead) {
-            return Promise.resolve();
-        }
-        /* Bonus ? */
-        updateScore(state, victim.value);
-        Battle.stopFight(state);
-        /* MARK ALREADY DEAD */
-        return setPlayer(state, victim.playerId, { isDead: true });
-    }
-
     action(state: State, actor: Player): Promise<any> {
         return getTouchSpellTarget(state, actor)
             .then((player) => {
@@ -977,7 +966,7 @@ export class Fireball extends Action {
                 const promises = [sendFireball(state, player, damage)];
                 const result = (player.strength < damage);
                 if (result) {
-                    promises.push(Fireball.killVictim(state, player));
+                    promises.push(onKill(state, player));
                     promises.push(sendBotDamage(state, actor, player, damage));
                 }
                 return Promise.all(promises).then(() => result);
@@ -992,17 +981,6 @@ export class Fireball extends Action {
 }
 
 export class Shock extends Action {
-    private static killVictim(state: State, victim: Player): Promise<void> {
-        if (victim.isDead) {
-            return Promise.resolve();
-        }
-        /* Bonus ? */
-        updateScore(state, victim.value);
-        Battle.stopFight(state);
-        /* MARK ALREADY DEAD */
-        return setPlayer(state, victim.playerId, { isDead: true });
-    }
-
     action(state: State, actor: Player): Promise<any> {
         return getTouchSpellTarget(state, actor)
             .then((player) => {
@@ -1013,7 +991,7 @@ export class Shock extends Action {
                 const promises = [sendShock(state, player, damage)];
                 const result = (player.strength < damage);
                 if (result) {
-                    promises.push(Shock.killVictim(state, player));
+                    promises.push(onKill(state, player));
                     promises.push(sendBotDamage(state, actor, player, damage));
                 }
                 return Promise.all(promises).then(() => result);

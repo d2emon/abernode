@@ -1,12 +1,10 @@
 import State from '../state';
-import Battle from './battle';
+import Battle, {BattleModel} from './battle';
 import {
     Item,
     Player,
-    getItem,
     setPlayer,
 } from '../support';
-import {isCarriedBy} from '../objsys';
 import {playerName, sendBaseMessage} from '../bprintf';
 import {sendBotDamage} from "../new1";
 import {
@@ -17,64 +15,77 @@ import Events, {
     Attack,
 } from "../tk/events";
 import {calibrate} from "../parse";
-import {isHere} from "../tk/reducer";
 import {
     DefaultWeapon,
-    useWeapon,
+    Weapon,
+    WeaponModel,
 } from "./weapon";
+import {isCarriedBy} from "../objsys";
 
-const SCEPTRE_ID = 16;
-const RUNE_SWORD_ID = 32;
-
-const swordVsSceptre = (state: State, victim: Player): Promise<void> => getItem(state, SCEPTRE_ID)
-    .then((sceptre) => {
-        if (isCarriedBy(sceptre, victim, !isWizard(state))) {
-            throw new Error('The runesword flashes back away from its target, growling in anger!');
-        }
-    });
-
-export const hitPlayer = (state: State, actor: Player, target: Player, weapon?: Item): Promise<void> => {
-    const onHit = (attack: Attack): Promise<void> => target.isBot
-        ? sendBotDamage(state, actor, target, attack.damage || 0)
-        : Events.sendDamage(state, target, attack);
-    const hitTarget = (attack: Attack): Promise<void> => {
-        const killTarget = () => sendBaseMessage(state, 'Your last blow did the trick\n')
-            .then(() => (!target.isDead) && updateScore(state, target.value)) // Bonus
-            .then(() => Battle.stopFight(state))
-            .then(() => setPlayer(state, target.playerId, { isDead: true })); // MARK ALREADY DEAD
+export const hitPlayer = (state: State, battle: BattleModel, actor: Player, target: Player, weapon?: Item): Promise<void> => {
+    const onHit = (attack: Attack): Promise<Attack> => {
+        const killTarget = () => (attack.damage > target.strength)
+            && sendBaseMessage(state, 'Your last blow did the trick\n')
+                .then(() => (!target.isDead) && updateScore(state, target.value)) // Bonus
+                .then(() => battle.stop())
+                .then(() => setPlayer(state, target.playerId, { isDead: true })); // MARK ALREADY DEAD
+        const addScore = () => calibrate(state, actor, attack.damage * 2);
 
         const weaponDescription = weapon ? `with the ${weapon.name}` : '';
         return sendBaseMessage(state, `You hit ${playerName(target)} ${weaponDescription}\n`)
-            .then(() => (attack.damage > target.strength) && killTarget())
-            .then(() => calibrate(state, actor, attack.damage * 2))
-            .then(() => onHit(attack));
+            .then(killTarget)
+            .then(addScore)
+            .then(() => attack);
     };
-    const missTarget = (attack: Attack): Promise<void> => sendBaseMessage(state, `You missed ${playerName(target)}\n`)
-        .then(() => onHit(attack));
+    const onMiss = (attack: Attack): Promise<Attack> => sendBaseMessage(
+        state,
+        `You missed ${playerName(target)}\n`
+    )
+        .then(() => attack);
 
-    return target.exists && Promise.all([
-        useWeapon(state, actor, weapon),
-        Battle.newFight(state, target),
-    ])
-        .then(([
-            weapon,
-        ]) => weapon.attack(state, actor, target))
-        .then(attack => attack.hit
-            ? hitTarget(attack)
-            : missTarget(attack)
-        );
+    const checkFight = (model: BattleModel): Promise<BattleModel> => model.inBattle
+        ? Promise.reject(new Error('You are already fighting!'))
+        : Promise.resolve(model);
+    const getWeapon = (item: Item): Promise<WeaponModel> => (item && !isCarriedBy(item, actor, !isWizard(state)))
+        ? sendBaseMessage(
+            state,
+            `You belatedly realise you dont have the ${item.name},\n`
+                + 'and are forced to use your hands instead..',
+        )
+            .then(() => Weapon())
+        : Promise.resolve(Weapon(item));
+    const wieldWeapon = (weapon: WeaponModel) => weapon.wield(state)
+        .then(() => weapon);
+    const startFight = (model: BattleModel): Promise<void> => checkFight(model)
+        .then(model => model.start(target));
+    const getAttack = (): Promise<Attack> => getWeapon(weapon)
+        .then(wieldWeapon)
+        .then(weapon => weapon.attack(state, actor, target))
+        .catch(() => Promise.reject(new Error('That\'s no good as a weapon')));
+    const doHit = (attack: Attack): Promise<Attack> => attack.hit
+        ? onHit(attack)
+        : onMiss(attack);
+    const sendDamage = (attack: Attack): Promise<void> => target.isBot
+        ? sendBotDamage(state, actor, target, attack.damage || 0)
+        : Events.sendDamage(state, target, attack);
+
+    if (!target.exists) {
+        return;
+    }
+    return startFight(battle)
+        .then(getAttack)
+        .then(doHit)
+        .then(sendDamage);
 };
 
-const hitPlayerDefault = (state: State, actor: Player, battle): Promise<void> => DefaultWeapon(state)
-    .then(weapon => hitPlayer(state, actor, battle.enemy, weapon.item))
+export const doFight = (state: State, actor: Player, battle: BattleModel): Promise<void> => Promise.all([
+        battle.fight(),
+        battle.getEnemy(),
+        DefaultWeapon(state),
+    ])
+    .then(([
+        inFight,
+        enemy,
+        weapon,
+    ]) => inFight && hitPlayer(state, battle, actor, enemy, weapon.item))
     .then(() => battle.stop());
-
-export const doFight = (state: State, actor: Player, interrupt: boolean): Promise<void> => Battle.getBattle(state)
-    .then((battle) => {
-        if (!battle) {
-            return battle.stop();
-        } else if (battle.fight() && interrupt) {
-            return hitPlayerDefault(state, actor, battle);
-        }
-    })
-    .catch(e => sendBaseMessage(state, `${e}\n`));

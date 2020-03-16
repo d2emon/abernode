@@ -10,11 +10,11 @@ import {
     OnBreakEvent,
     OnDropEvent,
     OnEnterEvent,
-    OnGetEvent,
+    OnGetEvent, OnHitEvent,
 } from "./index";
 import {
+    isCarriedBy,
     isDark,
-    RUNE_SWORD_ID,
     SHIELD_BASE_ID,
     SHIELD_IDS,
 } from "../objsys";
@@ -27,6 +27,9 @@ import {calibrate} from "../parse";
 import {sendBaseMessage} from "../bprintf";
 import {Reset} from "../parse/actions";
 
+const SCEPTRE_ID = 16;
+const RUNE_SWORD_ID = 32;
+
 const noItem = {
     onAfterGet: () => Promise.resolve(undefined),
     onBreak: () => Promise.reject(new Error('What is that?')),
@@ -34,6 +37,7 @@ const noItem = {
     onEat: () => Promise.resolve(),
     onEnter: () => Promise.resolve(undefined),
     onGet: () => Promise.resolve(undefined),
+    onHit: () => Promise.resolve(undefined),
 };
 
 const defaultEvents = {
@@ -64,6 +68,7 @@ const defaultEvents = {
             .then(() => item);
     },
     // onEnter: () => () => Promise.resolve(0),
+    onHit: (state: State, actor: Player, target: Player, item: Item): Promise<Item> => Promise.resolve(item),
 };
 
 const door = {
@@ -105,6 +110,13 @@ const runeSword = {
         .then(helper => (item.state === 1)
             && !helper
             && Promise.reject(new Error('Its too well embedded to shift alone.')))
+        .then(() => item),
+    onHit: (state: State, actor: Player, target: Player, item: Item): Promise<Item> => getItem(state, SCEPTRE_ID)
+        .then((sceptre) => {
+            if (isCarriedBy(sceptre, target, !isWizard(state))) {
+                throw new Error('The runesword flashes back away from its target, growling in anger!');
+            }
+        })
         .then(() => item),
 };
 
@@ -210,5 +222,15 @@ export const onGet = (item: Item): OnGetEvent => {
         return shield.onGet;
     } else {
         return defaultEvents.onGet;
+    }
+};
+
+export const onHit = (item: Item): OnHitEvent => {
+    if (!item) {
+        return noItem.onHit;
+    } else if (item.itemId === RUNE_SWORD_ID) {
+        return runeSword.onHit;
+    } else {
+        return defaultEvents.onHit;
     }
 };

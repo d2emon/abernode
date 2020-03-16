@@ -1,5 +1,5 @@
 import State from "../state";
-import Battle from "../blood/battle";
+import Battle, {BattleModel} from "../blood/battle";
 import {Event} from '../services/world';
 import {getLocationId, getName, isHere} from "../tk/reducer";
 import Events, {PLAYER_MESSAGE} from '../tk/events';
@@ -164,17 +164,11 @@ const receiveDamageEvent = (state: State, data: EventData, isMe: boolean): Promi
     setIsDamagedBy(state, data.sender.playerId);
     return receiveDamage(state, data.payload, isMe, data.actor);
 };
-const receiveEndFight = (state: State, data: EventData): Promise<void> => Battle.getEnemy(state)
-    .then((enemy) => {
-        const { receiver } = data;
-        if (!enemy) {
-            return;
-        }
-        if (enemy.playerId !== receiver.playerId) {
-            return;
-        }
-        Battle.stopFight(state);
-    });
+const receiveEndFight = (state: State, data: EventData): Promise<void> => {
+    const { receiver } = data;
+    return Promise.resolve(Battle(state))
+        .then(battle => battle.removeEnemy(receiver));
+};
 
 export const receiveEvent = (state: State, actor: Player, event: Event): Promise<void> => {
     const isMe = event.receiver.toLowerCase() === getName(state).toLowerCase();

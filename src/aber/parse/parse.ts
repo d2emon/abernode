@@ -435,7 +435,7 @@ const doaction = (state: State, actionId: number): Promise<void> => {
           bprintf("Your adventurers automatic monster detecting radar, and long range\n");
           bprintf("mapping kit, is, sadly, out of order.\n");break;
        */
-            174: (actor: Player) => new Promise((resolve) => (!Battle.isBattle(state))
+            174: (actor: Player) => new Promise((resolve) => (!Battle(state).inBattle)
                 ? dogocom(state)
                 : getItem(state, 32)
                     .then((runeSword) => {
@@ -452,7 +452,7 @@ const doaction = (state: State, actionId: number): Promise<void> => {
                         ])
                             .then(() => calibrate(state, actor, -(getScore(state) / 33))) /* loose 3% */
                             .then(() => {
-                                Battle.stopFight(state);
+                                Battle(state).stop();
                                 return onFlee(state, actor);
                             })
                             .then(() => dogocom(state));

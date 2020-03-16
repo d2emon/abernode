@@ -18,7 +18,7 @@ import {
     disableCalibrate,
     getEventId, getGameMode, getLocationId,
     getName, getNeedUpdate,
-    isEventsUnprocessed, isHere, setChannelId,
+    isEventsUnprocessed, setChannelId,
     setEventId,
     setEventsProcessed, setUpdated,
 } from "./reducer";
@@ -38,10 +38,11 @@ import {getLocationName, loadExits} from "../zones";
 import {receiveEvent} from "../parse/events";
 import {sendBaseMessage} from "../bprintf";
 import {calibrate, getChannel} from "../parse";
-import {doFight, hitPlayer, hitPlayerDefault} from "../blood";
+import {doFight} from "../blood";
 import {checkRoll} from "../magic";
 import {isWornBy} from "../new1";
 import {executeCommand} from "../parse/parser";
+import Battle from "../blood/battle";
 
 const fclose = (room: any): Promise<void> => Promise.resolve();
 const getstr = (room: any): Promise<string[]> => Promise.resolve([]);
@@ -86,8 +87,11 @@ const onEventsProcessed = (oldState: State, actor: Player, interrupt: boolean) =
         ? dosumm(state, getSummon(state))
             .then(() => state)
         : Promise.resolve(state);
-    const applyFight = (state: State): Promise<State> => doFight(state, actor, interrupt)
-        .then(() => state);
+    const applyFight = (state: State): Promise<State> => interrupt
+        ? doFight(state, actor, Battle(state))
+            .catch(e => sendBaseMessage(state, `${e}\n`))
+            .then(() => state)
+        : Promise.resolve(state);
     const checkXp = (state: State): Promise<State> => Promise.all([
         checkRoll(r => r < 10),
         getItem(state, 18),
